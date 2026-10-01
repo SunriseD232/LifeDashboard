@@ -15,6 +15,14 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Сборы',
   description: 'Чек-листы сборов и напоминания на день',
+  // Манифест и значок для экрана «Домой»: на iPhone push-уведомления
+  // работают только у сайта, добавленного туда (см. src/lib/pushClient.ts).
+  manifest: '/task/manifest.webmanifest',
+  icons: {
+    icon: [{ url: '/task/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/task/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  appleWebApp: { capable: true, title: 'Сборы', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

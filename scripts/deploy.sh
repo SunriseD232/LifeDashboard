@@ -54,6 +54,13 @@ fi
 cd "$REL"
 echo "==> npm ci"
 npm ci --no-audit --no-fund
+
+# Ключи VAPID для push-уведомлений — один раз и навсегда: смена ключей
+# отвязала бы все уже подписанные телефоны. Создаём, только если их нет.
+if ! grep -q '^VAPID_PUBLIC_KEY=' "$ROOT/.env"; then
+  echo "==> создаю ключи VAPID"
+  node -e "const k=require('web-push').generateVAPIDKeys();process.stdout.write('VAPID_PUBLIC_KEY='+k.publicKey+'\nVAPID_PRIVATE_KEY='+k.privateKey+'\nVAPID_SUBJECT=https://media-watch.ru/task\n')" >> "$ROOT/.env"
+fi
 echo "==> next build"
 NEXT_TELEMETRY_DISABLED=1 npm run build
 

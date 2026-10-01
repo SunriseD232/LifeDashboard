@@ -6,6 +6,7 @@ import { addDays, appliesOn, dayTitle, hhmm, inMinutes, localDay, minutesOf, plu
 import { REPEAT_LABELS, type Reminder, type Repeat } from '@/lib/types';
 import type { AppData, Mutate } from './App';
 import Confirm from './Confirm';
+import PushPanel from './PushPanel';
 import { Icon } from './icons';
 
 interface Props {
@@ -38,7 +39,6 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(now));
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<Reminder | null>(null);
-  const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -52,12 +52,10 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const tomorrowList = data.reminders.filter((r) => appliesOn(r, tomorrow)).sort((a, b) => a.at_time.localeCompare(b.at_time));
   const listName = (id: string | null) => data.checklists.find((c) => c.id === id)?.title ?? null;
 
-  useEffect(() => {
-    setPerm(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
-  }, []);
-
-  // Уведомление в момент дела — пока вкладка открыта. Помним уже показанные
-  // за сутки, чтобы не повторять при каждом тике и перезагрузке.
+  // Подсказка в момент дела, пока вкладка открыта. Системное уведомление
+  // присылает сервер push'ем (PushPanel, src/lib/push.ts) — здесь только
+  // тост, чтобы не было двух одинаковых оповещений. Помним уже показанные за
+  // сутки, чтобы не повторять при каждом тике и перезагрузке.
   useEffect(() => {
     const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     let shown: string[] = [];
@@ -71,13 +69,6 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       if (done.has(r.id) || hhmm(r.at_time) !== hm || shown.includes(key)) continue;
       shown.push(key);
       toast(`Пора: ${r.title}`);
-      if (perm === 'granted') {
-        try {
-          new Notification('Сборы', { body: `${hm} — ${r.title}`, tag: key });
-        } catch {
-          /* мобильные браузеры без service worker не умеют — хватит тоста */
-        }
-      }
     }
     try {
       sessionStorage.setItem(NOTIFIED_KEY, JSON.stringify(shown.slice(-100)));
@@ -150,22 +141,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
           )}
         </div>
 
-        {perm === 'default' && (
-          <div className="panel" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <Icon name="bell" />
-            <span style={{ flex: '1 1 200px', fontSize: 14 }}>Показывать уведомление в момент дела, пока «Сборы» открыты во вкладке.</span>
-            <button
-              className="btn btn-ghost"
-              type="button"
-              onClick={async () => {
-                const p = await Notification.requestPermission();
-                setPerm(p);
-              }}
-            >
-              Включить уведомления
-            </button>
-          </div>
-        )}
+        <PushPanel toast={toast} />
 
         {todays.length === 0 ? (
           <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>

@@ -59,6 +59,27 @@ create table if not exists reminder_done (
   day text not null,
   primary key (reminder_id, day)
 );
+
+-- Push-подписки устройств (Web Push). tz — часовой пояс устройства (IANA):
+-- время напоминаний — местное, и сервер должен знать, когда у человека 18:00.
+create table if not exists push_subscriptions (
+  endpoint text primary key,
+  user_id text not null,
+  p256dh text not null,
+  auth text not null,
+  tz text not null default 'Europe/Moscow',
+  updated_at text not null default (datetime('now'))
+);
+create index if not exists push_subscriptions_user_idx on push_subscriptions (user_id);
+
+-- Что уже отправили: одно уведомление на напоминание в сутки, даже если
+-- рассылка проходит по нему несколько раз (перезапуск, окно в 10 минут).
+create table if not exists push_sent (
+  reminder_id text not null,
+  day text not null,
+  sent_at text not null default (datetime('now')),
+  primary key (reminder_id, day)
+);
 `;
 
 declare global {
