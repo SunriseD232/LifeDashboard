@@ -2,10 +2,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { currentUserId, login, logout } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { checklists } from '@/server/api/checklists';
+import { household } from '@/server/api/household';
 import { items } from '@/server/api/items';
 import { push } from '@/server/api/push';
 import { reminders } from '@/server/api/reminders';
+import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
+import { tasks } from '@/server/api/tasks';
+import { weather } from '@/server/api/weather';
 import { HttpError, text, type Ctx } from '@/server/http';
 
 /**
@@ -23,6 +27,10 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   items,
   reminders,
   push,
+  tasks,
+  household,
+  settings,
+  weather,
 };
 
 async function handle(req: NextRequest, path: string[]) {

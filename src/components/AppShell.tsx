@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
+import { bucket, type Task } from '@/lib/tasks';
 import type { Checklist, ChecklistItem, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
@@ -19,6 +20,12 @@ export interface AppData {
   done: string[];
   /** Отложенные сегодня. */
   snoozed: Snooze[];
+  /** Открытые дела и закрытые сегодня. */
+  tasks: Task[];
+  /** id дел, отмеченных сегодня (в том числе повторяющихся, переехавших дальше). */
+  tasksDoneToday: string[];
+  settings: { city: string | null; lat: number | null; lon: number | null; deadline_time: string };
+  household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
 }
@@ -48,11 +55,22 @@ export function useApp(): AppContext {
 
 type Status = 'loading' | 'guest' | 'ready' | 'error';
 
-const EMPTY: AppData = { checklists: [], items: [], reminders: [], done: [], snoozed: [] };
+const EMPTY: AppData = {
+  checklists: [],
+  items: [],
+  reminders: [],
+  done: [],
+  snoozed: [],
+  tasks: [],
+  tasksDoneToday: [],
+  settings: { city: null, lat: null, lon: null, deadline_time: '09:00' },
+  household: null,
+};
 
 /** Разделы. Новые добавляются сюда по мере готовности (план — README). */
 const SECTIONS = [
   { href: '/', label: 'Главная', icon: 'home' },
+  { href: '/tasks', label: 'Дела', icon: 'tasks' },
   { href: '/lists', label: 'Чек-листы', icon: 'list' },
   { href: '/reminders', label: 'Напоминания', icon: 'bell' },
 ] as const;
@@ -172,12 +190,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const leftToday = occurrencesOn(data.reminders, localDay(now), new Set(data.done)).filter((o) => !o.done).length;
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
-  const badge = (href: string) =>
-    href === '/reminders' && leftToday > 0 ? (
-      <span className="badge" aria-label={`${leftToday} на сегодня`}>
-        {leftToday}
+  const urgent = data.tasks.filter((t) => bucket(t, localDay(now)) === 'urgent').length;
+  const counts: Record<string, [number, string]> = {
+    '/reminders': [leftToday, 'на сегодня'],
+    '/tasks': [urgent, 'срочных'],
+  };
+  const badge = (href: string) => {
+    const [n, what] = counts[href] ?? [0, ''];
+    return n > 0 ? (
+      <span className="badge" aria-label={`${n} ${what}`}>
+        {n}
       </span>
     ) : null;
+  };
   const time = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
   return (
@@ -204,6 +229,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           <div className="side-foot">
             <span className="who">{data.login ?? ''}</span>
+            <Link className="icon-btn bare" href="/settings" aria-label="Настройки" title="Настройки" aria-current={isActive('/settings') ? 'page' : undefined}>
+              <Icon name="settings" />
+            </Link>
             <ThemeToggle />
             {data.login && (
               <button className="icon-btn bare" type="button" onClick={logout} aria-label={`Выйти (${data.login})`} title={`Выйти (${data.login})`}>
@@ -223,6 +251,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {time}
             </div>
           </div>
+          <Link className="icon-btn bare" href="/settings" aria-label="Настройки">
+            <Icon name="settings" />
+          </Link>
           <ThemeToggle />
           {data.login && (
             <button className="icon-btn bare" type="button" onClick={logout} aria-label={`Выйти (${data.login})`}>
