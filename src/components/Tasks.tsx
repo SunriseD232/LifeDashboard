@@ -9,6 +9,7 @@ import { bucket, dueLabel, firstDue, groupLater, nextDue, shortDate, sortUrgent,
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
+import { useModalFocus } from './useModalFocus';
 
 // ---------------------------------------------------------------- действия
 
@@ -285,6 +286,8 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  useModalFocus(formRef);
   const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])];
 
   useEffect(() => {
@@ -324,7 +327,7 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dlg" style={{ width: 'min(520px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
+      <form ref={formRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dlg" style={{ width: 'min(520px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <h2 id="task-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
           Дело
         </h2>

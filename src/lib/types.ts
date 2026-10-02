@@ -1,6 +1,6 @@
 import type { Rule } from './recur';
 
-export type IconName = 'bag' | 'wave' | 'house' | 'list';
+export type IconName = 'bag' | 'wave' | 'house' | 'list' | 'suitcase';
 
 export interface Checklist {
   id: string;

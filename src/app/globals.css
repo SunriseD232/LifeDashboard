@@ -509,6 +509,7 @@ a {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
+  min-height: 32px;
   gap: 4px;
   font-size: 13px;
   font-weight: 600;
@@ -876,9 +877,9 @@ textarea.field {
 .chip-x {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  margin-right: -4px;
+  width: 24px;
+  height: 24px;
+  margin: -2px -6px -2px 0;
   padding: 0;
   border: 0;
   border-radius: 99px;
@@ -1060,6 +1061,12 @@ textarea.field {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     align-items: start;
   }
+}
+
+.tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 /* поиск (Ctrl K) */

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { addDays, dayTitle, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
 import { dayLabel, describe, diffDays, dueDay, nextOccurrence, WEEKDAY_SHORT, weekday, type Rule } from '@/lib/recur';
+import { CHORE_TEMPLATES } from '@/lib/templates';
 import type { Reminder } from '@/lib/types';
 import type { AppData, Mutate } from './AppShell';
 import Confirm from './Confirm';
@@ -70,6 +71,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const [formKey, setFormKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<Reminder | null>(null);
+  const [chorePick, setChorePick] = useState<string[]>([]);
+  const [addingChores, setAddingChores] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -290,12 +293,63 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     );
 
   // ---------------------------------------------------------------- быт по кругу
+  // Готовые дела, которых ещё нет (по названию).
+  const have = new Set(data.reminders.map((r) => r.title.trim().toLowerCase()));
+  const choreOffers = CHORE_TEMPLATES.filter((c) => !have.has(c.title.toLowerCase()));
+  const addChores = async () => {
+    setAddingChores(true);
+    try {
+      for (const c of CHORE_TEMPLATES.filter((x) => chorePick.includes(x.id))) {
+        await api('reminders', 'POST', { title: c.title, times: [c.time], rule: c.rule(today), checklist_id: null });
+      }
+      setChorePick([]);
+      await reload();
+      toast('Добавлено');
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setAddingChores(false);
+    }
+  };
+  const choreTemplates = choreOffers.length > 0 && (
+    <details className="panel" style={{ padding: '12px 16px' }} open={chores.length === 0}>
+      <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 32 }}>Добавить из готовых · {choreOffers.length}</summary>
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+        {choreOffers.map((c) => (
+          <label key={c.id} className="check" style={{ padding: '6px 4px' }}>
+            <input
+              type="checkbox"
+              checked={chorePick.includes(c.id)}
+              onChange={(e) => setChorePick(e.target.checked ? [...chorePick, c.id] : chorePick.filter((x) => x !== c.id))}
+            />
+            <span className="check-text">
+              {c.title}
+              <span style={{ color: 'var(--muted)', fontSize: 13 }}>
+                {' '}
+                — {describe(c.rule(today))}, в {c.time}
+              </span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {choreOffers.some((c) => c.rule(today).kind === 'repeat') && (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+          Дела «каждый месяц» идут по календарю — они будут во вкладке «Все» и в «Сегодня» в свой день.
+        </p>
+      )}
+      <button className="btn btn-primary" type="button" style={{ marginTop: 8 }} disabled={!chorePick.length || addingChores} onClick={addChores}>
+        <Icon name="plus" size={18} />
+        {chorePick.length ? `Добавить выбранные (${chorePick.length})` : 'Отметьте, что добавить'}
+      </button>
+    </details>
+  );
   const choresView = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>
         Дела, которые повторяются от раза, когда вы их сделали: отметили «Сделано» — отсчёт пошёл заново. Не успели —
         дело висит в «Сегодня», пока не отметите.
       </p>
+      {choreTemplates}
       {chores.length === 0 && (
         <div className="panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
           <span style={{ color: 'var(--muted)' }}>Пока пусто. Например: стирка через 4 дня после прошлой, полить цветы через 3 дня.</span>

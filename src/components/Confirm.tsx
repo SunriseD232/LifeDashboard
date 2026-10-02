@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Icon } from './icons';
+import { useModalFocus } from './useModalFocus';
 
 /** Подтверждение необратимого действия. Esc и клик мимо — «Оставить». */
 export default function Confirm({
@@ -18,6 +19,8 @@ export default function Confirm({
   onCancel: () => void;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useModalFocus(boxRef);
 
   useEffect(() => {
     // Фокус на безопасной кнопке: случайный Enter ничего не удалит.
@@ -32,6 +35,7 @@ export default function Confirm({
   return (
     <div className="overlay" onClick={onCancel}>
       <div
+        ref={boxRef}
         className="dialog"
         role="alertdialog"
         aria-modal="true"
