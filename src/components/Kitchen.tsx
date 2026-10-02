@@ -9,6 +9,7 @@ import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed'
 import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import Empty from './Empty';
 import { MenuPlanner, PantryPhoto } from './KitchenAi';
 import { Fab, useIsPhone } from './Phone';
 
@@ -146,7 +147,7 @@ function Pantry() {
         </button>
       </form>
       {have.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто — отметьте, что лежит в холодильнике, или сфотографируйте чек.</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто. Напишите, что есть: «яйца», «молоко».</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {have.map((p) => (
@@ -214,23 +215,15 @@ function Recipes() {
 
   if (k.recipes.length === 0) {
     return (
-      <div className="panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
-        <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
-          Рецептов пока нет
-        </h2>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Начните с базовых домашних — омлет, сырники, борщ, паста, плов и другие ({SEED_RECIPES.length}). Их можно править и удалять.
-        </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" type="button" onClick={seed} disabled={seeding}>
-            <Icon name="plus" size={18} />
-            {seeding ? 'Добавляем…' : 'Добавить базовые рецепты'}
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={() => router.push('/kitchen/new')}>
-            Свой рецепт
-          </button>
-        </div>
-      </div>
+      <Empty
+        icon="pot"
+        title="Рецептов пока нет"
+        action={seeding ? 'Добавляем…' : `Добавить ${SEED_RECIPES.length} домашних: омлет, борщ, плов…`}
+        onAction={seed}
+        busy={seeding}
+        secondary="Свой рецепт"
+        onSecondary={() => router.push('/kitchen/new')}
+      />
     );
   }
 

@@ -1955,3 +1955,64 @@ mark {
     height: auto;
   }
 }
+
+/* настройки: одна колонка коротких групп */
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 680px;
+}
+.settings-col .panel {
+  border: 0;
+  padding: 0 !important;
+  background: none;
+}
+/* «+ Добавить вещь»: тихая строка, по нажатию — поле */
+.add-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.add-line:hover {
+  color: var(--accent-ink);
+}
+
+/* пустой экран: значок, фраза, одна кнопка */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+}
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--soft);
+  color: var(--accent-ink);
+}
+.empty-title {
+  margin: 0;
+  max-width: 320px;
+  font-size: 17px;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.tabs-row {
+  scrollbar-width: none;
+}
+.tabs-row::-webkit-scrollbar {
+  display: none;
+}

@@ -13,6 +13,7 @@ import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import RuleEditor from './RuleEditor';
 import { Icon } from './icons';
+import Empty from './Empty';
 import { Fab, Sheet, useIsPhone } from './Phone';
 
 interface Props {
@@ -268,9 +269,12 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   // ---------------------------------------------------------------- сегодня
   const todayView =
     todays.length === 0 ? (
-      <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>
-        На сегодня дел нет. Добавьте первое напоминание — например, «Собрать сумку в бассейн» на вечер.
-      </div>
+      <Empty
+        icon="bell"
+        title={data.reminders.length ? 'На сегодня ничего' : 'Напомню вовремя — хоть раз, хоть по вторникам'}
+        action={data.reminders.length ? 'Новое напоминание' : 'Добавить: «Таблетки в 9:00»'}
+        onAction={() => openForm(data.reminders.length ? emptyDraft(now) : { ...emptyDraft(now, { kind: 'repeat', unit: 'day', every: 1, start: today }), title: 'Таблетки', times: ['09:00'] })}
+      />
     ) : (
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {todays.map((o) => {
@@ -470,9 +474,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     .sort((a, b) => (a.next ?? '9999').localeCompare(b.next ?? '9999') || a.r.times[0].localeCompare(b.r.times[0]));
   const allView =
     all.length === 0 ? (
-      <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>
-        Напоминаний пока нет.
-      </div>
+      <Empty icon="bell" title="Напоминаний пока нет" action="Добавить первое напоминание" onAction={() => openForm(emptyDraft(now))} />
     ) : (
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {all.map(({ r, next: nx }) => (

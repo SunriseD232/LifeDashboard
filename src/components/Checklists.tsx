@@ -6,6 +6,7 @@ import { plural } from '@/lib/dates';
 import type { Checklist, ChecklistItem, IconName } from '@/lib/types';
 import { useApp, type AppData, type Mutate } from './AppShell';
 import Confirm from './Confirm';
+import Empty from './Empty';
 import { Icon, LIST_ICONS } from './icons';
 import TemplatePicker from './TemplatePicker';
 
@@ -109,25 +110,13 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
 
   if (lists.length === 0) {
     return (
-      <section className="panel" style={{ maxWidth: 560, margin: '24px auto', padding: 28, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 className="display" style={{ margin: 0, fontSize: 30 }}>
-          Чек-листов пока нет
-        </h1>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Начните с готового — бассейн, работа, путешествие, командировка, переезд, поход — и поправьте под себя. Или создайте свой.
-        </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" type="button" onClick={() => setPicking(true)}>
-            <Icon name="plus" size={18} />
-            Выбрать шаблон
-          </button>
-          {!creating && (
-            <button className="btn btn-ghost" type="button" onClick={() => setCreating(true)}>
-              Свой чек-лист
-            </button>
-          )}
-        </div>
-        {creating && newListForm}
+      <section style={{ maxWidth: 560, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h1 className="h1 display">Чек-листы</h1>
+        {creating ? (
+          newListForm
+        ) : (
+          <Empty icon="list" title="Что взять в бассейн или в поездку — списком" action="Взять готовый: бассейн, поездка…" onAction={() => setPicking(true)} secondary="Свой чек-лист с нуля" onSecondary={() => setCreating(true)} />
+        )}
         {picker}
       </section>
     );
@@ -251,8 +240,6 @@ function ChecklistDetail({
   const { data } = useApp();
   const groups = groupItems(items);
   const done = items.filter((i) => i.done).length;
-  const [newItem, setNewItem] = useState('');
-  const [newItemGroup, setNewItemGroup] = useState<string>(groups[groups.length - 1]?.name ?? '');
   const [confirm, setConfirm] = useState<null | { kind: 'list' } | { kind: 'group'; name: string | null }>(null);
   const [newGroup, setNewGroup] = useState<{ name: string; item: string } | null>(null);
 
@@ -527,6 +514,7 @@ function ChecklistDetail({
                   {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 13, color: 'var(--muted)' }}>{it.note}</em>}
                 </label>
               ))}
+              <AddInline quiet label="Добавить вещь" onAdd={(t) => addItem(t, g.name)} />
             </section>
           ),
         )}
@@ -574,50 +562,7 @@ function ChecklistDetail({
           </button>
         )
       ) : (
-        <form
-          style={{ display: 'flex', gap: 8, borderTop: '1px solid var(--line)', paddingTop: 20, flexWrap: 'wrap' }}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const t = newItem.trim();
-            if (!t) return;
-            addItem(t, newItemGroup || null);
-            setNewItem('');
-          }}
-        >
-          <label className="sr-only" htmlFor="add-item">
-            Новая вещь
-          </label>
-          <input
-            id="add-item"
-            className="field"
-            style={{ flex: '1 1 220px' }}
-            maxLength={120}
-            placeholder="Добавить вещь"
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-          />
-          {groups.some((g) => g.name) && (
-            <>
-              <label className="sr-only" htmlFor="add-item-group">
-                Группа
-              </label>
-              <select id="add-item-group" className="field" style={{ flex: '0 1 180px' }} value={newItemGroup} onChange={(e) => setNewItemGroup(e.target.value)}>
-                {groups
-                  .filter((g) => g.name)
-                  .map((g) => (
-                    <option key={g.name!} value={g.name!}>
-                      {g.name}
-                    </option>
-                  ))}
-                <option value="">Без группы</option>
-              </select>
-            </>
-          )}
-          <button className="btn btn-primary" type="submit" disabled={!newItem.trim()}>
-            <Icon name="plus" size={18} />
-            Добавить
-          </button>
-        </form>
+        groups.length === 0 && <AddInline quiet label="Добавить вещь" onAdd={(t) => addItem(t, null)} />
       )}
 
       {confirm?.kind === 'list' && (
@@ -659,12 +604,12 @@ function ChecklistDetail({
 }
 
 /** «+ Пункт» в режиме правки: кнопка превращается в поле по нажатию. */
-function AddInline({ label, onAdd }: { label: string; onAdd: (title: string) => void }) {
+function AddInline({ label, onAdd, quiet = false }: { label: string; onAdd: (title: string) => void; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   if (!open) {
     return (
-      <button className="btn btn-ghost btn-dashed" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
+      <button className={quiet ? 'add-line' : 'btn btn-ghost btn-dashed'} type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setOpen(true)}>
         <Icon name="plus" size={18} />
         {label}
       </button>
@@ -694,6 +639,7 @@ function AddInline({ label, onAdd }: { label: string; onAdd: (title: string) => 
         onKeyDown={(e) => {
           if (e.key === 'Escape') setOpen(false);
         }}
+        onBlur={() => !value.trim() && setOpen(false)}
       />
       <button className="icon-btn" type="submit" aria-label="Добавить" disabled={!value.trim()}>
         <Icon name="plus" size={18} />
