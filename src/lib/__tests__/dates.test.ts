@@ -1,23 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appliesOn, localDay, plural } from '../dates';
-import type { Reminder } from '../types';
-
-const r = (over: Partial<Reminder>): Reminder => ({
-  id: 'r', title: 't', at_time: '09:00', repeat: 'once', on_date: null, checklist_id: null, ...over,
-});
-
-describe('appliesOn', () => {
-  const fri = new Date(2026, 9, 2);
-  const sat = new Date(2026, 9, 3);
-  it('по будням — пятница да, суббота нет', () => {
-    expect(appliesOn(r({ repeat: 'weekdays' }), fri)).toBe(true);
-    expect(appliesOn(r({ repeat: 'weekdays' }), sat)).toBe(false);
-  });
-  it('разовое — только в свой день', () => {
-    expect(appliesOn(r({ on_date: localDay(fri) }), fri)).toBe(true);
-    expect(appliesOn(r({ on_date: localDay(fri) }), sat)).toBe(false);
-  });
-});
+import { inMinutes, plural } from '../dates';
 
 describe('plural', () => {
   it('склоняет', () => {
@@ -25,5 +7,13 @@ describe('plural', () => {
     expect(plural(3, 'вещь', 'вещи', 'вещей')).toBe('3 вещи');
     expect(plural(12, 'вещь', 'вещи', 'вещей')).toBe('12 вещей');
     expect(plural(21, 'вещь', 'вещи', 'вещей')).toBe('21 вещь');
+  });
+});
+
+describe('inMinutes', () => {
+  it('пишет по-человечески', () => {
+    expect(inMinutes(0)).toBe('сейчас');
+    expect(inMinutes(25)).toBe('через 25 мин');
+    expect(inMinutes(130)).toBe('через 2 ч 10 мин');
   });
 });

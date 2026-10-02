@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { api } from '@/lib/api';
-import { appliesOn, hhmm, localDay } from '@/lib/dates';
+import { localDay } from '@/lib/dates';
+import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
+import type { Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 
@@ -26,13 +28,18 @@ export default function Home() {
 
   const hour = now.getHours();
   const greeting = hour < 5 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
-  const todays = data.reminders.filter((r) => appliesOn(r, now)).sort((a, b) => a.at_time.localeCompare(b.at_time));
-  const done = new Set(data.done);
+  const today = localDay(now);
+  const todays = occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed);
 
-  const toggle = (id: string, value: boolean) => {
+  const toggle = (r: Reminder, slot: string, value: boolean) => {
+    const key = occurrenceKey(r.id, slot);
     mutate(
-      (d) => ({ ...d, done: value ? [...d.done, id] : d.done.filter((x) => x !== id) }),
-      () => api(`reminders/${id}/done`, 'PUT', { day: localDay(now), done: value }),
+      (d) => ({
+        ...d,
+        done: value ? [...d.done, key] : d.done.filter((x) => x !== key),
+        reminders: r.rule.kind === 'after' && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
+      }),
+      () => api(`reminders/${r.id}/done`, 'PUT', { day: today, slot, done: value }),
     );
   };
 
@@ -61,13 +68,13 @@ export default function Home() {
             <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня дел нет.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {todays.map((r) => (
-                <label key={r.id} className={`check${done.has(r.id) ? ' done' : ''}`}>
-                  <input type="checkbox" checked={done.has(r.id)} onChange={(e) => toggle(r.id, e.target.checked)} />
+              {todays.map((o) => (
+                <label key={o.key} className={`check${o.done ? ' done' : ''}`}>
+                  <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
                   <span className="mono" style={{ fontWeight: 500, width: 48, flex: 'none' }}>
-                    {hhmm(r.at_time)}
+                    {o.snoozedTo ?? o.slot}
                   </span>
-                  <span className="check-text">{r.title}</span>
+                  <span className="check-text">{o.reminder.title}</span>
                 </label>
               ))}
             </div>

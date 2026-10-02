@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { appliesOn, dayTitle, localDay } from '@/lib/dates';
-import type { Checklist, ChecklistItem, Reminder } from '@/lib/types';
+import { dayTitle, localDay } from '@/lib/dates';
+import { occurrencesOn } from '@/lib/occurrences';
+import type { Checklist, ChecklistItem, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
 import ThemeToggle from './ThemeToggle';
@@ -14,8 +15,10 @@ export interface AppData {
   checklists: Checklist[];
   items: ChecklistItem[];
   reminders: Reminder[];
-  /** id напоминаний, отмеченных сделанными СЕГОДНЯ. */
+  /** Отметки «сделано» СЕГОДНЯ — ключи `${id}@${время}` (src/lib/occurrences.ts). */
   done: string[];
+  /** Отложенные сегодня. */
+  snoozed: Snooze[];
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
 }
@@ -45,7 +48,7 @@ export function useApp(): AppContext {
 
 type Status = 'loading' | 'guest' | 'ready' | 'error';
 
-const EMPTY: AppData = { checklists: [], items: [], reminders: [], done: [] };
+const EMPTY: AppData = { checklists: [], items: [], reminders: [], done: [], snoozed: [] };
 
 /** Разделы. Новые добавляются сюда по мере готовности (план — README). */
 const SECTIONS = [
@@ -167,7 +170,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const leftToday = data.reminders.filter((r) => appliesOn(r, now) && !data.done.includes(r.id)).length;
+  const leftToday = occurrencesOn(data.reminders, localDay(now), new Set(data.done)).filter((o) => !o.done).length;
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const badge = (href: string) =>
     href === '/reminders' && leftToday > 0 ? (

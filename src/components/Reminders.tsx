@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { addDays, appliesOn, dayTitle, hhmm, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
-import { REPEAT_LABELS, type Reminder, type Repeat } from '@/lib/types';
+import { addDays, dayTitle, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
+import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
+import { dayLabel, describe, diffDays, dueDay, nextOccurrence, WEEKDAY_SHORT, weekday, type Rule } from '@/lib/recur';
+import type { Reminder } from '@/lib/types';
 import type { AppData, Mutate } from './AppShell';
 import Confirm from './Confirm';
 import PushPanel from './PushPanel';
+import RuleEditor from './RuleEditor';
 import { Icon } from './icons';
 
 interface Props {
@@ -18,25 +21,52 @@ interface Props {
   toast: (m: string) => void;
 }
 
+type View = 'today' | 'chores' | 'all';
+
 interface Draft {
   id: string | null;
   title: string;
-  at_time: string;
-  repeat: Repeat;
-  on_date: string;
+  times: string[];
+  rule: Rule;
   checklist_id: string;
 }
 
 const NOTIFIED_KEY = 'lifedashboard:notified';
+const SNOOZES = [15, 60, 180];
 
-function emptyDraft(now: Date): Draft {
+function emptyDraft(now: Date, rule?: Rule): Draft {
   // По умолчанию — ближайший целый час, чтобы не листать часы с нуля.
   const h = Math.min(23, now.getHours() + 1);
-  return { id: null, title: '', at_time: `${String(h).padStart(2, '0')}:00`, repeat: 'once', on_date: localDay(now), checklist_id: '' };
+  return {
+    id: null,
+    title: '',
+    times: [`${String(h).padStart(2, '0')}:00`],
+    rule: rule ?? { kind: 'once', date: localDay(now) },
+    checklist_id: '',
+  };
 }
 
+const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** «сегодня», «завтра», «пт, 9 октября». */
+function whenLabel(day: string, today: string): string {
+  const n = diffDays(today, day);
+  if (n === 0) return 'сегодня';
+  if (n === 1) return 'завтра';
+  return `${WEEKDAY_SHORT[weekday(day)]}, ${dayLabel(day)}`;
+}
+
+/**
+ * Напоминания: «Сегодня» — дела дня по времени (у дела может быть несколько
+ * времён, отметка у каждого своя), «Быт по кругу» — повторы «после
+ * выполнения» с отсчётом до следующего раза, «Все» — полный список с
+ * правилами. Справа (на телефоне — ниже) форма с редактором повтора.
+ */
 export default function Reminders({ data, mutate, reload, now, onOpenChecklist, toast }: Props) {
+  const [view, setView] = useState<View>('today');
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(now));
+  const [formKey, setFormKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<Reminder | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -44,31 +74,32 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
 
   const today = localDay(now);
   const nowMin = now.getHours() * 60 + now.getMinutes();
-  const todays = data.reminders.filter((r) => appliesOn(r, now)).sort((a, b) => a.at_time.localeCompare(b.at_time));
-  const done = new Set(data.done);
-  const doneCount = todays.filter((r) => done.has(r.id)).length;
-  const next = todays.find((r) => !done.has(r.id) && minutesOf(r.at_time) >= nowMin);
+  const doneSet = new Set(data.done);
+  const todays = occurrencesOn(data.reminders, today, doneSet, data.snoozed);
+  const doneCount = todays.filter((o) => o.done).length;
+  const timeOf = (o: Occurrence) => o.snoozedTo ?? o.slot;
+  const next = todays.find((o) => !o.done && minutesOf(timeOf(o)) >= nowMin);
   const tomorrow = addDays(now, 1);
-  const tomorrowList = data.reminders.filter((r) => appliesOn(r, tomorrow)).sort((a, b) => a.at_time.localeCompare(b.at_time));
+  const tomorrowList = occurrencesOn(data.reminders, localDay(tomorrow));
+  const chores = data.reminders.filter((r) => r.rule.kind === 'after');
   const listName = (id: string | null) => data.checklists.find((c) => c.id === id)?.title ?? null;
 
   // Подсказка в момент дела, пока вкладка открыта. Системное уведомление
   // присылает сервер push'ем (PushPanel, src/lib/push.ts) — здесь только
-  // тост, чтобы не было двух одинаковых оповещений. Помним уже показанные за
-  // сутки, чтобы не повторять при каждом тике и перезагрузке.
+  // тост. Помним уже показанные, чтобы не повторять при каждом тике.
   useEffect(() => {
-    const hm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const cur = hm(nowMin);
     let shown: string[] = [];
     try {
       shown = JSON.parse(sessionStorage.getItem(NOTIFIED_KEY) || '[]');
     } catch {
       shown = [];
     }
-    for (const r of todays) {
-      const key = `${today}:${r.id}`;
-      if (done.has(r.id) || hhmm(r.at_time) !== hm || shown.includes(key)) continue;
+    for (const o of todays) {
+      const key = `${today}:${o.key}:${timeOf(o)}`;
+      if (o.done || timeOf(o) !== cur || shown.includes(key)) continue;
       shown.push(key);
-      toast(`Пора: ${r.title}`);
+      toast(`Пора: ${o.reminder.title}`);
     }
     try {
       sessionStorage.setItem(NOTIFIED_KEY, JSON.stringify(shown.slice(-100)));
@@ -78,42 +109,66 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
-  const toggleDone = (r: Reminder, value: boolean) =>
+  const setDone = (r: Reminder, slot: string, value: boolean) => {
+    const key = occurrenceKey(r.id, slot);
+    const after = r.rule.kind === 'after';
     mutate(
-      (d) => ({ ...d, done: value ? [...d.done, r.id] : d.done.filter((x) => x !== r.id) }),
-      () => api(`reminders/${r.id}/done`, 'PUT', { day: today, done: value }),
+      (d) => ({
+        ...d,
+        done: value ? [...d.done.filter((x) => x !== key), key] : d.done.filter((x) => x !== key),
+        snoozed: value ? d.snoozed.filter((s) => !(s.reminder_id === r.id && s.slot === slot)) : d.snoozed,
+        reminders: after && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
+      }),
+      async () => {
+        await api(`reminders/${r.id}/done`, 'PUT', { day: today, slot, done: value });
+        // Сняли отметку у «после выполнения» — прошлую дату знает сервер.
+        if (after && !value) await reload();
+      },
     );
+  };
 
-  const startEdit = (r: Reminder) => {
-    setDraft({
-      id: r.id,
-      title: r.title,
-      at_time: hhmm(r.at_time),
-      repeat: r.repeat,
-      on_date: r.on_date ?? today,
-      checklist_id: r.checklist_id ?? '',
-    });
+  const snooze = (o: Occurrence, minutes: number | null) => {
+    const at = minutes === null ? null : nowMin + minutes;
+    if (at !== null && at >= 24 * 60) {
+      toast('Сегодня уже не успеть — отложить можно только в пределах дня.');
+      return;
+    }
+    const atText = at === null ? null : hm(at);
+    mutate(
+      (d) => ({
+        ...d,
+        snoozed: [
+          ...d.snoozed.filter((s) => !(s.reminder_id === o.reminder.id && s.slot === o.slot)),
+          ...(atText ? [{ reminder_id: o.reminder.id, slot: o.slot, at: atText }] : []),
+        ],
+      }),
+      () => api(`reminders/${o.reminder.id}/snooze`, 'POST', { day: today, slot: o.slot, at: atText }),
+    );
+    if (atText) toast(`Напомним в ${atText}`);
+  };
+
+  const openForm = (d: Draft) => {
+    setDraft(d);
+    setFormKey((k) => k + 1);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => titleRef.current?.focus(), 250);
   };
 
+  const startEdit = (r: Reminder) =>
+    openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '' });
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!draft.title.trim() || !draft.at_time) return;
+    if (!draft.title.trim() || draft.times.length === 0 || draft.times.some((t) => !t)) return;
     setSaving(true);
-    const body = {
-      title: draft.title.trim(),
-      at_time: draft.at_time,
-      repeat: draft.repeat,
-      on_date: draft.repeat === 'once' ? draft.on_date : null,
-      checklist_id: draft.checklist_id || null,
-    };
+    const body = { title: draft.title.trim(), times: draft.times, rule: draft.rule, checklist_id: draft.checklist_id || null };
     try {
       if (draft.id) await api(`reminders/${draft.id}`, 'PATCH', body);
       else await api('reminders', 'POST', body);
       await reload();
-      setDraft(emptyDraft(now));
       toast(draft.id ? 'Напоминание сохранено' : 'Напоминание добавлено');
+      setDraft(emptyDraft(now));
+      setFormKey((k) => k + 1);
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -121,13 +176,225 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     }
   };
 
+  const actions = (r: Reminder) => (
+    <>
+      <button className="icon-btn bare" type="button" aria-label={`Изменить «${r.title}»`} onClick={() => startEdit(r)}>
+        <Icon name="edit" size={18} />
+      </button>
+      <button className="icon-btn bare" type="button" aria-label={`Удалить «${r.title}»`} onClick={() => setConfirm(r)}>
+        <Icon name="trash" size={18} />
+      </button>
+    </>
+  );
+
+  const checklistChip = (r: Reminder) => {
+    const name = listName(r.checklist_id);
+    return name && r.checklist_id ? (
+      <button className="chip" type="button" onClick={() => onOpenChecklist(r.checklist_id!)}>
+        <Icon name="list" size={14} />
+        Чек-лист «{name}»
+      </button>
+    ) : null;
+  };
+
+  // ---------------------------------------------------------------- сегодня
+  const todayView =
+    todays.length === 0 ? (
+      <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>
+        На сегодня дел нет. Добавьте первое напоминание — например, «Собрать сумку в бассейн» на вечер.
+      </div>
+    ) : (
+      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {todays.map((o) => {
+          const r = o.reminder;
+          const isNext = next?.key === o.key;
+          const t = timeOf(o);
+          const past = !o.done && minutesOf(t) < nowMin;
+          const overdue = r.rule.kind === 'after' && !o.done && today > dueDay(r.rule, r.last_done);
+          return (
+            <li key={o.key} className={`rem-row${isNext ? ' next' : ''}`}>
+              <span className="mono" style={{ width: 52, flex: 'none', paddingTop: 1, color: isNext ? 'var(--warm)' : 'var(--muted)' }}>
+                {t}
+              </span>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label className={`check${o.done ? ' done' : ''}`} style={{ padding: 0, minHeight: 0, alignItems: 'flex-start', gap: 10 }}>
+                  <input type="checkbox" checked={o.done} onChange={(e) => setDone(r, o.slot, e.target.checked)} />
+                  <span className="check-text" style={o.done ? undefined : { fontWeight: 600 }}>
+                    {r.title}
+                  </span>
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', paddingLeft: 32 }}>
+                  <span style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                    <Icon name="repeat" size={14} />
+                    {describe(r.rule)}
+                  </span>
+                  {checklistChip(r)}
+                  {o.snoozedTo && !o.done && (
+                    <span className="chip" style={{ cursor: 'default' }}>
+                      отложено с {o.slot}
+                      <button className="icon-btn bare" type="button" style={{ width: 24, height: 24 }} aria-label="Не откладывать" onClick={() => snooze(o, null)}>
+                        <Icon name="x" size={14} />
+                      </button>
+                    </span>
+                  )}
+                  {isNext && (
+                    <span className="badge" style={{ background: 'var(--surface)' }}>
+                      {inMinutes(minutesOf(t) - nowMin)}
+                    </span>
+                  )}
+                  {overdue && <span style={{ fontSize: 13, color: 'var(--danger)' }}>давно пора</span>}
+                  {past && !overdue && <span style={{ fontSize: 13, color: 'var(--warm)' }}>время прошло</span>}
+                </div>
+              </div>
+              <div className="rem-actions">
+                {!o.done && (
+                  <details className="menu">
+                    <summary className="icon-btn bare" aria-label={`Отложить «${r.title}»`} title="Отложить">
+                      <Icon name="clock" size={18} />
+                    </summary>
+                    <div className="menu-list" role="group" aria-label="Отложить на">
+                      {SNOOZES.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={(e) => {
+                            (e.currentTarget.closest('details') as HTMLDetailsElement).open = false;
+                            snooze(o, m);
+                          }}
+                        >
+                          {m < 60 ? `на ${m} мин` : `на ${m / 60} ч`}
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                {actions(r)}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    );
+
+  // ---------------------------------------------------------------- быт по кругу
+  const choresView = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>
+        Дела, которые повторяются от раза, когда вы их сделали: отметили «Сделано» — отсчёт пошёл заново. Не успели —
+        дело висит в «Сегодня», пока не отметите.
+      </p>
+      {chores.length === 0 && (
+        <div className="panel" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
+          <span style={{ color: 'var(--muted)' }}>Пока пусто. Например: стирка через 4 дня после прошлой, полить цветы через 3 дня.</span>
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => openForm({ ...emptyDraft(now, { kind: 'after', unit: 'day', every: 4, start: today }), title: 'Стирка', times: ['20:00'] })}
+          >
+            <Icon name="plus" size={18} />
+            Стирка через 4 дня
+          </button>
+        </div>
+      )}
+      {chores.map((r) => {
+        if (r.rule.kind !== 'after') return null;
+        const slot = r.times[0];
+        const doneToday = doneSet.has(occurrenceKey(r.id, slot));
+        const due = dueDay(r.rule, r.last_done);
+        const left = diffDays(today, due);
+        const period = r.last_done ? Math.max(1, diffDays(r.last_done, due)) : 1;
+        const elapsed = r.last_done ? diffDays(r.last_done, today) : period;
+        const pct = doneToday ? 0 : Math.min(100, Math.round((elapsed / period) * 100));
+        const status = doneToday
+          ? { text: 'сделано сегодня', color: 'var(--accent-ink)' }
+          : left < 0
+            ? { text: `просрочено на ${plural(-left, 'день', 'дня', 'дней')}`, color: 'var(--danger)' }
+            : left === 0
+              ? { text: `сегодня, ${slot}`, color: 'var(--warm)' }
+              : left === 1
+                ? { text: `завтра, ${slot}`, color: 'var(--muted)' }
+                : { text: `через ${plural(left, 'день', 'дня', 'дней')}`, color: 'var(--muted)' };
+        return (
+          <div key={r.id} className="rem-row" style={{ alignItems: 'center' }}>
+            <span className="list-icon">
+              <Icon name="repeat" size={20} />
+            </span>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'baseline' }}>
+                <span style={{ fontWeight: 600 }}>{r.title}</span>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{describe(r.rule)}</span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                {r.last_done ? `Прошлый раз — ${whenLabel(r.last_done, today)}` : 'Ещё не отмечали'} ·{' '}
+                <span style={{ color: status.color, fontWeight: 600 }}>{status.text}</span>
+              </div>
+              <div className={`bar${left <= 0 && !doneToday ? ' warm' : ''}`} style={{ height: 6 }} aria-hidden="true">
+                <i style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+            <div className="rem-actions">
+              <button className="btn btn-ghost" type="button" onClick={() => setDone(r, slot, !doneToday)}>
+                <Icon name={doneToday ? 'reset' : 'check'} size={16} />
+                {doneToday ? 'Отменить' : 'Сделано'}
+              </button>
+              {actions(r)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ---------------------------------------------------------------- все
+  const all = data.reminders
+    .map((r) => ({ r, next: nextOccurrence(r.rule, today, r.last_done) }))
+    .sort((a, b) => (a.next ?? '9999').localeCompare(b.next ?? '9999') || a.r.times[0].localeCompare(b.r.times[0]));
+  const allView =
+    all.length === 0 ? (
+      <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>
+        Напоминаний пока нет.
+      </div>
+    ) : (
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {all.map(({ r, next: nx }) => (
+          <li key={r.id} className="rem-row" style={{ alignItems: 'center' }}>
+            <span className="mono" style={{ width: 52, flex: 'none', color: 'var(--muted)', lineHeight: 1.4 }}>
+              {r.times.map((t) => (
+                <span key={t} style={{ display: 'block' }}>
+                  {t}
+                </span>
+              ))}
+            </span>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{r.title}</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 13, color: 'var(--muted)' }}>
+                <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                  <Icon name="repeat" size={14} />
+                  {cap(describe(r.rule))}
+                </span>
+                <span>· {nx ? `следующий раз ${whenLabel(nx, today)}` : 'больше не повторится'}</span>
+                {checklistChip(r)}
+              </div>
+            </div>
+            <div className="rem-actions">{actions(r)}</div>
+          </li>
+        ))}
+      </ul>
+    );
+
+  const views: { id: View; label: string; count?: number }[] = [
+    { id: 'today', label: 'Сегодня', count: todays.length - doneCount },
+    { id: 'chores', label: 'Быт по кругу', count: chores.filter((r) => r.rule.kind === 'after' && today >= dueDay(r.rule, r.last_done) && !doneSet.has(occurrenceKey(r.id, r.times[0]))).length },
+    { id: 'all', label: 'Все' },
+  ];
+
   return (
     <div className="rem-layout">
       <section style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 220px' }}>
             <h1 className="display" style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.1 }}>
-              Сегодня
+              Напоминания
             </h1>
             <p style={{ margin: '6px 0 0', color: 'var(--muted)' }}>
               {dayTitle(now)}
@@ -141,63 +408,17 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
           )}
         </div>
 
-        <PushPanel toast={toast} />
+        <div className="tabs-row" role="group" aria-label="Что показать">
+          {views.map((v) => (
+            <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}>
+              {v.label}
+              {!!v.count && <span className="badge">{v.count}</span>}
+            </button>
+          ))}
+        </div>
 
-        {todays.length === 0 ? (
-          <div className="panel" style={{ padding: 24, color: 'var(--muted)' }}>
-            На сегодня дел нет. Добавьте первое напоминание — например, «Собрать сумку в бассейн» на вечер.
-          </div>
-        ) : (
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {todays.map((r) => {
-              const isDone = done.has(r.id);
-              const isNext = next?.id === r.id;
-              const past = !isDone && minutesOf(r.at_time) < nowMin;
-              const list = listName(r.checklist_id);
-              return (
-                <li key={r.id} className={`rem-row${isNext ? ' next' : ''}`}>
-                  <span className="mono" style={{ width: 52, flex: 'none', paddingTop: 1, color: isNext ? 'var(--warm)' : 'var(--muted)' }}>
-                    {hhmm(r.at_time)}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label className={`check${isDone ? ' done' : ''}`} style={{ padding: 0, minHeight: 0, alignItems: 'flex-start', gap: 10 }}>
-                      <input type="checkbox" checked={isDone} onChange={(e) => toggleDone(r, e.target.checked)} />
-                      <span className="check-text" style={isDone ? undefined : { fontWeight: 600 }}>
-                        {r.title}
-                      </span>
-                    </label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', paddingLeft: 32 }}>
-                      <span style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-                        <Icon name="repeat" size={14} />
-                        {REPEAT_LABELS[r.repeat]}
-                      </span>
-                      {list && r.checklist_id && (
-                        <button className="chip" type="button" onClick={() => onOpenChecklist(r.checklist_id!)}>
-                          <Icon name="list" size={14} />
-                          Чек-лист «{list}»
-                        </button>
-                      )}
-                      {isNext && (
-                        <span className="badge" style={{ background: 'var(--surface)' }}>
-                          {inMinutes(minutesOf(r.at_time) - nowMin)}
-                        </span>
-                      )}
-                      {past && <span style={{ fontSize: 13, color: 'var(--warm)' }}>время прошло</span>}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 2 }}>
-                    <button className="icon-btn bare" type="button" aria-label={`Изменить «${r.title}»`} onClick={() => startEdit(r)}>
-                      <Icon name="edit" size={18} />
-                    </button>
-                    <button className="icon-btn bare" type="button" aria-label={`Удалить «${r.title}»`} onClick={() => setConfirm(r)}>
-                      <Icon name="trash" size={18} />
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
+        {view === 'today' && <PushPanel toast={toast} />}
+        {view === 'today' ? todayView : view === 'chores' ? choresView : allView}
       </section>
 
       <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -219,54 +440,34 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(0, 1fr)', gap: 10 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label className="label" htmlFor="r-time">
-                Время
-              </label>
-              <input id="r-time" className="field mono" type="time" required value={draft.at_time} onChange={(e) => setDraft({ ...draft, at_time: e.target.value })} />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label className="label" htmlFor="r-list">
-                Чек-лист
-              </label>
-              <select id="r-list" className="field" value={draft.checklist_id} onChange={(e) => setDraft({ ...draft, checklist_id: e.target.value })}>
-                <option value="">Без чек-листа</option>
-                {data.checklists.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <legend className="label" style={{ padding: 0, marginBottom: 6 }}>
-              Повторять
-            </legend>
-            <div className="seg">
-              {(['once', 'daily', 'weekdays'] as Repeat[]).map((rep) => (
-                <button key={rep} type="button" aria-pressed={draft.repeat === rep} onClick={() => setDraft({ ...draft, repeat: rep })}>
-                  {rep === 'once' ? 'Один раз' : rep === 'daily' ? 'Каждый день' : 'По будням'}
-                </button>
+          <RuleEditor key={formKey} rule={draft.rule} times={draft.times} today={today} onChange={(rule, times) => setDraft({ ...draft, rule, times })} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label className="label" htmlFor="r-list">
+              Чек-лист
+            </label>
+            <select id="r-list" className="field" value={draft.checklist_id} onChange={(e) => setDraft({ ...draft, checklist_id: e.target.value })}>
+              <option value="">Без чек-листа</option>
+              {data.checklists.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
               ))}
-            </div>
-          </fieldset>
-          {draft.repeat === 'once' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label className="label" htmlFor="r-date">
-                День
-              </label>
-              <input id="r-date" className="field" type="date" min={today} value={draft.on_date} onChange={(e) => setDraft({ ...draft, on_date: e.target.value })} />
-            </div>
-          )}
+            </select>
+          </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" type="submit" disabled={saving || !draft.title.trim()} style={{ flex: 1 }}>
               <Icon name={draft.id ? 'check' : 'plus'} size={18} />
               {saving ? 'Сохраняем…' : draft.id ? 'Сохранить' : 'Добавить'}
             </button>
             {draft.id && (
-              <button className="btn btn-ghost" type="button" onClick={() => setDraft(emptyDraft(now))}>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() => {
+                  setDraft(emptyDraft(now));
+                  setFormKey((k) => k + 1);
+                }}
+              >
                 Отмена
               </button>
             )}
@@ -280,12 +481,12 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
           {tomorrowList.length === 0 ? (
             <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока ничего.</p>
           ) : (
-            tomorrowList.map((r) => (
-              <div key={r.id} style={{ display: 'flex', gap: 12, color: 'var(--muted)' }}>
+            tomorrowList.map((o) => (
+              <div key={o.key} style={{ display: 'flex', gap: 12, color: 'var(--muted)' }}>
                 <span className="mono" style={{ width: 52, flex: 'none' }}>
-                  {hhmm(r.at_time)}
+                  {o.slot}
                 </span>
-                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{r.title}</span>
+                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{o.reminder.title}</span>
               </div>
             ))
           )}
@@ -295,15 +496,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         </section>
       </aside>
 
-      <button
-        className="btn btn-primary fab only-mobile"
-        type="button"
-        onClick={() => {
-          setDraft(emptyDraft(now));
-          formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => titleRef.current?.focus(), 300);
-        }}
-      >
+      <button className="btn btn-primary fab only-mobile" type="button" onClick={() => openForm(emptyDraft(now))}>
         <Icon name="plus" size={20} />
         Напоминание
       </button>
@@ -311,14 +504,19 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       {confirm && (
         <Confirm
           title={`Удалить «${confirm.title}»?`}
-          text={confirm.repeat === 'once' ? 'Напоминание удалится.' : `Напоминание ${REPEAT_LABELS[confirm.repeat]} удалится целиком, со всеми днями.`}
+          text={confirm.rule.kind === 'once' ? 'Напоминание удалится.' : `Повтор «${describe(confirm.rule)}» удалится целиком, со всеми отметками.`}
           action="Удалить"
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
             const r = confirm;
             setConfirm(null);
             mutate(
-              (d) => ({ ...d, reminders: d.reminders.filter((x) => x.id !== r.id), done: d.done.filter((x) => x !== r.id) }),
+              (d) => ({
+                ...d,
+                reminders: d.reminders.filter((x) => x.id !== r.id),
+                done: d.done.filter((x) => !x.startsWith(`${r.id}@`)),
+                snoozed: d.snoozed.filter((s) => s.reminder_id !== r.id),
+              }),
               () => api(`reminders/${r.id}`, 'DELETE'),
             );
           }}

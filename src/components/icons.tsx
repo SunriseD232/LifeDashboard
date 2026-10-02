@@ -71,6 +71,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M8 20h8M12 16v4" />
     </>
   ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 8v4l3 2" />
+    </>
+  ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   logout: (
     <>

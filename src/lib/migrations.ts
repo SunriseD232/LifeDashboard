@@ -15,6 +15,12 @@ export interface Migration {
   version: number;
   name: string;
   up: (db: Database.Database) => void;
+  /**
+   * Пересборка таблиц (create new → copy → drop → rename): на время шага
+   * внешние ключи выключаются, иначе drop старой таблицы каскадом удалил бы
+   * строки, которые на неё ссылаются. После шага ключи проверяются.
+   */
+  rebuild?: boolean;
 }
 
 export const MIGRATIONS: Migration[] = [
@@ -106,6 +112,80 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 2,
+    name: 'гибкие повторы: правило и несколько времён у напоминания, отметки по времени, «отложить»',
+    rebuild: true,
+    up: (db) =>
+      db.exec(`
+    -- Напоминание: вместо repeat/on_date/at_time — правило (src/lib/recur.ts)
+    -- JSON-ом и список времён ["09:00","21:00"].
+    create table reminders_new (
+      id text primary key,
+      user_id text not null,
+      title text not null,
+      times text not null,
+      rule text not null,
+      checklist_id text references checklists(id) on delete set null,
+      created_at text not null default (datetime('now'))
+    );
+    insert into reminders_new (id, user_id, title, times, rule, checklist_id, created_at)
+    select id, user_id, title,
+      json_array(substr(at_time, 1, 5)),
+      case repeat
+        when 'daily' then json_object('kind', 'repeat', 'unit', 'day', 'every', 1, 'start', date(created_at))
+        when 'weekdays' then json_object('kind', 'repeat', 'unit', 'week', 'every', 1, 'start', date(created_at),
+                                         'weekdays', json('[1,2,3,4,5]'))
+        else json_object('kind', 'once', 'date', coalesce(on_date, date(created_at)))
+      end,
+      checklist_id, created_at
+    from reminders;
+    drop table reminders;
+    alter table reminders_new rename to reminders;
+    create index reminders_user_idx on reminders (user_id);
+
+    -- «Сделано» — на день И время (slot 'ЧЧ:ММ'): у «таблеток в 9 и 21» две
+    -- отметки в сутки. Старые отметки — на единственное время напоминания.
+    create table reminder_done_new (
+      reminder_id text not null references reminders(id) on delete cascade,
+      user_id text not null,
+      day text not null,
+      slot text not null,
+      primary key (reminder_id, day, slot)
+    );
+    insert or ignore into reminder_done_new (reminder_id, user_id, day, slot)
+    select d.reminder_id, d.user_id, d.day, json_extract(r.times, '$[0]')
+    from reminder_done d join reminders r on r.id = d.reminder_id;
+    drop table reminder_done;
+    alter table reminder_done_new rename to reminder_done;
+    create index reminder_done_user_idx on reminder_done (user_id, day);
+
+    -- Отправленные push — тоже по времени; для «отложенных» slot вида
+    -- 'ЧЧ:ММ>ЧЧ:ММ' (на какое время отложили).
+    create table push_sent_new (
+      reminder_id text not null,
+      day text not null,
+      slot text not null,
+      sent_at text not null default (datetime('now')),
+      primary key (reminder_id, day, slot)
+    );
+    insert or ignore into push_sent_new (reminder_id, day, slot, sent_at)
+    select p.reminder_id, p.day, coalesce(json_extract(r.times, '$[0]'), ''), p.sent_at
+    from push_sent p left join reminders r on r.id = p.reminder_id;
+    drop table push_sent;
+    alter table push_sent_new rename to push_sent;
+
+    -- «Отложить»: напомнить об этом времени дела ещё раз в at (местное время).
+    create table reminder_snooze (
+      reminder_id text not null references reminders(id) on delete cascade,
+      user_id text not null,
+      day text not null,
+      slot text not null,
+      at text not null,
+      primary key (reminder_id, day, slot)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
@@ -120,11 +200,22 @@ export function migrate(db: Database.Database, beforeFirst?: (from: number) => v
   const pending = MIGRATIONS.filter((m) => m.version > from);
   if (pending.length && beforeFirst) beforeFirst(from);
   for (const m of pending) {
-    db.transaction(() => {
-      m.up(db);
-      // user_version не принимает параметры — только литерал; число наше.
-      db.pragma(`user_version = ${m.version}`);
-    })();
+    const fk = db.pragma('foreign_keys', { simple: true }) as number;
+    // Выключить ключи можно только вне транзакции.
+    if (m.rebuild) db.pragma('foreign_keys = OFF');
+    try {
+      db.transaction(() => {
+        m.up(db);
+        if (m.rebuild) {
+          const broken = db.pragma('foreign_key_check') as unknown[];
+          if (broken.length) throw new Error(`Миграция ${m.version}: нарушены внешние ключи (${broken.length})`);
+        }
+        // user_version не принимает параметры — только литерал; число наше.
+        db.pragma(`user_version = ${m.version}`);
+      })();
+    } finally {
+      if (m.rebuild) db.pragma(`foreign_keys = ${fk ? 'ON' : 'OFF'}`);
+    }
   }
   return pending.length;
 }
