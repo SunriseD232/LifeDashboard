@@ -9,6 +9,8 @@ import { readTasks } from '../server/taskStore';
 import { aiConfigured } from '../server/ai';
 import { daySummary } from '../server/summary';
 import { dueDay } from './recur';
+import { inQuiet, outOfQuiet, quietMissed, quietOf, reviewItems } from './quiet';
+import { plural } from './dates';
 
 /**
  * Push-уведомления LifeDashboard (Web Push, без отдельного приложения).
@@ -156,10 +158,16 @@ async function tick(): Promise<void> {
 
   for (const [userId, tz] of users) {
     const lp = localParts(tz, now);
+    const st = readSettings(d, userId);
+    const quiet = quietOf(st.quiet_from, st.quiet_to);
     const all = readReminders(d, userId);
     const occ = occurrencesOn(all, lp.day, new Set(doneKeys(d, userId, lp.day)), snoozesOn(d, userId, lp.day));
+    const mark = (key: string, slot: string) => d.prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)').run(key, lp.day, slot).changes > 0;
+    // В тихие часы напоминания и повторы не шлём (и не помечаем) — что
+    // осталось неотмеченным, придёт одним сообщением, когда они кончатся.
+    const quietNow = inQuiet(lp.minutes, quiet);
 
-    for (const o of occ) {
+    for (const o of quietNow ? [] : occ) {
       for (const s of sendsDue(o, lp.minutes)) {
         // Сначала помечаем, потом шлём: два тика подряд не отправят дважды.
         const fresh = d
@@ -174,7 +182,9 @@ async function tick(): Promise<void> {
           title: r.title,
           body: r.checklist_title ? `${lead} · чек-лист «${r.checklist_title}»` : `${lead} — пора`,
           tag: `${r.id}:${lp.day}:${o.slot}`,
-          url: '/task/reminders',
+          // Нажатие откроет это напоминание крупно — с кнопкой «Сделано»
+          // (на iPhone кнопок в самом уведомлении нет).
+          url: `/task/reminders?focus=${encodeURIComponent(r.id)}&slot=${encodeURIComponent(o.slot)}`,
           reminderId: r.id,
           day: lp.day,
           slot: o.slot,
@@ -185,7 +195,21 @@ async function tick(): Promise<void> {
     // Сроки дел: за день и в день срока, в своё время из настроек. Общие дела
     // семьи каждый участник получает в своём цикле — по своим видимым делам.
     const { tasks } = readTasks(d, userId, lp.day);
-    for (const n of deadlineNotices(tasks, lp.day, lp.minutes, readSettings(d, userId).deadline_time)) {
+    // Конец тихих часов: одно сообщение о том, что пришлось на ночь.
+    if (quiet) {
+      const late = lp.minutes - minutesOf(quiet.to);
+      const missed = quietMissed(occ, quiet);
+      if (late >= 0 && late <= WINDOW_MIN && missed.length && mark(`quiet:${userId}`, 'morning')) {
+        await sendToUser(userId, {
+          title: missed.length === 1 ? missed[0].reminder.title : `Не отмечено: ${plural(missed.length, 'напоминание', 'напоминания', 'напоминаний')}`,
+          body: missed.length === 1 ? `${missed[0].slot} — было в тихие часы` : missed.map((o) => o.reminder.title).slice(0, 5).join(', '),
+          tag: `quiet:${lp.day}`,
+          url: '/task/reminders',
+        });
+      }
+    }
+
+    for (const n of deadlineNotices(tasks, lp.day, lp.minutes, outOfQuiet(st.deadline_time, quiet))) {
       const fresh = d
         .prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)')
         .run(`task:${n.task.id}:${userId}`, lp.day, n.kind);
@@ -199,9 +223,8 @@ async function tick(): Promise<void> {
     }
 
     // Утренняя сводка от ИИ — в выбранное время, раз в день.
-    const st = readSettings(d, userId);
     if (st.summary_time && aiConfigured()) {
-      const late = lp.minutes - minutesOf(st.summary_time);
+      const late = lp.minutes - minutesOf(outOfQuiet(st.summary_time, quiet));
       if (late >= 0 && late <= WINDOW_MIN) {
         const fresh = d.prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)').run(`summary:${userId}`, lp.day, 'summary');
         if (fresh.changes) {
@@ -211,6 +234,23 @@ async function tick(): Promise<void> {
           } catch (e) {
             console.error('[lifedashboard push] сводка не получилась:', (e as Error).message);
           }
+        }
+      }
+    }
+
+    // Итог дня: что не сделано — открыть экран и перенести на завтра.
+    if (st.review_time) {
+      const late = lp.minutes - minutesOf(outOfQuiet(st.review_time, quiet));
+      if (late >= 0 && late <= WINDOW_MIN) {
+        const left = reviewItems(tasks, occ, lp.day);
+        const n = left.tasks.length + left.reminders.length;
+        if (n > 0 && mark(`review:${userId}`, 'review')) {
+          await sendToUser(userId, {
+            title: 'Итог дня',
+            body: `Не сделано: ${plural(n, 'дело', 'дела', 'дел')}. Перенести на завтра?`,
+            tag: `review:${lp.day}`,
+            url: '/task/review',
+          });
         }
       }
     }

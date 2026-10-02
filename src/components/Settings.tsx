@@ -10,7 +10,7 @@ import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
 import { ThemePicker } from './ThemeToggle';
-import { CalendarCard, NavEditor } from './SettingsExtra';
+import { CalendarCard, NavEditor, QuietCard } from './SettingsExtra';
 
 type Tab = 'main' | 'menu' | 'family' | 'account';
 const TABS: { id: Tab; label: string }[] = [
@@ -114,6 +114,8 @@ export default function Settings() {
             />
           </div>
         </section>
+
+        <QuietCard />
 
         {data.ai && (
           <section className="card ai-card" aria-labelledby="set-summary">

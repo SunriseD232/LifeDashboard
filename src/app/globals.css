@@ -2119,3 +2119,44 @@ mark {
     transition: none;
   }
 }
+
+/* напоминание крупно — по нажатию на push */
+.focus-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 8px;
+}
+.focus-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.focus-done {
+  min-height: 60px;
+  font-size: 18px;
+}
+
+/* итог дня */
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.review-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.review-row .btn {
+  min-height: 40px;
+  padding: 6px 12px;
+}
+.review-meta {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
