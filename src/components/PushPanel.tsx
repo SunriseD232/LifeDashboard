@@ -53,13 +53,13 @@ export default function PushPanel({ toast }: { toast: (m: string) => void }) {
         {state === 'on' && (
           <>
             <strong>Уведомления включены {where}.</strong>
-            <div style={{ color: 'var(--muted)' }}>Придут в момент дела, даже если «Сборы» закрыты.</div>
+            <div style={{ color: 'var(--muted)' }}>Придут в момент дела, даже если LifeDashboard закрыт.</div>
           </>
         )}
         {state === 'off' && (
           <>
             <strong>Уведомления {where}</strong>
-            <div style={{ color: 'var(--muted)' }}>Пришлём напоминание в момент дела, даже если «Сборы» закрыты.</div>
+            <div style={{ color: 'var(--muted)' }}>Пришлём напоминание в момент дела, даже если LifeDashboard закрыт.</div>
           </>
         )}
         {state === 'denied' && (
@@ -76,8 +76,8 @@ export default function PushPanel({ toast }: { toast: (m: string) => void }) {
             <strong>На iPhone уведомления — через экран «Домой»</strong>
             <ol style={{ margin: '4px 0 0', paddingLeft: 18, color: 'var(--muted)' }}>
               <li>Нажмите «Поделиться» внизу Safari.</li>
-              <li>Выберите «На экран «Домой»» и добавьте «Сборы».</li>
-              <li>Откройте «Сборы» с экрана «Домой» и включите уведомления здесь.</li>
+              <li>Выберите «На экран «Домой»» и добавьте LifeDashboard.</li>
+              <li>Откройте LifeDashboard с экрана «Домой» и включите уведомления здесь.</li>
             </ol>
             <div style={{ color: 'var(--muted)', marginTop: 4 }}>Так требует Apple; нужна iOS 16.4 или новее. Отдельное приложение не нужно.</div>
           </>

@@ -3,20 +3,39 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 /**
- * Своя база «Сборов» — один SQLite-файл на сервере, отдельно от MediaWatch.
+ * Своя база LifeDashboard — один SQLite-файл на сервере, ни с кем не общая.
  *
  * Почему SQLite: данных немного (списки вещей и дела на день), пишет один
- * процесс, а файл легко забэкапить копированием. Путь — SBORY_DB_PATH (на
- * сервере /opt/sbory/data/sbory.db, вне каталога сборок: релизы меняются,
- * данные остаются), по умолчанию ./data/sbory.db для локального запуска.
+ * процесс, а файл легко забэкапить копированием. Путь — LD_DB_PATH (на
+ * сервере /opt/lifedashboard/data/lifedashboard.db, вне каталога сборок:
+ * релизы меняются, данные остаются), по умолчанию ./data/lifedashboard.db
+ * для локального запуска.
  *
  * Схема создаётся при первом обращении (CREATE ... IF NOT EXISTS) — отдельного
  * шага миграции нет. Новые колонки добавлять так же, идемпотентно.
  */
 
-const DB_PATH = process.env.SBORY_DB_PATH || path.join(process.cwd(), 'data', 'sbory.db');
+const DB_PATH = process.env.LD_DB_PATH || path.join(process.cwd(), 'data', 'lifedashboard.db');
 
 const SCHEMA = `
+-- Пользователи и сессии (src/lib/auth.ts). id — строка: у тех, кто перешёл
+-- со входа через MediaWatch, это прежний id, и их данные остались при них.
+-- Эти две таблицы повторены в scripts/add-user.mjs — меняйте вместе.
+create table if not exists users (
+  id text primary key,
+  login text not null unique,
+  password_hash text not null,
+  created_at text not null default (datetime('now'))
+);
+
+create table if not exists sessions (
+  token_hash text primary key,
+  user_id text not null references users(id) on delete cascade,
+  expires_at text not null,
+  created_at text not null default (datetime('now'))
+);
+create index if not exists sessions_user_idx on sessions (user_id);
+
 create table if not exists checklists (
   id text primary key,
   user_id text not null,
@@ -86,17 +105,17 @@ declare global {
   // Один экземпляр на процесс: в dev Next перезагружает модули, и без этого
   // открывалось бы по соединению на каждую правку.
   // eslint-disable-next-line no-var
-  var __sboryDb: Database.Database | undefined;
+  var __ldDb: Database.Database | undefined;
 }
 
 export function db(): Database.Database {
-  if (!global.__sboryDb) {
+  if (!global.__ldDb) {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
     const conn = new Database(DB_PATH);
     conn.pragma('journal_mode = WAL');
     conn.pragma('foreign_keys = ON');
     conn.exec(SCHEMA);
-    global.__sboryDb = conn;
+    global.__ldDb = conn;
   }
-  return global.__sboryDb;
+  return global.__ldDb;
 }

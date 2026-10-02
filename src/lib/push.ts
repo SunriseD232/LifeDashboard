@@ -2,10 +2,10 @@ import webpush from 'web-push';
 import { db } from './db';
 
 /**
- * Push-уведомления «Сборов» (Web Push, без отдельного приложения).
+ * Push-уведомления LifeDashboard (Web Push, без отдельного приложения).
  *
  * Телефон подписывается из браузера (Android — сразу; iPhone — только когда
- * «Сборы» добавлены на экран «Домой», это требование Apple), подписка с
+ * LifeDashboard добавлен на экран «Домой», это требование Apple), подписка с
  * часовым поясом устройства лежит в своей базе (push_subscriptions). Раз в
  * 30 секунд сервер смотрит, у кого наступило время дела, и шлёт push через
  * сервис браузера (FCM, Apple, Mozilla) — с ключами VAPID из окружения.
@@ -25,7 +25,7 @@ function configure(): boolean {
   const pub = process.env.VAPID_PUBLIC_KEY;
   const priv = process.env.VAPID_PRIVATE_KEY;
   if (!pub || !priv) {
-    console.warn('[sbory push] VAPID-ключей нет — push выключен');
+    console.warn('[lifedashboard push] VAPID-ключей нет — push выключен');
     configured = false;
     return false;
   }
@@ -73,7 +73,7 @@ export async function sendToUser(userId: string, payload: PushPayload): Promise<
         if (status === 404 || status === 410) {
           d.prepare('delete from push_subscriptions where endpoint = ?').run(s.endpoint);
         } else {
-          console.error('[sbory push] не отправилось:', status ?? (e as Error).message);
+          console.error('[lifedashboard push] не отправилось:', status ?? (e as Error).message);
         }
       }
     }),
@@ -172,12 +172,12 @@ async function tick(): Promise<void> {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __sboryPushTimer: ReturnType<typeof setInterval> | undefined;
+  var __ldPushTimer: ReturnType<typeof setInterval> | undefined;
 }
 
 /** Запуск рассылки — один раз на процесс (src/instrumentation.ts). */
 export function startScheduler(): void {
-  if (global.__sboryPushTimer) return;
+  if (global.__ldPushTimer) return;
   let running = false;
   const run = async () => {
     if (running) return;
@@ -185,12 +185,12 @@ export function startScheduler(): void {
     try {
       await tick();
     } catch (e) {
-      console.error('[sbory push] рассылка упала:', e);
+      console.error('[lifedashboard push] рассылка упала:', e);
     } finally {
       running = false;
     }
   };
-  global.__sboryPushTimer = setInterval(run, TICK_MS);
+  global.__ldPushTimer = setInterval(run, TICK_MS);
   setTimeout(run, 5_000);
-  console.log('[sbory push] рассылка запущена');
+  console.log('[lifedashboard push] рассылка запущена');
 }

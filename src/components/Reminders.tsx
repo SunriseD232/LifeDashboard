@@ -27,7 +27,7 @@ interface Draft {
   checklist_id: string;
 }
 
-const NOTIFIED_KEY = 'sbory:notified';
+const NOTIFIED_KEY = 'lifedashboard:notified';
 
 function emptyDraft(now: Date): Draft {
   // По умолчанию — ближайший целый час, чтобы не листать часы с нуля.

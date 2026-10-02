@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { appliesOn, dayTitle, localDay } from '@/lib/dates';
 import type { Checklist, ChecklistItem, Reminder } from '@/lib/types';
 import Checklists from './Checklists';
+import Login from './Login';
 import { Icon } from './icons';
 import Reminders from './Reminders';
 
@@ -14,6 +15,8 @@ export interface AppData {
   reminders: Reminder[];
   /** id напоминаний, отмеченных сделанными СЕГОДНЯ. */
   done: string[];
+  /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
+  login?: string | null;
 }
 
 export type Mutate = (update: (d: AppData) => AppData, request: () => Promise<unknown>) => void;
@@ -26,7 +29,7 @@ function tabFromHash(): Tab {
 }
 
 /**
- * Каркас «Сборов»: загрузка данных одним запросом, вход через MediaWatch,
+ * Каркас LifeDashboard: загрузка данных одним запросом, свой вход (Login),
  * две вкладки вверху — «Чек-листы» и «Напоминания».
  *
  * Правки применяются к экрану СРАЗУ (mutate: сначала меняем состояние, потом
@@ -111,6 +114,12 @@ export default function App() {
     goTab('lists');
   };
 
+  const logout = async () => {
+    await api('auth/logout', 'POST').catch(() => undefined);
+    setData({ checklists: [], items: [], reminders: [], done: [] });
+    setStatus('guest');
+  };
+
   const leftToday = data.reminders.filter((r) => appliesOn(r, now) && !data.done.includes(r.id)).length;
 
   if (status === 'loading') {
@@ -121,7 +130,18 @@ export default function App() {
     );
   }
 
-  if (status === 'guest' || status === 'error') {
+  if (status === 'guest') {
+    return (
+      <Login
+        onDone={() => {
+          setStatus('loading');
+          load();
+        }}
+      />
+    );
+  }
+
+  if (status === 'error') {
     return (
       <main className="page" style={{ display: 'grid', placeItems: 'center', minHeight: '80vh' }}>
         <div className="panel" style={{ maxWidth: 420, padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -129,22 +149,12 @@ export default function App() {
             <Icon name="bag" size={26} strokeWidth={2} />
           </span>
           <h1 className="display" style={{ margin: 0, fontSize: 28 }}>
-            {status === 'guest' ? 'Сборы' : 'Не удалось загрузить'}
+            Не удалось загрузить
           </h1>
-          <p style={{ margin: 0, color: 'var(--muted)' }}>
-            {status === 'guest'
-              ? 'Чек-листы для сборов и напоминания на день. Вход — через аккаунт MediaWatch.'
-              : 'Сервер не ответил. Проверьте интернет и попробуйте ещё раз.'}
-          </p>
-          {status === 'guest' ? (
-            <a className="btn btn-primary" href="/login?redirect=/task">
-              Войти через MediaWatch
-            </a>
-          ) : (
-            <button className="btn btn-primary" type="button" onClick={() => { setStatus('loading'); load(); }}>
-              Попробовать ещё раз
-            </button>
-          )}
+          <p style={{ margin: 0, color: 'var(--muted)' }}>Сервер не ответил. Проверьте интернет и попробуйте ещё раз.</p>
+          <button className="btn btn-primary" type="button" onClick={() => { setStatus('loading'); load(); }}>
+            Попробовать ещё раз
+          </button>
         </div>
       </main>
     );
@@ -153,11 +163,11 @@ export default function App() {
   return (
     <>
       <header className="topbar">
-        <a className="brand display" href="/task">
+        <a className="brand display" href="/task" aria-label="LifeDashboard">
           <span className="brand-mark">
             <Icon name="bag" size={20} strokeWidth={2} />
           </span>
-          Сборы
+          <span className="brand-name">LifeDashboard</span>
         </a>
         <nav className="tabs" aria-label="Разделы">
           <a
@@ -197,6 +207,11 @@ export default function App() {
             {now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
+        {data.login && (
+          <button className="icon-btn bare" type="button" onClick={logout} aria-label={`Выйти (${data.login})`} title={`Выйти (${data.login})`}>
+            <Icon name="logout" />
+          </button>
+        )}
       </header>
 
       <main className="page">

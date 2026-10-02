@@ -52,6 +52,11 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M4 11l8-7 8 7" />
       <path d="M6 10v10h12V10" />
     </>
+  ),  logout: (
+    <>
+      <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
+      <path d="M10 8l-4 4 4 4M6 12h10" />
+    </>
   ),
 };
 

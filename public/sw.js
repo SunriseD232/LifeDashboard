@@ -1,11 +1,11 @@
 /*
- * Сервис-воркер «Сборов» — только для push-уведомлений.
+ * Сервис-воркер LifeDashboard — только для push-уведомлений.
  *
  * Ничего не кэширует: приложение онлайн-только, и кэш свежих списков между
  * устройствами дал бы больше путаницы, чем пользы. Его задачи:
  *  - push: показать уведомление о деле (сервер шлёт в момент напоминания,
  *    см. src/lib/push.ts);
- *  - клик по уведомлению: открыть «Сборы» на вкладке напоминаний;
+ *  - клик по уведомлению: открыть LifeDashboard на вкладке напоминаний;
  *  - кнопка «Сделано» (Android/Chrome — iOS кнопок у уведомлений не
  *    показывает): отметить дело, не открывая приложение. Запрос same-origin,
  *    кука входа уходит вместе с ним сама.
@@ -19,7 +19,7 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch (e) {
-    data = { title: 'Сборы', body: event.data ? event.data.text() : '' };
+    data = { title: 'LifeDashboard', body: event.data ? event.data.text() : '' };
   }
   const options = {
     body: data.body || '',
@@ -31,7 +31,7 @@ self.addEventListener('push', (event) => {
     data: { url: data.url || '/task#reminders', reminderId: data.reminderId, day: data.day },
     actions: data.reminderId ? [{ action: 'done', title: 'Сделано' }] : [],
   };
-  event.waitUntil(self.registration.showNotification(data.title || 'Сборы', options));
+  event.waitUntil(self.registration.showNotification(data.title || 'LifeDashboard', options));
 });
 
 self.addEventListener('notificationclick', (event) => {

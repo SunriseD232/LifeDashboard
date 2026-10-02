@@ -13,7 +13,7 @@ import '@fontsource/jetbrains-mono/500.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Сборы',
+  title: 'LifeDashboard',
   description: 'Чек-листы сборов и напоминания на день',
   // Манифест и значок для экрана «Домой»: на iPhone push-уведомления
   // работают только у сайта, добавленного туда (см. src/lib/pushClient.ts).
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     icon: [{ url: '/task/icon-192.png', sizes: '192x192', type: 'image/png' }],
     apple: [{ url: '/task/apple-touch-icon.png', sizes: '180x180' }],
   },
-  appleWebApp: { capable: true, title: 'Сборы', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'LifeDashboard', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

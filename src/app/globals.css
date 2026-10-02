@@ -1,4 +1,4 @@
-/* «Сборы» — стили по макету в Claude Design («Сборы и дела»).
+/* LifeDashboard — стили по макету в Claude Design («Сборы и дела»).
    Прохладный светлый фон, бирюза бассейна для чек-листов, тёплый янтарь
    для времени и напоминаний. */
 :root {
@@ -502,6 +502,9 @@ a {
     flex-wrap: wrap;
     gap: 10px;
   }
+  .brand {
+    font-size: 18px;
+  }
   .topbar .tabs {
     order: 3;
     flex-basis: 100%;
@@ -544,6 +547,14 @@ a {
   .rem-row {
     gap: 12px;
     padding: 12px 14px;
+  }
+}
+
+/* Узкий телефон: «LifeDashboard», дата и кнопка выхода в строку не влезают —
+   оставляем от логотипа только значок. */
+@media (max-width: 420px) {
+  .brand-name {
+    display: none;
   }
 }
 

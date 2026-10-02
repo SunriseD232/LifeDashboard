@@ -1,9 +1,9 @@
 /**
- * «Сборы» — приложение под media-watch.ru/task.
+ * LifeDashboard — приложение под media-watch.ru/task.
  *
- * Свой Node-процесс (next start, pm2) и своя база — SQLite-файл на сервере
- * (см. src/lib/db.ts). С MediaWatch общий только вход: тот же домен, та же
- * кука сессии, по ней сервер узнаёт пользователя (см. src/lib/auth.ts).
+ * Самостоятельный проект: свой Node-процесс (next start, pm2), своя база —
+ * SQLite-файл на сервере (src/lib/db.ts), свой вход (src/lib/auth.ts). С
+ * MediaWatch общий только домен.
  *
  * basePath '/task' — все страницы, API и файлы сборки живут под этим
  * префиксом; nginx отдаёт этот префикс сюда, а корень домена — MediaWatch.

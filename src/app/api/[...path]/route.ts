@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
-import { currentUserId } from '@/lib/auth';
+import { currentUserId, login, logout, userLogin } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { sendToUser, vapidPublicKey } from '@/lib/push';
 import type { Checklist, ChecklistItem, Reminder, Repeat } from '@/lib/types';
 
 /**
- * API «Сборов» — один обработчик на все маршруты /task/api/…: их немного, и
+ * API LifeDashboard — один обработчик на все маршруты /task/api/…: их немного, и
  * общая проверка входа и разбор тела в одном месте надёжнее, чем десяток
  * файлов с копиями. Каждый запрос к базе ограничен user_id — чужие строки не
  * найти даже по известному id.
@@ -50,12 +50,30 @@ function own<T>(row: T | undefined, what: string): T {
 }
 
 async function handle(req: NextRequest, path: string[]) {
-  const userId = await currentUserId();
-  if (!userId) throw new HttpError(401, 'Войдите в MediaWatch, чтобы открыть «Сборы».');
-  const d = db();
   const method = req.method;
   const body = method === 'GET' || method === 'DELETE' ? {} : await req.json().catch(() => ({}));
   const [res, id, action] = path;
+
+  // ---- вход и выход (src/lib/auth.ts) — до проверки сессии ----
+  if (res === 'auth' && method === 'POST' && id === 'login') {
+    const name = text(body.login, 64, 'Логин')!;
+    if (typeof body.password !== 'string' || !body.password || body.password.length > 200) {
+      throw new HttpError(400, 'Введите пароль.');
+    }
+    // IP клиента ставит nginx; без него (локальный запуск) — общий ключ.
+    const ip = req.headers.get('x-real-ip') ?? 'local';
+    const r = await login(name, body.password, ip);
+    if (!r.ok) throw new HttpError(r.status, r.error);
+    return { ok: true };
+  }
+  if (res === 'auth' && method === 'POST' && id === 'logout') {
+    logout();
+    return { ok: true };
+  }
+
+  const userId = await currentUserId();
+  if (!userId) throw new HttpError(401, 'Войдите, чтобы открыть LifeDashboard.');
+  const d = db();
 
   // ---- всё сразу: экран открывается одним запросом ----
   if (method === 'GET' && res === 'state') {
@@ -81,7 +99,7 @@ async function handle(req: NextRequest, path: string[]) {
         reminder_id: string;
       }[]
     ).map((r) => r.reminder_id);
-    return { checklists, items, reminders, done };
+    return { checklists, items, reminders, done, login: userLogin(userId) };
   }
 
   // ---- чек-листы ----
@@ -295,7 +313,7 @@ async function handle(req: NextRequest, path: string[]) {
     }
     if (method === 'POST' && id === 'test') {
       const delivered = await sendToUser(userId, {
-        title: 'Сборы',
+        title: 'LifeDashboard',
         body: 'Уведомления работают — напомним о делах вовремя.',
         tag: 'test',
         url: '/task#reminders',
@@ -313,7 +331,7 @@ async function route(req: NextRequest, { params }: { params: { path: string[] } 
     return NextResponse.json(await handle(req, params.path ?? []));
   } catch (e) {
     if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
-    console.error('[sbory api]', e);
+    console.error('[lifedashboard api]', e);
     return NextResponse.json({ error: 'Что-то пошло не так. Попробуйте ещё раз.' }, { status: 500 });
   }
 }
