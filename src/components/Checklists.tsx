@@ -7,28 +7,7 @@ import type { Checklist, ChecklistItem, IconName } from '@/lib/types';
 import { useApp, type AppData, type Mutate } from './AppShell';
 import Confirm from './Confirm';
 import { Icon, LIST_ICONS } from './icons';
-
-/** Готовые списки для первого входа — то, с чего просили начать. */
-const TEMPLATES: { title: string; icon: IconName; items: { title: string; group_name: string }[] }[] = [
-  {
-    title: 'Бассейн',
-    icon: 'wave',
-    items: [
-      ...['Плавки', 'Шапочка для плавания', 'Очки', 'Шлёпанцы', 'Полотенце'].map((t) => ({ title: t, group_name: 'Одежда' })),
-      ...['Гель для душа', 'Шампунь', 'Мочалка', 'Расчёска'].map((t) => ({ title: t, group_name: 'Душ' })),
-      ...['Абонемент', 'Замок для шкафчика', 'Бутылка воды'].map((t) => ({ title: t, group_name: 'С собой' })),
-    ],
-  },
-  {
-    title: 'Работа',
-    icon: 'bag',
-    items: [
-      ...['Пропуск', 'Ключи', 'Телефон', 'Наушники'].map((t) => ({ title: t, group_name: 'С собой' })),
-      ...['Ноутбук', 'Зарядка для ноутбука', 'Зарядка для телефона'].map((t) => ({ title: t, group_name: 'Техника' })),
-      ...['Обед', 'Бутылка воды'].map((t) => ({ title: t, group_name: 'Еда' })),
-    ],
-  },
-];
+import TemplatePicker from './TemplatePicker';
 
 interface Props {
   data: AppData;
@@ -58,6 +37,16 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
   const [newTitle, setNewTitle] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const picker = picking && (
+    <TemplatePicker
+      onClose={() => setPicking(false)}
+      onCreated={(id) => {
+        setPicking(false);
+        setOpenId(id);
+      }}
+    />
+  );
 
   const lists = useMemo(() => [...data.checklists].sort((a, b) => a.position - b.position), [data.checklists]);
   // На компьютере всегда открыт какой-то список; на телефоне — только выбранный
@@ -73,18 +62,6 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
     } catch (e) {
       toast((e as Error).message);
       return null;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const addTemplates = async () => {
-    setBusy(true);
-    try {
-      for (const t of TEMPLATES) await api('checklists', 'POST', t);
-      await reload();
-    } catch (e) {
-      toast((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -137,12 +114,12 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
           Чек-листов пока нет
         </h1>
         <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Начните с готовых списков «Бассейн» и «Работа» — их можно поправить под себя — или создайте свой.
+          Начните с готового — бассейн, работа, путешествие, командировка, переезд, поход — и поправьте под себя. Или создайте свой.
         </p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" type="button" onClick={addTemplates} disabled={busy}>
+          <button className="btn btn-primary" type="button" onClick={() => setPicking(true)}>
             <Icon name="plus" size={18} />
-            Добавить «Бассейн» и «Работа»
+            Выбрать шаблон
           </button>
           {!creating && (
             <button className="btn btn-ghost" type="button" onClick={() => setCreating(true)}>
@@ -151,6 +128,7 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
           )}
         </div>
         {creating && newListForm}
+        {picker}
       </section>
     );
   }
@@ -159,9 +137,9 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
     <div className="lists-layout" data-detail={openId && selected ? 'true' : 'false'}>
       <aside className="lists-aside" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <h2 className="display" style={{ margin: 0, fontSize: 22 }}>
+          <h1 className="display" style={{ margin: 0, fontSize: 22 }}>
             Мои чек-листы
-          </h2>
+          </h1>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>{plural(lists.length, 'список', 'списка', 'списков')}</span>
         </div>
         {lists.map((l) => {
@@ -213,11 +191,17 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
         {creating ? (
           newListForm
         ) : (
-          <button className="btn btn-ghost btn-dashed" type="button" onClick={() => setCreating(true)}>
-            <Icon name="plus" size={18} />
-            Новый чек-лист
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-dashed" type="button" style={{ flex: 1 }} onClick={() => setCreating(true)}>
+              <Icon name="plus" size={18} />
+              Новый
+            </button>
+            <button className="btn btn-ghost" type="button" style={{ flex: 1 }} onClick={() => setPicking(true)}>
+              Из шаблона
+            </button>
+          </div>
         )}
+        {picker}
       </aside>
 
       <section className="lists-main">
@@ -346,9 +330,9 @@ function ChecklistDetail({
               />
             </>
           ) : (
-            <h1 className="display" style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.1, overflowWrap: 'anywhere' }}>
+            <h2 className="display" style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.1, overflowWrap: 'anywhere' }}>
               {list.title}
-            </h1>
+            </h2>
           )}
           <p style={{ margin: '6px 0 0', color: 'var(--muted)' }}>
             {plural(items.length, 'вещь', 'вещи', 'вещей')}

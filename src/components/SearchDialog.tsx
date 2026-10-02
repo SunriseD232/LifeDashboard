@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { splitSnippet, type SearchHit, type SearchKind } from '@/lib/search';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { useModalFocus } from './useModalFocus';
 
 const KINDS: { id: SearchKind; label: string; icon: string }[] = [
   { id: 'task', label: 'Дела', icon: 'tasks' },
@@ -30,6 +31,8 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useModalFocus(boxRef);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -110,7 +113,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
   let i = -1;
   return (
     <div className="overlay search-overlay" onClick={onClose}>
-      <div className="search-box" role="dialog" aria-modal="true" aria-label="Поиск" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}>
+      <div ref={boxRef} className="search-box" role="dialog" aria-modal="true" aria-label="Поиск" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}>
         <div className="search-input">
           <Icon name="search" size={22} />
           <label className="sr-only" htmlFor="search-q">

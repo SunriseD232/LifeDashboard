@@ -3,7 +3,7 @@ import { findChecklist } from '../checklistStore';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
 
-const ICONS = new Set(['bag', 'wave', 'house', 'list']);
+const ICONS = new Set(['bag', 'wave', 'house', 'list', 'suitcase']);
 
 /**
  * Чек-листы: /api/checklists[/:id[/действие]]. Свои и общие для семьи

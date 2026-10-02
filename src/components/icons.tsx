@@ -188,6 +188,12 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M6 16l4-4 3 3 6-7" />
     </>
   ),
+  suitcase: (
+    <>
+      <rect x="4" y="7" width="16" height="13" rx="2" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M4 12h16" />
+    </>
+  ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   logout: (
     <>
@@ -221,4 +227,5 @@ export const LIST_ICONS: { id: IconName; label: string }[] = [
   { id: 'bag', label: 'Сумка' },
   { id: 'house', label: 'Дом' },
   { id: 'list', label: 'Список' },
+  { id: 'suitcase', label: 'Чемодан' },
 ];
