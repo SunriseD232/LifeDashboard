@@ -586,6 +586,22 @@ export const MIGRATIONS: Migration[] = [
     create unique index user_settings_calendar_idx on user_settings (calendar_token) where calendar_token is not null;
     `),
   },
+  {
+    version: 11,
+    name: 'Знакомство, тихие часы, итог дня',
+    up: (db) =>
+      db.exec(`
+    -- Прошёл ли знакомство (город, уведомления, первое дело). У тех, кто уже
+    -- пользуется, — считаем, что прошёл.
+    alter table user_settings add column onboarded integer not null default 0;
+    update user_settings set onboarded = 1;
+    -- Тихие часы: push не шлём с quiet_from до quiet_to (null — выключены).
+    alter table user_settings add column quiet_from text default '23:00';
+    alter table user_settings add column quiet_to text default '07:00';
+    -- Итог дня вечером: во сколько (null — выключен).
+    alter table user_settings add column review_time text;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

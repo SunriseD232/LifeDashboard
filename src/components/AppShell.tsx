@@ -13,6 +13,7 @@ import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
+import Onboarding from './Onboarding';
 import SearchDialog from './SearchDialog';
 import ThemeToggle from './ThemeToggle';
 
@@ -31,7 +32,7 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
@@ -78,7 +79,7 @@ const EMPTY: AppData = {
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   gym: { workouts: [], exercises: [], templates: [] },
-  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null },
+  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null },
   household: null,
 };
 
@@ -300,6 +301,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
+
+      {/* Знакомство — только совсем новым: не прошли и ничего ещё не завели. */}
+      {!data.settings.onboarded && data.tasks.length + data.reminders.length + data.checklists.length + data.notes.length === 0 && <Onboarding />}
 
       {toastText && (
         <div className="toast" role="status">

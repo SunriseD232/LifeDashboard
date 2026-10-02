@@ -2016,3 +2016,46 @@ mark {
 .tabs-row::-webkit-scrollbar {
   display: none;
 }
+
+/* знакомство при первом входе */
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: var(--ground);
+  overflow-y: auto;
+}
+.onboarding-box {
+  width: min(460px, 100%);
+  min-height: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.onboarding-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.onboarding-dots {
+  display: flex;
+  gap: 6px;
+}
+.onboarding-dots i {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.onboarding-dots i[data-on] {
+  background: var(--accent);
+}
+.onboarding .panel {
+  border: 0;
+  padding: 0 !important;
+  background: none;
+}
