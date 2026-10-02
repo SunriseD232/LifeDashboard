@@ -68,8 +68,11 @@ describe('кухня', () => {
     const d = setup();
     call(kitchen, d, 'me', 'POST', ['pantry'], { name: 'Свекла' });
     expect(readPantry(d, scopeOf(d, 'me'))).toEqual([pid(d, 'свёкла')]);
+    // Отдел нового продукта угадывается по названию; не узнали — «Другое».
     const r = call(kitchen, d, 'me', 'POST', ['pantry'], { name: 'Кокосовое молоко' }) as { product: { dept: string } };
-    expect(r.product.dept).toBe('Другое');
+    expect(r.product.dept).toBe('Молочное и яйца');
+    const odd = call(kitchen, d, 'me', 'POST', ['pantry'], { name: 'Тофу' }) as { product: { dept: string } };
+    expect(odd.product.dept).toBe('Другое');
   });
 
   it('рецепт находится по ингредиенту', () => {

@@ -23,6 +23,7 @@ import { AiButton, useAiReady } from './Ai';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
+import Empty from './Empty';
 
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 const fmtW = (n: number) => String(n).replace('.', ',');
@@ -423,17 +424,8 @@ function Progress() {
   const used = [...new Set(gym.workouts.flatMap((w) => w.exercises.filter((e) => e.sets.some((s) => s.weight !== null)).map((e) => e.exercise_id)))];
   const [ex, setEx] = useState<string>(used[0] ?? '');
   const id = used.includes(ex) ? ex : used[0];
-  if (!id) {
-    return (
-      <section className="card" aria-labelledby="pr-title">
-        <h2 className="card-title display" id="pr-title">
-          <Icon name="chart" />
-          Прогресс
-        </h2>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>Появится после первых подходов с весом.</p>
-      </section>
-    );
-  }
+  // Подходов с весом ещё нет — и показывать нечего.
+  if (!id) return null;
   const weeks = weeklyBest(gym.workouts, id, today, 10);
   const vals = weeks.map((w) => w.weight).filter((x): x is number => x !== null);
   const max = Math.max(...vals);
@@ -600,13 +592,15 @@ export default function Workouts() {
                 {planned.title} — по плану
               </button>
             )}
-            <button className={`btn ${planned ? 'btn-ghost' : 'btn-primary'}`} type="button" onClick={async () => {
-              const id = await start();
-              if (id) select(id);
-            }}>
-              <Icon name="plus" size={18} />
-              Новая тренировка
-            </button>
+            {gym.workouts.length > 0 && (
+              <button className={`btn ${planned ? 'btn-ghost' : 'btn-primary'}`} type="button" onClick={async () => {
+                const id = await start();
+                if (id) select(id);
+              }}>
+                <Icon name="plus" size={18} />
+                Новая тренировка
+              </button>
+            )}
           </>
         )}
       </div>
@@ -615,7 +609,17 @@ export default function Workouts() {
           <h2 className="group-title" style={{ padding: '0 4px 4px' }}>
             Журнал
           </h2>
-          {gym.workouts.length === 0 && <p style={{ margin: 0, color: 'var(--muted)' }}>Тренировок пока нет — начните первую.</p>}
+          {gym.workouts.length === 0 && (
+            <Empty
+              icon="dumbbell"
+              title="Подходы, веса и рекорды — здесь"
+              action="Начать первую тренировку"
+              onAction={async () => {
+                const id = await start();
+                if (id) select(id);
+              }}
+            />
+          )}
           {gym.workouts.slice(0, 40).map((w) => (
             <button key={w.id} type="button" className="note-card" aria-current={w.id === sel ? 'true' : undefined} onClick={() => select(w.id)}>
               <span style={{ display: 'flex', gap: 8 }}>

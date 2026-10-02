@@ -8,6 +8,7 @@ import type { Note } from '@/lib/types';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
+import Empty from './Empty';
 import { AiButton, useAiReady } from './Ai';
 import { localDay } from '@/lib/dates';
 import { shortDate } from '@/lib/tasks';
@@ -361,7 +362,11 @@ export default function Notes() {
             </div>
           )}
           {list.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>{data.notes.length ? 'Ничего не нашлось.' : 'Заметок пока нет — создайте первую.'}</p>
+            data.notes.length ? (
+              <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не нашлось.</p>
+            ) : (
+              <Empty icon="note" title="Мысли, списки, идеи подарков" action="Написать первую заметку" onAction={create} />
+            )
           ) : (
             list.map((n) => (
               <button key={n.id} type="button" className="note-card" aria-current={n.id === sel ? 'true' : undefined} onClick={() => select(n.id)}>

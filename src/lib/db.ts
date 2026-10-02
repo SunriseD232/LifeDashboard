@@ -1,7 +1,8 @@
 import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import path from 'node:path';
-import { snapshot } from './backup';
+import { backupDir, snapshot } from './backup';
+import { dataKey, encryptExisting, isPlainFile, unlock } from './dbKey';
 import { migrate } from './migrations';
 
 /**
@@ -15,6 +16,9 @@ import { migrate } from './migrations';
  *
  * Схема — в src/lib/migrations.ts: при открытии база доводится до последней
  * версии, а перед миграцией снимается копия (src/lib/backup.ts).
+ *
+ * Файл зашифрован ключом LD_DATA_KEY (src/lib/dbKey.ts). Первый запуск с
+ * ключом шифрует прежнюю открытую базу и все её копии.
  */
 
 export const DB_PATH = process.env.LD_DB_PATH || path.join(process.cwd(), 'data', 'lifedashboard.db');
@@ -29,7 +33,15 @@ declare global {
 export function db(): Database.Database {
   if (!global.__ldDb) {
     fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    const key = dataKey();
+    if (key) {
+      const n = encryptExisting(Database, DB_PATH, backupDir(), key);
+      if (n) console.log(`[lifedashboard db] зашифровано файлов: ${n}`);
+    } else if (fs.existsSync(DB_PATH) && !isPlainFile(DB_PATH)) {
+      throw new Error('База зашифрована, а LD_DATA_KEY не задан.');
+    }
     const conn = new Database(DB_PATH);
+    if (key) unlock(conn, key);
     conn.pragma('journal_mode = WAL');
     conn.pragma('foreign_keys = ON');
     migrate(conn, (from) => {

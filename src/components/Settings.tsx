@@ -1,17 +1,29 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
+import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
 import { ThemePicker } from './ThemeToggle';
-import { CalendarCard, NavEditor } from './SettingsExtra';
+import { CalendarCard, NavEditor, QuietCard } from './SettingsExtra';
+
+type Tab = 'main' | 'menu' | 'family' | 'account';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'main', label: 'Основное' },
+  { id: 'menu', label: 'Меню' },
+  { id: 'family', label: 'Семья' },
+  { id: 'account', label: 'Аккаунт' },
+];
 
 /**
- * Настройки: город для погоды, время напоминаний о сроках, семья (общие
- * дела, а дальше — покупки). Тема — переключателем в панели.
+ * Настройки — четыре коротких группы вкладками: «Основное» (город, тема,
+ * уведомления, сроки, сводка), «Меню и календарь», «Семья», «Аккаунт».
+ * Вкладка — в адресе (?tab=), чтобы на неё можно было сослаться.
  */
 export default function Settings() {
   const { data, reload, toast, logout } = useApp();
@@ -34,13 +46,26 @@ export default function Settings() {
   };
 
   const me = hh?.members.find((m) => m.me)?.login;
+  const params = useSearchParams();
+  const router = useRouter();
+  const q = params.get('tab');
+  const tab: Tab = TABS.some((t) => t.id === q) ? (q as Tab) : 'main';
 
   return (
     <>
       <div className="page-head">
         <h1 className="h1 display">Настройки</h1>
       </div>
-      <div className="home-grid">
+      <div className="tabs-row" role="tablist" aria-label="Группы настроек" style={{ marginBottom: 16 }}>
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-pressed={tab === t.id} onClick={() => router.replace(t.id === 'main' ? '/settings' : `/settings?tab=${t.id}`)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'main' && (
+      <div className="settings-col">
         <section className="card" aria-labelledby="set-weather">
           <h2 className="card-title display" id="set-weather">
             <Icon name="partly" />
@@ -60,32 +85,37 @@ export default function Settings() {
           )}
         </section>
 
+        <section className="card" aria-labelledby="set-push">
+          <h2 className="card-title display" id="set-push">
+            <Icon name="bell" />
+            Уведомления
+          </h2>
+          <PushPanel toast={toast} />
+        </section>
+
         <section className="card" aria-labelledby="set-deadline">
           <h2 className="card-title display" id="set-deadline">
             <Icon name="bell" />
             Сроки дел
           </h2>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
-            Push за день до срока и в сам день — в это время. Нужны включённые уведомления (раздел «Напоминания»).
-          </p>
-          <form
-            style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(() => api('settings', 'PATCH', { deadline_time: time }), 'Сохранено');
-            }}
-          >
-            <div className="fld">
-              <label className="label" htmlFor="set-time">
-                Во сколько
-              </label>
-              <input id="set-time" className="field mono" type="time" required value={time} onChange={(e) => setTime(e.target.value)} />
-            </div>
-            <button className="btn btn-ghost" type="submit" disabled={time === s.deadline_time}>
-              Сохранить
-            </button>
-          </form>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>За день до срока и в сам день придёт push в это время.</p>
+          <div className="fld" style={{ maxWidth: 160 }}>
+            <label className="label" htmlFor="set-time">
+              Во сколько
+            </label>
+            <input
+              id="set-time"
+              className="field mono"
+              type="time"
+              required
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              onBlur={() => time && time !== s.deadline_time && run(() => api('settings', 'PATCH', { deadline_time: time }), 'Сохранено')}
+            />
+          </div>
         </section>
+
+        <QuietCard />
 
         {data.ai && (
           <section className="card ai-card" aria-labelledby="set-summary">
@@ -119,10 +149,26 @@ export default function Settings() {
           </section>
         )}
 
-        <NavEditor />
-        <CalendarCard />
+        <section className="card" aria-labelledby="set-theme">
+          <h2 className="card-title display" id="set-theme">
+            <Icon name="moon" />
+            Тема
+          </h2>
+          <ThemePicker />
+        </section>
+      </div>
+      )}
 
-        <section className="card" aria-labelledby="set-family" style={{ gridColumn: '1 / -1' }}>
+      {tab === 'menu' && (
+        <div className="settings-col">
+          <NavEditor />
+          <CalendarCard />
+        </div>
+      )}
+
+      {tab === 'family' && (
+      <div className="settings-col">
+        <section className="card" aria-labelledby="set-family">
           <h2 className="card-title display" id="set-family">
             <Icon name="users" />
             Семья
@@ -130,8 +176,7 @@ export default function Settings() {
           {!hh ? (
             <>
               <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
-                Семья — общие дела (а скоро и покупки) с близкими. У каждого свой вход; аккаунт заводится на сервере
-                скриптом <code>scripts/add-user.mjs</code>.
+                Общие дела, чек-листы, рецепты и покупки с близкими. Создайте семью и добавьте человека по его логину — он должен быть зарегистрирован.
               </p>
               <form
                 style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
@@ -197,21 +242,33 @@ export default function Settings() {
           )}
         </section>
       </div>
+      )}
 
-      <section className="card" style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 600, minWidth: 60 }}>Тема</span>
-        <ThemePicker />
-      </section>
-
-      <section className="card" style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ flex: 1, minWidth: 0 }}>
-          Вы вошли как <b>{data.login}</b>
-        </span>
-        <button className="btn btn-ghost" type="button" onClick={logout}>
-          <Icon name="logout" size={18} />
-          Выйти
-        </button>
-      </section>
+      {tab === 'account' && (
+        <div className="settings-col">
+          <section className="card" aria-labelledby="set-account">
+            <h2 className="card-title display" id="set-account">
+              <Icon name="users" />
+              Аккаунт
+            </h2>
+            <span style={{ overflowWrap: 'anywhere' }}>
+              Вы вошли как <b>{data.login}</b>
+            </span>
+            <button className="btn btn-ghost" type="button" onClick={logout} style={{ alignSelf: 'flex-start' }}>
+              <Icon name="logout" size={18} />
+              Выйти
+            </button>
+          </section>
+          <section className="card" aria-labelledby="set-help">
+            <h2 className="card-title display" id="set-help">
+              <Icon name="help" />
+              Помощь
+            </h2>
+            <Link href="/guide">Как пользоваться</Link>
+            <Link href="/support">Написать в поддержку</Link>
+          </section>
+        </div>
+      )}
 
       {leaving && me && (
         <Confirm

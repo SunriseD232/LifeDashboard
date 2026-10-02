@@ -65,6 +65,21 @@ if ! grep -q '^VAPID_PUBLIC_KEY=' "$ROOT/.env"; then
   echo "==> создаю ключи VAPID"
   node -e "const k=require('web-push').generateVAPIDKeys();process.stdout.write('VAPID_PUBLIC_KEY='+k.publicKey+'\nVAPID_PRIVATE_KEY='+k.privateKey+'\nVAPID_SUBJECT=https://media-watch.ru/task\n')" >> "$ROOT/.env"
 fi
+# Ключ шифрования базы (src/lib/dbKey.ts) — один раз и навсегда. Первый
+# запуск с ключом зашифрует базу и копии; на случай неудачи держим открытую
+# копию до конца дым-теста и после удачи стираем.
+NEW_KEY=""
+if ! grep -q '^LD_DATA_KEY=' "$ROOT/.env"; then
+  echo "==> создаю ключ шифрования базы"
+  node -e "process.stdout.write('LD_DATA_KEY='+require('crypto').randomBytes(32).toString('base64url')+'\n')" >> "$ROOT/.env"
+  NEW_KEY=1
+  if [ -f "$DB" ]; then
+    for ext in "" -wal -shm; do
+      [ -f "$DB$ext" ] && cp -p "$DB$ext" "$DB.pre-encrypt$ext"
+    done
+  fi
+fi
+
 echo "==> next build"
 NEXT_TELEMETRY_DISABLED=1 npm run build
 
@@ -105,6 +120,16 @@ for i in $(seq 1 15); do
 done
 if [ "$CODE" != "200" ]; then
   echo "!! LifeDashboard отвечает $CODE"
+  if [ -n "$NEW_KEY" ]; then
+    # Прежняя версия не умеет в шифрование — возвращаем открытую базу.
+    pm2 stop lifedashboard-web || true
+    for ext in "" -wal -shm; do
+      rm -f "$DB$ext"
+      [ -f "$DB.pre-encrypt$ext" ] && mv "$DB.pre-encrypt$ext" "$DB$ext"
+    done
+    sed -i '/^LD_DATA_KEY=/d' "$ROOT/.env"
+    echo "!! шифрование отменено, база возвращена как была"
+  fi
   if [ -n "$MIGRATING" ]; then
     pm2 delete lifedashboard-web || true
     pm2 start sbory-web
@@ -123,13 +148,23 @@ if [ -n "$MIGRATING" ]; then
 fi
 pm2 save
 
+if [ -n "$NEW_KEY" ]; then
+  for ext in "" -wal -shm; do
+    [ -f "$DB.pre-encrypt$ext" ] && { shred -u "$DB.pre-encrypt$ext" 2>/dev/null || rm -f "$DB.pre-encrypt$ext"; }
+  done
+  echo
+  echo "!! База теперь зашифрована. Ключ — LD_DATA_KEY в $ROOT/.env."
+  echo "!! Сохраните его в менеджер паролей: без ключа базу и копии не открыть."
+  echo
+fi
+
 echo "==> убираю старые сборки (оставляю 3)"
 ls -1dt "$ROOT"/releases/*/ | tail -n +4 | while read -r old; do
   [ "$(readlink -f "$old")" = "$(readlink -f "$ROOT/current")" ] && continue
   rm -rf "$old"
 done
 
-if ! node -e "const D=require('$REL/node_modules/better-sqlite3');process.exit(new D('$DB',{readonly:true}).prepare('select count(*) n from users').get().n?0:1)" 2>/dev/null; then
+if ! node --env-file="$ROOT/.env" -e "const D=require('$REL/node_modules/better-sqlite3');const d=new D('$DB',{readonly:true});const k=process.env.LD_DATA_KEY;if(k){d.pragma(\"cipher='sqlcipher'\");d.pragma('legacy=4');d.pragma(\"key='\"+k+\"'\")}process.exit(d.prepare('select count(*) n from users').get().n?0:1)" 2>/dev/null; then
   echo
   echo "!! Пользователей ещё нет — войти не получится. Заведите себя на сервере:"
   echo "   cd $ROOT/current && node --env-file=$ROOT/.env scripts/add-user.mjs <логин> --adopt"

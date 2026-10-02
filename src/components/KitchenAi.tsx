@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MenuDay } from '@/lib/aiParse';
+import { deptRank } from '@/lib/kitchenSeed';
+import type { ChecklistItem } from '@/lib/types';
 import { api } from '@/lib/api';
 import { AiButton, compressImage, useAiReady } from './Ai';
 import { useApp } from './AppShell';
@@ -205,5 +207,77 @@ export function PantryPhoto({ onAdd }: { onAdd: (names: string[]) => Promise<voi
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Режим магазина: только список, крупно, по отделам в порядке обхода.
+ * Нажал строку — куплено, она уходит вниз зачёркнутой. Экран не гаснет
+ * (Wake Lock, где браузер позволяет).
+ */
+export function StoreMode({ items, onToggle, onClose }: { items: ChecklistItem[]; onToggle: (i: ChecklistItem, done: boolean) => void; onClose: () => void }) {
+  useEffect(() => {
+    type Lock = { release: () => Promise<void> };
+    let lock: Lock | null = null;
+    const ask = async () => {
+      try {
+        lock = await (navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<Lock> } }).wakeLock?.request('screen') ?? null;
+      } catch {
+        /* не дали — ничего страшного */
+      }
+    };
+    ask();
+    const again = () => document.visibilityState === 'visible' && ask();
+    document.addEventListener('visibilitychange', again);
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('keydown', esc);
+      lock?.release().catch(() => undefined);
+    };
+  }, [onClose]);
+
+  const open = items.filter((i) => !i.done);
+  const bought = items.filter((i) => i.done);
+  const depts = [...new Set(open.map((i) => i.group_name ?? 'Другое'))].sort((a, b) => deptRank(a) - deptRank(b));
+  const row = (i: ChecklistItem) => (
+    <button key={i.id} type="button" className="store-row" data-done={i.done || undefined} aria-pressed={i.done} onClick={() => onToggle(i, !i.done)}>
+      <span className="store-check" aria-hidden="true">
+        {i.done && <Icon name="check" size={18} strokeWidth={2.4} />}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>{i.title}</span>
+      {i.qty !== null && i.qty !== undefined && <span className="mono store-qty">{i.note?.split(' · ')[0]}</span>}
+    </button>
+  );
+
+  return (
+    <div className="store" role="dialog" aria-modal="true" aria-label="Режим магазина">
+      <div className="store-head">
+        <div style={{ flex: 1 }}>
+          <div className="display" style={{ fontSize: 22, fontWeight: 700 }}>
+            В магазине
+          </div>
+          <div style={{ color: 'var(--muted)', fontSize: 14 }}>{open.length ? `Осталось ${open.length} из ${items.length}` : 'Всё куплено'}</div>
+        </div>
+        <button className="btn btn-primary" type="button" onClick={onClose}>
+          Готово
+        </button>
+      </div>
+      <div className="store-list">
+        {depts.map((d) => (
+          <section key={d}>
+            <h2 className="group-title store-dept">{d}</h2>
+            {open.filter((i) => (i.group_name ?? 'Другое') === d).map(row)}
+          </section>
+        ))}
+        {bought.length > 0 && (
+          <section>
+            <h2 className="group-title store-dept">Куплено</h2>
+            {bought.map(row)}
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

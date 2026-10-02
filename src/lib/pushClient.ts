@@ -97,3 +97,16 @@ export async function disablePush(): Promise<PushState> {
   }
   return 'off';
 }
+
+/**
+ * Сервис-воркер нужен и без push — для работы без сети. Регистрируем при
+ * запуске (только в сборке: в разработке кэш мешал бы правкам) и просим
+ * браузер обновить его, если на сервере новая версия.
+ */
+export function registerOffline(): void {
+  if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return;
+  navigator.serviceWorker
+    .register(SW_URL, { scope: SW_SCOPE })
+    .then((r) => r.update())
+    .catch(() => undefined);
+}

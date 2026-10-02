@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, apiDirect, OfflineError } from '@/lib/api';
+import { guessDept } from '@/lib/kitchenSeed';
+import { registerOffline } from '@/lib/pushClient';
+import { clearOffline, flush, loadState, onOutboxChange, outbox, saveState, type Queued } from '@/lib/offline';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
 import type { Product, Recipe } from '@/lib/kitchen';
@@ -13,6 +16,7 @@ import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
+import Onboarding from './Onboarding';
 import SearchDialog from './SearchDialog';
 import ThemeToggle from './ThemeToggle';
 
@@ -31,7 +35,7 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
@@ -78,9 +82,29 @@ const EMPTY: AppData = {
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   gym: { workouts: [], exercises: [], templates: [] },
-  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null },
+  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null },
   household: null,
 };
+
+/** Показать созданное без сети, пока оно в очереди (настоящий id придёт позже). */
+function withQueued(d: AppData, q: Queued): AppData {
+  const b = (q.body ?? {}) as Record<string, unknown>;
+  if (q.path === 'tasks' && q.tempId) {
+    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tag: (b.tag as string) ?? null, due_date: (b.due_date as string) ?? null, rule: null, done_at: null, household_id: null, author: null };
+    return { ...d, tasks: [...d.tasks, t] };
+  }
+  if (q.path === 'reminders' && q.tempId) {
+    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null };
+    return { ...d, reminders: [...d.reminders, r] };
+  }
+  if (q.path === 'kitchen/shopping' && d.kitchen.shopping_id && Array.isArray(b.items)) {
+    const added = (b.items as { name?: string }[])
+      .filter((i) => i.name)
+      .map((i, k) => ({ id: `tmp-${q.id}-${k}`, checklist_id: d.kitchen.shopping_id!, title: i.name!, group_name: guessDept(i.name!), note: null, done: false, position: Date.now() + k }));
+    return { ...d, items: [...d.items, ...added] };
+  }
+  return d;
+}
 
 /**
  * Каркас LifeDashboard: вход (Login), загрузка данных одним запросом и
@@ -109,20 +133,85 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     toastTimer.current = setTimeout(() => setToastText(null), 4000);
   }, []);
 
+  // Без сети: показываем сохранённые данные, изменения копятся в очереди
+  // (src/lib/offline.ts) и уходят, когда сеть вернётся.
+  const [offline, setOffline] = useState(false);
+  const [pending, setPending] = useState(0);
+  const statusRef = useRef<Status>('loading');
+  statusRef.current = status;
+  const syncing = useRef(false);
+
   const reload = useCallback(async () => {
     try {
       const day = localDay();
       dayRef.current = day;
-      setData(await api<AppData>(`state?day=${day}`));
+      const fresh = await api<AppData>(`state?day=${day}`);
+      setData(fresh);
+      saveState(fresh.login, fresh);
+      setOffline(false);
+      setPending(outbox().length);
       setStatus('ready');
     } catch (e) {
+      if (e instanceof OfflineError) {
+        setOffline(true);
+        // Уже открыто — оставляем то, что на экране (там и несохранённое).
+        if (statusRef.current === 'ready') return;
+        const cached = loadState<AppData>();
+        if (cached) {
+          setData({ ...EMPTY, ...cached.state });
+          setStatus('ready');
+          return;
+        }
+        setStatus('error');
+        return;
+      }
       setStatus((e as { status?: number }).status === 401 ? 'guest' : 'error');
     }
   }, []);
 
+  /** Отправить очередь; что-то ушло — перечитать данные с сервера. */
+  const sync = useCallback(async () => {
+    if (syncing.current || !outbox().length) return;
+    syncing.current = true;
+    try {
+      const r = await flush(apiDirect);
+      setPending(outbox().length);
+      if (r.rejected) toast(`Не удалось сохранить изменений: ${r.rejected} — сервер их не принял.`);
+      if (r.sent || r.rejected) await reload();
+    } finally {
+      syncing.current = false;
+    }
+  }, [reload, toast]);
+
   useEffect(() => {
-    reload();
-  }, [reload]);
+    registerOffline();
+    reload().then(sync);
+  }, [reload, sync]);
+
+  useEffect(() => {
+    setPending(outbox().length);
+    const off = onOutboxChange(() => setPending(outbox().length));
+    // Очередь могли изменить в другой вкладке.
+    const storage = (e: StorageEvent) => e.key === 'ld:outbox' && setPending(outbox().length);
+    window.addEventListener('storage', storage);
+    const online = () => reload().then(sync);
+    const wentOffline = () => setOffline(true);
+    window.addEventListener('online', online);
+    window.addEventListener('offline', wentOffline);
+    // Созданное без сети — сразу на экран, с временным id.
+    const queued = (e: Event) => setData((d) => withQueued(d, (e as CustomEvent<Queued>).detail));
+    window.addEventListener('ld:queued', queued);
+    // Сеть могла вернуться без события — пробуем раз в полминуты.
+    const t = setInterval(() => outbox().length && sync(), 30_000);
+    return () => {
+      off();
+      window.removeEventListener('storage', storage);
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', wentOffline);
+      window.removeEventListener('ld:queued', queued);
+      clearInterval(t);
+    };
+  }, [reload, sync]);
 
   // Часы и смена суток: раз в 30 секунд обновляем «сейчас», а при переходе
   // через полночь или возвращении на вкладку на другой день — перечитываем
@@ -169,6 +258,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await api('auth/logout', 'POST').catch(() => undefined);
+    clearOffline();
     setData(EMPTY);
     setStatus('guest');
   };
@@ -282,6 +372,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
         </header>
 
+        {(offline || pending > 0) && (
+          <div className="offline-bar" role="status">
+            <Icon name={offline ? 'cloud' : 'repeat'} size={16} />
+            {offline ? 'Нет сети — показываю сохранённое' : 'Отправляю изменения…'}
+            {pending > 0 && ` · ждут отправки: ${pending}`}
+          </div>
+        )}
         <main className="page">{children}</main>
 
         <nav className="tabbar" aria-label="Разделы">
@@ -300,6 +397,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
+
+      {/* Знакомство — только совсем новым: не прошли и ничего ещё не завели. */}
+      {!data.settings.onboarded && data.tasks.length + data.reminders.length + data.checklists.length + data.notes.length === 0 && <Onboarding />}
 
       {toastText && (
         <div className="toast" role="status">

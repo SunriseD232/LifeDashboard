@@ -45,7 +45,7 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
 
   if (method === 'PATCH' && !id) {
     const cur = readSettings(d, userId);
-    let { city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token } = cur;
+    let { city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time } = cur;
     if (body.city !== undefined) {
       if (body.city === null) {
         city = null;
@@ -72,15 +72,31 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
       if (body.summary_time !== null && (typeof body.summary_time !== 'string' || !TIME_RE.test(body.summary_time))) throw new HttpError(400, 'Неверное время.');
       summary_time = body.summary_time;
     }
+    const timeOrNull = (v: unknown): string | null => {
+      if (v !== null && (typeof v !== 'string' || !TIME_RE.test(v))) throw new HttpError(400, 'Неверное время.');
+      return v as string | null;
+    };
+    if (body.onboarded !== undefined) onboarded = !!body.onboarded;
+    // Тихие часы: оба времени или оба null.
+    if (body.quiet_from !== undefined || body.quiet_to !== undefined) {
+      const f = timeOrNull(body.quiet_from ?? null);
+      const t = timeOrNull(body.quiet_to ?? null);
+      if ((f === null) !== (t === null) || (f !== null && f === t)) throw new HttpError(400, 'Укажите, с какого и до какого времени.');
+      quiet_from = f;
+      quiet_to = t;
+    }
+    if (body.review_time !== undefined) review_time = timeOrNull(body.review_time);
     if (body.nav !== undefined) nav = body.nav === null ? null : parseNav(body.nav);
     // Календарь: true — выдать (или перевыпустить) ссылку, false — отключить.
     if (body.calendar !== undefined) calendar_token = body.calendar ? randomBytes(24).toString('base64url') : null;
     d.prepare(
-      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        on conflict (user_id) do update set city = excluded.city, lat = excluded.lat, lon = excluded.lon,
          tz = excluded.tz, deadline_time = excluded.deadline_time, summary_time = excluded.summary_time,
-         nav = excluded.nav, calendar_token = excluded.calendar_token`,
-    ).run(userId, city, lat, lon, tz, deadline_time, summary_time, nav ? JSON.stringify(nav) : null, calendar_token);
+         nav = excluded.nav, calendar_token = excluded.calendar_token, onboarded = excluded.onboarded,
+         quiet_from = excluded.quiet_from, quiet_to = excluded.quiet_to, review_time = excluded.review_time`,
+    ).run(userId, city, lat, lon, tz, deadline_time, summary_time, nav ? JSON.stringify(nav) : null, calendar_token, onboarded ? 1 : 0, quiet_from, quiet_to, review_time);
     return { ok: true };
   }
 

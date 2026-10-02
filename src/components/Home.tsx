@@ -17,6 +17,7 @@ import { AddTask, TaskRow } from './Tasks';
 import { QuickAdd, SummaryCard } from './Ai';
 import { WeatherCard, WeatherLine } from './Weather';
 import { useIsPhone } from './Phone';
+import Swipe from './Swipe';
 import { AiButton } from './Ai';
 import { minutesOf } from '@/lib/dates';
 import { useGym } from './Workouts';
@@ -312,13 +313,15 @@ export default function Home() {
     const before = byTime.filter((o) => at(o) <= nowMin);
     const after = byTime.filter((o) => at(o) > nowMin);
     const remRow = (o: (typeof todays)[number]) => (
-      <label key={o.key} className={`check round${o.done ? ' done' : ''}`}>
+      <Swipe key={o.key} onRight={o.done ? undefined : () => toggle(o.reminder, o.slot, true)}>
+      <label className={`check round${o.done ? ' done' : ''}`}>
         <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
         <span className="check-text" style={{ flex: 1 }}>{o.reminder.title}</span>
         <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', flex: 'none' }}>
           {o.snoozedTo ?? o.slot}
         </span>
       </label>
+      </Swipe>
     );
     const shownTasks = urgent.slice(0, 8);
     const nothing = todays.length === 0 && urgent.length === 0;

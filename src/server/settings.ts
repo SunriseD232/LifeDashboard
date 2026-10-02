@@ -15,13 +15,20 @@ export interface Settings {
   nav: NavPref[] | null;
   /** Секрет ссылки-подписки на календарь; null — не включали. */
   calendar_token: string | null;
+  /** Прошёл знакомство при первом входе. */
+  onboarded: boolean;
+  /** Тихие часы: с — до, 'ЧЧ:ММ'; null — выключены. */
+  quiet_from: string | null;
+  quiet_to: string | null;
+  /** Итог дня вечером: во сколько; null — выключен. */
+  review_time: string | null;
 }
 
-export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null };
+export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: false, quiet_from: '23:00', quiet_to: '07:00', review_time: null };
 
 export function readSettings(d: Database.Database, userId: string): Settings {
-  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token from user_settings where user_id = ?').get(userId) as
-    | (Omit<Settings, 'nav'> & { nav: string | null })
+  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time from user_settings where user_id = ?').get(userId) as
+    | (Omit<Settings, 'nav' | 'onboarded'> & { nav: string | null; onboarded: number })
     | undefined;
   if (!row) return { ...DEFAULT_SETTINGS };
   let nav: NavPref[] | null = null;
@@ -30,5 +37,5 @@ export function readSettings(d: Database.Database, userId: string): Settings {
   } catch {
     nav = null;
   }
-  return { ...row, nav };
+  return { ...row, nav, onboarded: !!row.onboarded };
 }

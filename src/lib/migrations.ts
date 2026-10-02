@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { SEED_PRODUCTS } from './kitchenSeed';
+import { guessDept, SEED_PRODUCTS } from './kitchenSeed';
 
 /**
  * Миграции базы — нумерованные шаги, номер применённой хранится в самой базе
@@ -585,6 +585,38 @@ export const MIGRATIONS: Migration[] = [
     alter table user_settings add column calendar_token text;
     create unique index user_settings_calendar_idx on user_settings (calendar_token) where calendar_token is not null;
     `),
+  },
+  {
+    version: 11,
+    name: 'Знакомство, тихие часы, итог дня',
+    up: (db) =>
+      db.exec(`
+    -- Прошёл ли знакомство (город, уведомления, первое дело). У тех, кто уже
+    -- пользуется, — считаем, что прошёл.
+    alter table user_settings add column onboarded integer not null default 0;
+    update user_settings set onboarded = 1;
+    -- Тихие часы: push не шлём с quiet_from до quiet_to (null — выключены).
+    alter table user_settings add column quiet_from text default '23:00';
+    alter table user_settings add column quiet_to text default '07:00';
+    -- Итог дня вечером: во сколько (null — выключен).
+    alter table user_settings add column review_time text;
+    `),
+  },
+  {
+    version: 12,
+    name: 'Покупки: отделы для продуктов, заведённых людьми',
+    up: (db) => {
+      // Раньше новые продукты попадали в «Другое» — угадываем отдел по названию.
+      const rows = db.prepare("select id, name from products where dept = 'Другое'").all() as { id: string; name: string }[];
+      const set = db.prepare('update products set dept = ? where id = ?');
+      const items = db.prepare('update checklist_items set group_name = ? where product_id = ?');
+      for (const r of rows) {
+        const dept = guessDept(r.name);
+        if (dept === 'Другое') continue;
+        set.run(dept, r.id);
+        items.run(dept, r.id);
+      }
+    },
   },
 ];
 

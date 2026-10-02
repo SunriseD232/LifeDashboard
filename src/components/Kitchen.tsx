@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { findProduct, groupOf, match, normName, type Match, type Product, type Recipe } from '@/lib/kitchen';
-import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
+import { CATEGORY_LABELS, deptRank, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
 import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
-import { MenuPlanner, PantryPhoto } from './KitchenAi';
+import Empty from './Empty';
+import { MenuPlanner, PantryPhoto, StoreMode } from './KitchenAi';
 import { Fab, useIsPhone } from './Phone';
+import Swipe from './Swipe';
 
 // ---------------------------------------------------------------- общее
 
@@ -146,7 +148,7 @@ function Pantry() {
         </button>
       </form>
       {have.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто — отметьте, что лежит в холодильнике, или сфотографируйте чек.</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто. Напишите, что есть: «яйца», «молоко».</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {have.map((p) => (
@@ -214,23 +216,15 @@ function Recipes() {
 
   if (k.recipes.length === 0) {
     return (
-      <div className="panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
-        <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
-          Рецептов пока нет
-        </h2>
-        <p style={{ margin: 0, color: 'var(--muted)' }}>
-          Начните с базовых домашних — омлет, сырники, борщ, паста, плов и другие ({SEED_RECIPES.length}). Их можно править и удалять.
-        </p>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" type="button" onClick={seed} disabled={seeding}>
-            <Icon name="plus" size={18} />
-            {seeding ? 'Добавляем…' : 'Добавить базовые рецепты'}
-          </button>
-          <button className="btn btn-ghost" type="button" onClick={() => router.push('/kitchen/new')}>
-            Свой рецепт
-          </button>
-        </div>
-      </div>
+      <Empty
+        icon="pot"
+        title="Рецептов пока нет"
+        action={seeding ? 'Добавляем…' : `Добавить ${SEED_RECIPES.length} домашних: омлет, борщ, плов…`}
+        onAction={seed}
+        busy={seeding}
+        secondary="Свой рецепт"
+        onSecondary={() => router.push('/kitchen/new')}
+      />
     );
   }
 
@@ -300,7 +294,8 @@ export function Shopping() {
   const items = data.items.filter((i) => i.checklist_id === listId);
   const open = items.filter((i) => !i.done);
   const bought = items.filter((i) => i.done);
-  const depts = [...new Set(open.map((i) => i.group_name ?? 'Другое'))];
+  const depts = [...new Set(open.map((i) => i.group_name ?? 'Другое'))].sort((a, b) => deptRank(a) - deptRank(b));
+  const [store, setStore] = useState(false);
   const shared = !!data.checklists.find((c) => c.id === listId)?.household_id;
 
   const add = async (e: React.FormEvent) => {
@@ -338,7 +333,8 @@ export function Shopping() {
     );
 
   const row = (i: ChecklistItem) => (
-    <div key={i.id} className="task-row">
+    <Swipe key={i.id} onRight={() => toggle(i, !i.done)} rightLabel={i.done ? 'Вернуть' : 'Куплено'} rightIcon={i.done ? 'reset' : 'check'} actions={[{ label: 'Удалить', icon: 'trash', tone: 'danger', onClick: () => remove(i) }]}>
+    <div className="task-row">
       <label className={`check${i.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
         <input type="checkbox" checked={i.done} onChange={(e) => toggle(i, e.target.checked)} />
         <span className="check-text" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'baseline' }}>
@@ -355,6 +351,7 @@ export function Shopping() {
         <Icon name="x" size={16} />
       </button>
     </div>
+    </Swipe>
   );
 
   return (
@@ -368,6 +365,13 @@ export function Shopping() {
           {shared ? 'общий список семьи' : 'ваш список'}
         </span>
       </div>
+      {open.length > 0 && (
+        <button className="btn btn-primary" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setStore(true)}>
+          <Icon name="cart" size={18} />
+          В магазин — крупный список
+        </button>
+      )}
+      {store && <StoreMode items={items} onToggle={toggle} onClose={() => setStore(false)} />}
       <form onSubmit={add} style={{ display: 'flex', gap: 8 }}>
         <label className="sr-only" htmlFor="shop-add">
           Что купить

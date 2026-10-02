@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { findProduct, type Product, type Recipe } from '@/lib/kitchen';
-import type { Category } from '@/lib/kitchenSeed';
+import { guessDept, type Category } from '@/lib/kitchenSeed';
 import { householdOf, visibleWhere } from './household';
 
 /**
@@ -25,12 +25,12 @@ export function readProducts(d: Database.Database): Product[] {
   })[]).map((p) => ({ ...p, aliases: JSON.parse(p.aliases) as string[], basic: !!p.basic }));
 }
 
-/** Продукт по названию; нет такого — заводим в справочник (отдел «Другое»). */
+/** Продукт по названию; нет такого — заводим в справочник (отдел угадываем по названию). */
 export function productByName(d: Database.Database, userId: string, name: string): Product {
   const all = readProducts(d);
   const found = findProduct(all, name);
   if (found) return found;
-  const p: Product = { id: randomUUID(), name: name.trim().toLowerCase().slice(0, 60), dept: 'Другое', aliases: [], basic: false };
+  const p: Product = { id: randomUUID(), name: name.trim().toLowerCase().slice(0, 60), dept: guessDept(name), aliases: [], basic: false };
   d.prepare('insert into products (id, name, dept, aliases, basic, created_by) values (?, ?, ?, ?, 0, ?)').run(p.id, p.name, p.dept, '[]', userId);
   return p;
 }

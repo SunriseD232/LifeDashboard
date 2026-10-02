@@ -150,3 +150,52 @@ export function CalendarCard() {
     </section>
   );
 }
+
+/** Тихие часы и вечерний итог — в «Основном». Время сохраняется само. */
+export function QuietCard() {
+  const { data, reload, toast } = useApp();
+  const s = data.settings;
+  const save = async (body: Record<string, unknown>, ok?: string) => {
+    try {
+      await api('settings', 'PATCH', body);
+      await reload();
+      if (ok) toast(ok);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  const timeField = (id: string, label: string, value: string, onSave: (v: string) => void) => (
+    <div className="fld" style={{ maxWidth: 140 }}>
+      <label className="label" htmlFor={id}>
+        {label}
+      </label>
+      <input id={id} className="field mono" type="time" defaultValue={value} onBlur={(e) => e.target.value && e.target.value !== value && onSave(e.target.value)} />
+    </div>
+  );
+  return (
+    <section className="card" aria-labelledby="set-quiet">
+      <h2 className="card-title display" id="set-quiet">
+        <Icon name="moon" />
+        Тишина и итог дня
+      </h2>
+      <label className="check" style={{ padding: 0 }}>
+        <input type="checkbox" checked={!!s.quiet_from} onChange={(e) => save(e.target.checked ? { quiet_from: '23:00', quiet_to: '07:00' } : { quiet_from: null, quiet_to: null })} />
+        <span className="check-text">Тихие часы — ночью без уведомлений</span>
+      </label>
+      {s.quiet_from && s.quiet_to && (
+        <>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {timeField('q-from', 'С', s.quiet_from, (v) => save({ quiet_from: v, quiet_to: s.quiet_to }, 'Сохранено'))}
+            {timeField('q-to', 'До', s.quiet_to, (v) => save({ quiet_from: s.quiet_from, quiet_to: v }, 'Сохранено'))}
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Что пришлось на это время и не отмечено — придёт одним сообщением утром.</p>
+        </>
+      )}
+      <label className="check" style={{ padding: 0 }}>
+        <input type="checkbox" checked={!!s.review_time} onChange={(e) => save({ review_time: e.target.checked ? '21:00' : null }, e.target.checked ? 'Итог дня в 21:00' : undefined)} />
+        <span className="check-text">Итог дня вечером — перенести несделанное на завтра</span>
+      </label>
+      {s.review_time && timeField('rev-time', 'Во сколько', s.review_time, (v) => save({ review_time: v }, 'Сохранено'))}
+    </section>
+  );
+}

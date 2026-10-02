@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { addDays, dueDay, occursOn } from '@/lib/recur';
+import { addDays, dueDay, nextOccurrence, weekday, type Rule } from '@/lib/recur';
 import type { Task } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 import { readReminders } from './reminderStore';
@@ -8,13 +8,49 @@ import { readTasks } from './taskStore';
 
 /**
  * Календарь по подписке (iCalendar, RFC 5545): дела со сроком — событиями на
- * весь день, напоминания — на своё время на DAYS дней вперёд. Время
+ * весь день, напоминания — на своё время. Повторы — настоящими повторяющимися
+ * событиями (RRULE): календарь сам разворачивает их на любой срок. «После
+ * выполнения» — одним ближайшим разом: дальше зависит от отметки. Время
  * «плавающее» (без пояса): «18:30» — это 18:30 там, где телефон, как и у push.
  * Только чтение: календарь сам перечитывает ссылку.
  */
 
-const DAYS = 60;
 const MAX_EVENTS = 2000;
+
+const BYDAY = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+/** Дни 28..d — с BYSETPOS=-1 даёт «d-е, а в коротком месяце — последний», как у нас. */
+const clampDays = (d: number) => (d <= 28 ? String(d) : Array.from({ length: d - 27 }, (_, i) => 28 + i).join(','));
+
+/**
+ * Календарный повтор → RRULE. allDay — для дел (событие на день): тогда UNTIL
+ * датой, иначе — концом дня в «плавающем» времени, как и DTSTART.
+ */
+export function rrule(rule: Extract<Rule, { kind: 'repeat' }>, allDay = false): string {
+  const parts = [`FREQ=${{ day: 'DAILY', week: 'WEEKLY', month: 'MONTHLY', year: 'YEARLY' }[rule.unit]}`];
+  if (rule.every > 1) parts.push(`INTERVAL=${rule.every}`);
+  const sd = Number(rule.start.slice(8));
+  if (rule.unit === 'week') {
+    const days = rule.weekdays?.length ? rule.weekdays : [weekday(rule.start)];
+    parts.push(`BYDAY=${days.map((w) => BYDAY[w]).join(',')}`, 'WKST=MO');
+  }
+  if (rule.unit === 'month') {
+    const mo = rule.monthly ?? { type: 'day' as const, day: sd };
+    if (mo.type === 'nth') parts.push(`BYDAY=${mo.nth}${BYDAY[mo.weekday]}`);
+    else if (mo.day === -1) parts.push('BYMONTHDAY=-1');
+    else {
+      parts.push(`BYMONTHDAY=${clampDays(mo.day)}`);
+      if (mo.day > 28) parts.push('BYSETPOS=-1');
+    }
+  }
+  if (rule.unit === 'year') {
+    parts.push(`BYMONTH=${Number(rule.start.slice(5, 7))}`, `BYMONTHDAY=${clampDays(sd)}`);
+    if (sd > 28) parts.push('BYSETPOS=-1');
+  }
+  if (rule.end?.type === 'until') parts.push(`UNTIL=${ymd(rule.end.date)}${allDay ? '' : 'T235959'}`);
+  if (rule.end?.type === 'count') parts.push(`COUNT=${rule.end.count}`);
+  return `RRULE:${parts.join(';')}`;
+}
 
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
 const ymd = (day: string) => day.replace(/-/g, '');
@@ -53,29 +89,35 @@ export function icsFor(tasks: Task[], reminders: Reminder[], today: string, now 
 
   for (const t of tasks) {
     if (t.done_at || !t.due_date) continue;
+    // Повторяющееся дело — с ближайшего срока по своему правилу.
+    const rep = t.rule?.kind === 'repeat' ? { ...t.rule, start: t.due_date } : null;
     event(`task-${t.id}`, [
       `DTSTART;VALUE=DATE:${ymd(t.due_date)}`,
       `DTEND;VALUE=DATE:${ymd(addDays(t.due_date, 1))}`,
+      ...(rep ? [rrule(rep, true)] : []),
       `SUMMARY:${esc(`Срок: ${t.title}`)}`,
       ...(t.note ? [`DESCRIPTION:${esc(t.note)}`] : []),
       'TRANSP:TRANSPARENT',
     ]);
   }
 
-  const last = addDays(today, DAYS);
   for (const r of reminders) {
-    const days: string[] = [];
-    if (r.rule.kind === 'after') {
-      // Следующий раз один: дальше зависит от того, когда отметят.
-      const due = dueDay(r.rule, r.last_done);
-      days.push(due < today ? today : due);
-    } else {
-      for (let x = today; x <= last; x = addDays(x, 1)) if (occursOn(r.rule, x, r.last_done)) days.push(x);
-    }
-    for (const day of days) {
+    const hhmm = (hm: string) => hm.replace(':', '');
+    const rule = r.rule;
+    if (rule.kind === 'repeat') {
+      // DTSTART — первый настоящий раз: иначе календарь посчитал бы его лишним.
+      const first = nextOccurrence(rule, rule.start);
+      if (!first) continue;
       for (const hm of r.times) {
-        event(`rem-${r.id}-${ymd(day)}-${hm.replace(':', '')}`, [`DTSTART:${ymd(day)}T${hm.replace(':', '')}00`, 'DURATION:PT15M', `SUMMARY:${esc(r.title)}`, 'TRANSP:TRANSPARENT']);
+        event(`rem-${r.id}-${hhmm(hm)}`, [`DTSTART:${ymd(first)}T${hhmm(hm)}00`, 'DURATION:PT15M', rrule(rule), `SUMMARY:${esc(r.title)}`, 'TRANSP:TRANSPARENT']);
       }
+      continue;
+    }
+    // Разовое — в свой день; «после выполнения» — ближайший раз (просрочено — сегодня).
+    const day = rule.kind === 'once' ? rule.date : dueDay(rule, r.last_done) < today ? today : dueDay(rule, r.last_done);
+    if (rule.kind === 'once' && day < addDays(today, -30)) continue;
+    for (const hm of r.times) {
+      event(`rem-${r.id}-${ymd(day)}-${hhmm(hm)}`, [`DTSTART:${ymd(day)}T${hhmm(hm)}00`, 'DURATION:PT15M', `SUMMARY:${esc(r.title)}`, 'TRANSP:TRANSPARENT']);
     }
   }
 
