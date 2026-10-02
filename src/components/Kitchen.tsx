@@ -12,6 +12,7 @@ import { Icon } from './icons';
 import Empty from './Empty';
 import { MenuPlanner, PantryPhoto } from './KitchenAi';
 import { Fab, useIsPhone } from './Phone';
+import Swipe from './Swipe';
 
 // ---------------------------------------------------------------- общее
 
@@ -331,7 +332,8 @@ export function Shopping() {
     );
 
   const row = (i: ChecklistItem) => (
-    <div key={i.id} className="task-row">
+    <Swipe key={i.id} onRight={() => toggle(i, !i.done)} rightLabel={i.done ? 'Вернуть' : 'Куплено'} rightIcon={i.done ? 'reset' : 'check'} actions={[{ label: 'Удалить', icon: 'trash', tone: 'danger', onClick: () => remove(i) }]}>
+    <div className="task-row">
       <label className={`check${i.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
         <input type="checkbox" checked={i.done} onChange={(e) => toggle(i, e.target.checked)} />
         <span className="check-text" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'baseline' }}>
@@ -348,6 +350,7 @@ export function Shopping() {
         <Icon name="x" size={16} />
       </button>
     </div>
+    </Swipe>
   );
 
   return (

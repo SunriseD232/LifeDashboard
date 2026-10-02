@@ -4,13 +4,14 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { localDay, plural } from '@/lib/dates';
-import { describe, type Rule } from '@/lib/recur';
+import { addDays, describe, type Rule } from '@/lib/recur';
 import { bucket, dueLabel, firstDue, groupLater, nextDue, shortDate, sortUrgent, type Task } from '@/lib/tasks';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
 import { PhoneForm } from './Phone';
+import Swipe from './Swipe';
 
 // ---------------------------------------------------------------- действия
 
@@ -42,7 +43,25 @@ export function useTaskActions() {
       },
     );
 
-  return { complete, undo, today };
+  /** На завтра (свайп влево): срок — завтра, дело уйдёт из сегодняшних. */
+  const tomorrow = (t: Task) => {
+    const day = addDays(today, 1);
+    mutate(
+      (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: day } : x)) }),
+      () => api(`tasks/${t.id}`, 'PATCH', { due_date: day }),
+    );
+    toast(`«${t.title}» — на завтра`);
+  };
+
+  const remove = (t: Task) => {
+    mutate(
+      (d) => ({ ...d, tasks: d.tasks.filter((x) => x.id !== t.id) }),
+      () => api(`tasks/${t.id}`, 'DELETE'),
+    );
+    toast(`Удалено: «${t.title}»`);
+  };
+
+  return { complete, undo, tomorrow, remove, today };
 }
 
 // ---------------------------------------------------------------- строка дела
@@ -50,10 +69,23 @@ export function useTaskActions() {
 const TONE: Record<string, string> = { danger: 'chip-danger', warm: 'chip-warm', muted: '' };
 
 export function TaskRow({ task, onOpen, showDate = false }: { task: Task; onOpen?: (t: Task) => void; showDate?: boolean }) {
-  const { complete, undo, today } = useTaskActions();
+  const { complete, undo, tomorrow, remove, today } = useTaskActions();
   const done = !!task.done_at;
   const due = dueLabel(task.due_date, today);
+  // Чужое общее дело удалить нельзя (сервер не даст) — и свайп не предлагает.
+  const canDelete = !task.household_id || !task.author;
   return (
+    <Swipe
+      onRight={done ? undefined : () => complete(task)}
+      actions={
+        done
+          ? []
+          : [
+              ...(task.due_date !== addDays(today, 1) ? [{ label: 'Завтра', icon: 'calendar', tone: 'warm' as const, onClick: () => tomorrow(task) }] : []),
+              ...(canDelete ? [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }] : []),
+            ]
+      }
+    >
     <div className="task-row">
       <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
         <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
@@ -84,6 +116,7 @@ export function TaskRow({ task, onOpen, showDate = false }: { task: Task; onOpen
         </button>
       )}
     </div>
+    </Swipe>
   );
 }
 

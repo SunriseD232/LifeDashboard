@@ -7,6 +7,7 @@ import type { Checklist, ChecklistItem, IconName } from '@/lib/types';
 import { useApp, type AppData, type Mutate } from './AppShell';
 import Confirm from './Confirm';
 import Empty from './Empty';
+import Swipe from './Swipe';
 import { Icon, LIST_ICONS } from './icons';
 import TemplatePicker from './TemplatePicker';
 
@@ -508,11 +509,30 @@ function ChecklistDetail({
             <section key={g.name ?? '__none'} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {(g.name || groups.length > 1) && <h3 className="group-title">{groupLabel(g.name)}</h3>}
               {g.items.map((it) => (
-                <label key={it.id} className={`check${it.done ? ' done' : ''}`}>
-                  <input type="checkbox" checked={it.done} onChange={(e) => patchItem(it.id, { done: e.target.checked })} />
-                  <span className="check-text">{it.title}</span>
-                  {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 13, color: 'var(--muted)' }}>{it.note}</em>}
-                </label>
+                <Swipe
+                  key={it.id}
+                  onRight={() => patchItem(it.id, { done: !it.done })}
+                  rightLabel={it.done ? 'Вернуть' : 'Собрано'}
+                  rightIcon={it.done ? 'reset' : 'check'}
+                  actions={[
+                    {
+                      label: 'Удалить',
+                      icon: 'trash',
+                      tone: 'danger',
+                      onClick: () =>
+                        mutate(
+                          (d) => ({ ...d, items: d.items.filter((i) => i.id !== it.id) }),
+                          () => api(`items/${it.id}`, 'DELETE'),
+                        ),
+                    },
+                  ]}
+                >
+                  <label className={`check${it.done ? ' done' : ''}`}>
+                    <input type="checkbox" checked={it.done} onChange={(e) => patchItem(it.id, { done: e.target.checked })} />
+                    <span className="check-text">{it.title}</span>
+                    {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 13, color: 'var(--muted)' }}>{it.note}</em>}
+                  </label>
+                </Swipe>
               ))}
               <AddInline quiet label="Добавить вещь" onAdd={(t) => addItem(t, g.name)} />
             </section>

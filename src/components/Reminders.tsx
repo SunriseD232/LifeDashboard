@@ -15,6 +15,7 @@ import RuleEditor from './RuleEditor';
 import { Icon } from './icons';
 import Empty from './Empty';
 import { Fab, Sheet, useIsPhone } from './Phone';
+import Swipe from './Swipe';
 
 interface Props {
   data: AppData;
@@ -284,7 +285,15 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
           const past = !o.done && minutesOf(t) < nowMin;
           const overdue = r.rule.kind === 'after' && !o.done && today > dueDay(r.rule, r.last_done);
           return (
-            <li key={o.key} className={`rem-row${isNext ? ' next' : ''}`}>
+            <li key={o.key}>
+            <Swipe
+              onRight={o.done ? undefined : () => setDone(r, o.slot, true)}
+              actions={[
+                ...(o.done ? [] : [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => snooze(o, 60) }]),
+                { label: 'Изменить', icon: 'edit', onClick: () => startEdit(r) },
+              ]}
+            >
+            <div className={`rem-row${isNext ? ' next' : ''}`}>
               <span className="mono rem-time" style={{ width: 52, flex: 'none', paddingTop: 1, color: isNext ? 'var(--warm)' : 'var(--muted)' }}>
                 {t}
               </span>
@@ -342,6 +351,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                 )}
                 {actions(r, o)}
               </div>
+            </div>
+            </Swipe>
             </li>
           );
         })}
