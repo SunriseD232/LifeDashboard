@@ -186,6 +186,67 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 3,
+    name: 'дела, семья (общие списки), настройки пользователя',
+    up: (db) =>
+      db.exec(`
+    -- Семья — несколько пользователей с общими делами, а дальше покупками и
+    -- запасами. Человек состоит не больше чем в одной семье.
+    create table households (
+      id text primary key,
+      name text not null,
+      created_by text not null,
+      created_at text not null default (datetime('now'))
+    );
+    create table household_members (
+      user_id text primary key references users(id) on delete cascade,
+      household_id text not null references households(id) on delete cascade,
+      joined_at text not null default (datetime('now'))
+    );
+    create index household_members_hh_idx on household_members (household_id);
+
+    -- Дела. Без даты — «срочно»; с датой — «позже», а за день до срока
+    -- переезжают в «срочно». household_id — общее дело семьи (видят все её
+    -- участники), null — личное. rule — повтор (src/lib/recur.ts): выполнили
+    -- — срок переезжает на следующий раз, а отметка ложится в task_log.
+    create table tasks (
+      id text primary key,
+      user_id text not null,
+      household_id text references households(id) on delete set null,
+      title text not null,
+      note text,
+      tag text,
+      due_date text,
+      rule text,
+      done_at text,
+      created_at text not null default (datetime('now'))
+    );
+    create index tasks_user_idx on tasks (user_id, done_at);
+    create index tasks_household_idx on tasks (household_id, done_at);
+
+    -- Кто и когда выполнил: «Сделано сегодня» и история повторяющихся дел.
+    -- prev_due — срок до отметки: «отменить» у повторяющегося дела
+    -- возвращает его на место.
+    create table task_log (
+      task_id text not null references tasks(id) on delete cascade,
+      user_id text not null,
+      day text not null,
+      prev_due text,
+      created_at text not null default (datetime('now'))
+    );
+    create index task_log_task_idx on task_log (task_id, day);
+
+    -- Настройки человека: город для погоды, во сколько напоминать о сроках.
+    create table user_settings (
+      user_id text primary key references users(id) on delete cascade,
+      city text,
+      lat real,
+      lon real,
+      deadline_time text not null default '09:00'
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

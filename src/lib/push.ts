@@ -3,6 +3,9 @@ import { readReminders, doneKeys, snoozesOn, type StoredReminder } from '../serv
 import { minutesOf } from './dates';
 import { db } from './db';
 import { occurrencesOn, type Occurrence } from './occurrences';
+import { deadlineNotices } from './tasks';
+import { readSettings } from '../server/settings';
+import { readTasks } from '../server/taskStore';
 import { dueDay } from './recur';
 
 /**
@@ -166,6 +169,22 @@ async function tick(): Promise<void> {
           slot: o.slot,
         });
       }
+    }
+
+    // Сроки дел: за день и в день срока, в своё время из настроек. Общие дела
+    // семьи каждый участник получает в своём цикле — по своим видимым делам.
+    const { tasks } = readTasks(d, userId, lp.day);
+    for (const n of deadlineNotices(tasks, lp.day, lp.minutes, readSettings(d, userId).deadline_time)) {
+      const fresh = d
+        .prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)')
+        .run(`task:${n.task.id}:${userId}`, lp.day, n.kind);
+      if (fresh.changes === 0) continue;
+      await sendToUser(userId, {
+        title: n.task.title,
+        body: n.kind === 'today' ? 'Сегодня срок' : 'Завтра срок — дело уже в «Срочно»',
+        tag: `task:${n.task.id}:${lp.day}`,
+        url: '/task/tasks',
+      });
     }
   }
 
