@@ -33,7 +33,26 @@ if (!login || login.length > 64) {
 
 const DB_PATH = process.env.LD_DB_PATH || path.join(process.cwd(), 'data', 'lifedashboard.db');
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+// База зашифрована ключом LD_DATA_KEY (как в src/lib/dbKey.ts). Если файл
+// ещё открытый — шифруем его тем же способом, что и приложение.
+const KEY = process.env.LD_DATA_KEY?.trim();
+const cipher = (c) => {
+  c.pragma("cipher='sqlcipher'");
+  c.pragma('legacy=4');
+};
+if (KEY && fs.existsSync(DB_PATH) && fs.readFileSync(DB_PATH).subarray(0, 16).toString('binary') === 'SQLite format 3\0') {
+  const plain = new Database(DB_PATH);
+  plain.pragma('wal_checkpoint(TRUNCATE)');
+  plain.pragma('journal_mode = DELETE');
+  cipher(plain);
+  plain.pragma(`rekey='${KEY}'`);
+  plain.close();
+}
 const db = new Database(DB_PATH);
+if (KEY) {
+  cipher(db);
+  db.pragma(`key='${KEY}'`);
+}
 db.pragma('foreign_keys = ON');
 // Те же таблицы, что в src/lib/db.ts: скрипт может запуститься раньше, чем
 // приложение впервые открыло базу.
