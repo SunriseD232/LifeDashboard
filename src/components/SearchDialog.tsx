@@ -13,6 +13,7 @@ const KINDS: { id: SearchKind; label: string; icon: string }[] = [
   { id: 'checklist', label: 'Чек-листы', icon: 'list' },
   { id: 'item', label: 'В чек-листах', icon: 'check' },
   { id: 'reminder', label: 'Напоминания', icon: 'bell' },
+  { id: 'recipe', label: 'Рецепты', icon: 'pot' },
 ];
 
 /**
@@ -64,6 +65,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
     if (h.kind === 'note') return data.notes.find((n) => n.id === h.id)?.title || h.title || 'Без названия';
     if (h.kind === 'checklist') return data.checklists.find((c) => c.id === h.id)?.title ?? h.title;
     if (h.kind === 'item') return data.items.find((i) => i.id === h.id)?.title ?? h.title;
+    if (h.kind === 'recipe') return data.kitchen.recipes.find((r) => r.id === h.id)?.title ?? h.title;
     return data.reminders.find((r) => r.id === h.id)?.title ?? h.title;
   };
 
@@ -82,6 +84,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
     if (h.kind === 'note') router.push(`/notes?open=${h.id}`);
     else if (h.kind === 'task') router.push(`/tasks?open=${h.id}`);
     else if (h.kind === 'reminder') router.push(`/reminders?edit=${h.id}`);
+    else if (h.kind === 'recipe') router.push(`/kitchen/${h.id}`);
     else {
       setOpenList(h.kind === 'item' ? h.parent?.id ?? null : h.id);
       router.push('/lists');
@@ -118,7 +121,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Дела, заметки, чек-листы, напоминания…"
+            placeholder="Дела, заметки, чек-листы, рецепты…"
             autoComplete="off"
             role="combobox"
             aria-expanded={!!flat.length}

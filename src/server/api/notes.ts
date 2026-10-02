@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { findChecklist } from '../checklistStore';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
 import { findNote } from '../noteStore';
@@ -28,7 +29,7 @@ function tags(v: unknown): string[] {
 export function notes({ d, userId, method, body: b, id }: Ctx): unknown {
   const checklistId = (v: unknown) => {
     const cid = typeof v === 'string' ? v : null;
-    return cid && d.prepare('select 1 from checklists where id = ? and user_id = ?').get(cid, userId) ? cid : null;
+    return cid && findChecklist(d, userId, cid) ? cid : null;
   };
   const sharedTo = (v: unknown): string | null => {
     if (!v) return null;

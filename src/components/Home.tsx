@@ -10,6 +10,7 @@ import { bucket, shortDate, sortUrgent } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
 import { WeatherCard } from './Weather';
@@ -183,6 +184,42 @@ export default function Home() {
     </section>
   );
 
+  const { k, byId, matchOf } = useKitchen();
+  const cookable = k.recipes
+    .map((r) => ({ r, m: matchOf(r) }))
+    .filter((x) => x.m.missing.length <= 1)
+    .sort((a, b) => a.m.missing.length - b.m.missing.length)
+    .slice(0, 2);
+  const toBuy = data.items.filter((i) => i.checklist_id === k.shopping_id && !i.done);
+  const kitchenCard = (
+    <section className="card" aria-labelledby="home-kitchen">
+      <div className="card-head">
+        <h2 className="card-title display" id="home-kitchen">
+          <Icon name="pot" />
+          Что приготовить
+        </h2>
+        <Link className="card-link" href="/kitchen">
+          Кухня <Icon name="arrow" size={16} />
+        </Link>
+      </div>
+      {k.recipes.length === 0 ? (
+        <p style={{ margin: 0, color: 'var(--muted)' }}>
+          Рецептов пока нет — <Link href="/kitchen">добавьте базовые</Link>.
+        </p>
+      ) : cookable.length === 0 ? (
+        <p style={{ margin: 0, color: 'var(--muted)' }}>
+          Из того, что дома, пока ничего не выходит. <Link href="/kitchen">Отметьте продукты</Link>.
+        </p>
+      ) : (
+        cookable.map(({ r, m }) => <RecipeCard key={r.id} r={r} m={m} byId={byId} />)
+      )}
+      {toBuy.length > 0 && (
+        <Link className="card-link" href="/kitchen?tab=shopping" style={{ marginLeft: 0 }}>
+          <Icon name="cart" size={16} /> Купить: {toBuy.length}
+        </Link>
+      )}
+    </section>
+  );
   const pinned = data.notes.filter((n) => n.pinned).slice(0, 3);
   const pinnedCard = pinned.length > 0 && (
     <section className="card" aria-labelledby="home-pinned" style={{ background: 'var(--warm-bg)', borderColor: 'var(--warm-line)' }}>
@@ -225,6 +262,7 @@ export default function Home() {
         </div>
         <div className="home-col">
           <WeatherCard />
+          {kitchenCard}
         </div>
       </div>
     </>

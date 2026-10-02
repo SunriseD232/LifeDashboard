@@ -3,7 +3,7 @@
  * запрос к полнотекстовому индексу и как показать найденный кусок текста.
  */
 
-export type SearchKind = 'task' | 'note' | 'checklist' | 'item' | 'reminder';
+export type SearchKind = 'task' | 'note' | 'checklist' | 'item' | 'reminder' | 'recipe';
 
 export interface SearchHit {
   kind: SearchKind;
