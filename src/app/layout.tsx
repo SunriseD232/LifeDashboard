@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
+import AppShell from '@/components/AppShell';
+import { THEME_COOKIE, THEMES, type Theme } from '@/lib/theme';
 // Шрифты — те же, что на макете в Claude Design, из пакетов @fontsource:
 // файлы лежат в сборке и отдаются с нашего сервера, без внешних запросов.
 // Каждый пакет подключает и латиницу, и кириллицу (unicode-range — браузер
@@ -14,7 +17,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'LifeDashboard',
-  description: 'Чек-листы сборов и напоминания на день',
+  description: 'Дела, чек-листы и напоминания на каждый день',
   // Манифест и значок для экрана «Домой»: на iPhone push-уведомления
   // работают только у сайта, добавленного туда (см. src/lib/pushClient.ts).
   manifest: '/task/manifest.webmanifest',
@@ -29,13 +32,21 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#eef3f2',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#eef3f2' },
+    { media: '(prefers-color-scheme: dark)', color: '#0e1615' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Тема из куки — сразу в разметку, чтобы тёмная не мигала светлой.
+  const saved = cookies().get(THEME_COOKIE)?.value as Theme | undefined;
+  const theme = saved && THEMES.includes(saved) ? saved : 'system';
   return (
-    <html lang="ru">
-      <body>{children}</body>
+    <html lang="ru" data-theme={theme}>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

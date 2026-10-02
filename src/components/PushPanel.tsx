@@ -46,7 +46,7 @@ export default function PushPanel({ toast }: { toast: (m: string) => void }) {
 
   return (
     <div className="panel" style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-      <span style={{ color: state === 'on' ? 'var(--accent)' : 'var(--muted)', paddingTop: 2 }}>
+      <span style={{ color: state === 'on' ? 'var(--accent-ink)' : 'var(--muted)', paddingTop: 2 }}>
         <Icon name="bell" />
       </span>
       <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 14 }}>

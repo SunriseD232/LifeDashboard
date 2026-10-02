@@ -6,7 +6,8 @@
     "dev": "next dev -p 3200",
     "build": "next build",
     "start": "next start -p 3100 -H 127.0.0.1",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fontsource/golos-text": "^5.3.0",
@@ -24,6 +25,7 @@
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
   }
 }

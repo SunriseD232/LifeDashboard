@@ -1,5 +1,9 @@
 import webpush from 'web-push';
+import { readReminders, doneKeys, snoozesOn, type StoredReminder } from '../server/reminderStore';
+import { minutesOf } from './dates';
 import { db } from './db';
+import { occurrencesOn, type Occurrence } from './occurrences';
+import { dueDay } from './recur';
 
 /**
  * Push-уведомления LifeDashboard (Web Push, без отдельного приложения).
@@ -45,6 +49,7 @@ export interface PushPayload {
   url?: string;
   reminderId?: string;
   day?: string;
+  slot?: string;
 }
 
 /** Отправить всем устройствам пользователя. Мёртвые подписки удаляем. */
@@ -81,8 +86,8 @@ export async function sendToUser(userId: string, payload: PushPayload): Promise<
   return delivered;
 }
 
-/** Местные дата, минуты суток и день недели в поясе tz. */
-function localParts(tz: string, now: Date): { day: string; minutes: number; weekday: number } {
+/** Местные дата и минуты суток в поясе tz. */
+function localParts(tz: string, now: Date): { day: string; minutes: number } {
   let parts: Intl.DateTimeFormatPart[];
   try {
     parts = new Intl.DateTimeFormat('en-CA', {
@@ -92,28 +97,34 @@ function localParts(tz: string, now: Date): { day: string; minutes: number; week
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
-      weekday: 'short',
       hourCycle: 'h23',
     }).formatToParts(now);
   } catch {
     return localParts(FALLBACK_TZ, now);
   }
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   return {
     day: `${get('year')}-${get('month')}-${get('day')}`,
     minutes: Number(get('hour')) * 60 + Number(get('minute')),
-    weekday: weekdays.indexOf(get('weekday')),
   };
 }
 
-interface DueReminder {
-  id: string;
-  title: string;
-  at_time: string;
-  repeat: 'once' | 'daily' | 'weekdays';
-  on_date: string | null;
-  checklist_title: string | null;
+/**
+ * Что отправить по этому появлению дела сейчас (minutes — местные минуты
+ * суток): своё время и, если отложили, время «отложено до» — у каждого своя
+ * отметка об отправке (push_sent.slot). Окно в 10 минут переживает
+ * перезапуск процесса и пропущенный тик, но не шлёт «пора» спустя час.
+ */
+export function sendsDue(o: Occurrence, minutes: number): { mark: string; hm: string }[] {
+  if (o.done) return [];
+  const inWindow = (hm: string) => {
+    const late = minutes - minutesOf(hm);
+    return late >= 0 && late <= WINDOW_MIN;
+  };
+  const out: { mark: string; hm: string }[] = [];
+  if (inWindow(o.slot)) out.push({ mark: o.slot, hm: o.slot });
+  if (o.snoozedTo && inWindow(o.snoozedTo)) out.push({ mark: `${o.slot}>${o.snoozedTo}`, hm: o.snoozedTo });
+  return out;
 }
 
 async function tick(): Promise<void> {
@@ -131,43 +142,35 @@ async function tick(): Promise<void> {
 
   for (const [userId, tz] of users) {
     const lp = localParts(tz, now);
-    const reminders = d
-      .prepare(
-        `select r.id, r.title, r.at_time, r.repeat, r.on_date, c.title as checklist_title
-         from reminders r left join checklists c on c.id = r.checklist_id
-         where r.user_id = ?`,
-      )
-      .all(userId) as DueReminder[];
+    const all = readReminders(d, userId);
+    const occ = occurrencesOn(all, lp.day, new Set(doneKeys(d, userId, lp.day)), snoozesOn(d, userId, lp.day));
 
-    for (const r of reminders) {
-      const applies =
-        r.repeat === 'daily' ||
-        (r.repeat === 'weekdays' && lp.weekday >= 1 && lp.weekday <= 5) ||
-        (r.repeat === 'once' && r.on_date === lp.day);
-      if (!applies) continue;
-      const [h, m] = r.at_time.split(':').map(Number);
-      const late = lp.minutes - (h * 60 + m);
-      // Окно в 10 минут — переживаем перезапуск процесса и пропущенный тик,
-      // но не шлём «пора» спустя час.
-      if (late < 0 || late > WINDOW_MIN) continue;
-      if (d.prepare('select 1 from reminder_done where reminder_id = ? and day = ?').get(r.id, lp.day)) continue;
-      // Сначала помечаем, потом шлём: два тика подряд не отправят дважды.
-      const fresh = d.prepare('insert or ignore into push_sent (reminder_id, day) values (?, ?)').run(r.id, lp.day);
-      if (fresh.changes === 0) continue;
-
-      const hm = r.at_time.slice(0, 5);
-      await sendToUser(userId, {
-        title: r.title,
-        body: r.checklist_title ? `${hm} · чек-лист «${r.checklist_title}»` : `${hm} — пора`,
-        tag: `${r.id}:${lp.day}`,
-        url: '/task#reminders',
-        reminderId: r.id,
-        day: lp.day,
-      });
+    for (const o of occ) {
+      for (const s of sendsDue(o, lp.minutes)) {
+        // Сначала помечаем, потом шлём: два тика подряд не отправят дважды.
+        const fresh = d
+          .prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)')
+          .run(o.reminder.id, lp.day, s.mark);
+        if (fresh.changes === 0) continue;
+        const r = o.reminder as StoredReminder;
+        // «После выполнения» и срок уже прошёл — висит с прошлых дней.
+        const overdue = r.rule.kind === 'after' && lp.day > dueDay(r.rule, r.last_done);
+        const lead = s.hm !== o.slot ? `${s.hm} · отложено` : overdue ? `${o.slot} · давно пора` : `${o.slot}`;
+        await sendToUser(userId, {
+          title: r.title,
+          body: r.checklist_title ? `${lead} · чек-лист «${r.checklist_title}»` : `${lead} — пора`,
+          tag: `${r.id}:${lp.day}:${o.slot}`,
+          url: '/task/reminders',
+          reminderId: r.id,
+          day: lp.day,
+          slot: o.slot,
+        });
+      }
     }
   }
 
   d.prepare("delete from push_sent where day < date('now', '-3 day')").run();
+  d.prepare("delete from reminder_snooze where day < date('now', '-3 day')").run();
 }
 
 declare global {

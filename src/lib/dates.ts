@@ -1,5 +1,3 @@
-import type { Reminder } from './types';
-
 /** Дата в ЛОКАЛЬНОМ времени пользователя: «сегодня» — его сутки, не UTC. */
 export function localDay(d = new Date()): string {
   const y = d.getFullYear();
@@ -12,16 +10,6 @@ export function addDays(d: Date, n: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
-}
-
-/** Попадает ли напоминание на этот день. */
-export function appliesOn(r: Reminder, d: Date): boolean {
-  if (r.repeat === 'daily') return true;
-  if (r.repeat === 'weekdays') {
-    const wd = d.getDay();
-    return wd >= 1 && wd <= 5;
-  }
-  return r.on_date === localDay(d);
 }
 
 /** '13:05:00' → минуты от начала суток. */

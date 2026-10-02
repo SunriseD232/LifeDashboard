@@ -1,3 +1,5 @@
+import type { Rule } from './recur';
+
 export type IconName = 'bag' | 'wave' | 'house' | 'list';
 
 export interface Checklist {
@@ -17,20 +19,20 @@ export interface ChecklistItem {
   position: number;
 }
 
-export type Repeat = 'once' | 'daily' | 'weekdays';
-
 export interface Reminder {
   id: string;
   title: string;
-  /** 'HH:MM:SS' из колонки time. */
-  at_time: string;
-  repeat: Repeat;
-  on_date: string | null;
+  /** Время в течение дня, 'ЧЧ:ММ', по возрастанию; у «после выполнения» — одно. */
+  times: string[];
+  rule: Rule;
   checklist_id: string | null;
+  /** Последний день, когда отметили сделанным (для «после выполнения»). */
+  last_done: string | null;
 }
 
-export const REPEAT_LABELS: Record<Repeat, string> = {
-  once: 'один раз',
-  daily: 'каждый день',
-  weekdays: 'по будням',
-};
+/** Отложенное время дела на сегодня: напомнить ещё раз в at. */
+export interface Snooze {
+  reminder_id: string;
+  slot: string;
+  at: string;
+}
