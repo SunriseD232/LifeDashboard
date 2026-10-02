@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
@@ -15,7 +15,10 @@ import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
 import { QuickAdd, SummaryCard } from './Ai';
-import { WeatherCard } from './Weather';
+import { WeatherCard, WeatherLine } from './Weather';
+import { useIsPhone } from './Phone';
+import { AiButton } from './Ai';
+import { minutesOf } from '@/lib/dates';
 import { useGym } from './Workouts';
 
 /**
@@ -24,8 +27,11 @@ import { useGym } from './Workouts';
  * появятся вместе с разделами.
  */
 export default function Home() {
-  const { data, mutate, now, setOpenList } = useApp();
+  const { data, mutate, now, setOpenList, toast } = useApp();
   const router = useRouter();
+  const phone = useIsPhone();
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryBusy, setSummaryBusy] = useState(false);
 
   // Старые ссылки (в том числе из уже присланных push): /task#reminders.
   useEffect(() => {
@@ -296,6 +302,133 @@ export default function Home() {
     </section>
   );
 
+  if (phone) {
+    // ---------------------------------------------------------------- телефон
+    // Один список на сегодня: прошедшие по времени напоминания, потом дела,
+    // потом то, что ещё впереди. Остальное — плитками, только если есть что показать.
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const at = (o: (typeof todays)[number]) => minutesOf(o.snoozedTo ?? o.slot);
+    const byTime = [...todays].sort((a, b) => at(a) - at(b));
+    const before = byTime.filter((o) => at(o) <= nowMin);
+    const after = byTime.filter((o) => at(o) > nowMin);
+    const remRow = (o: (typeof todays)[number]) => (
+      <label key={o.key} className={`check round${o.done ? ' done' : ''}`}>
+        <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
+        <span className="check-text" style={{ flex: 1 }}>{o.reminder.title}</span>
+        <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', flex: 'none' }}>
+          {o.snoozedTo ?? o.slot}
+        </span>
+      </label>
+    );
+    const shownTasks = urgent.slice(0, 8);
+    const nothing = todays.length === 0 && urgent.length === 0;
+
+    const inProgress = data.checklists
+      .filter((c) => c.kind !== 'shopping')
+      .map((c) => {
+        const items = data.items.filter((i) => i.checklist_id === c.id);
+        return { c, got: items.filter((i) => i.done).length, total: items.length };
+      })
+      .find((x) => x.got > 0 && x.got < x.total);
+    const next = upcoming[0];
+
+    const makeSummary = async () => {
+      setSummaryBusy(true);
+      try {
+        setSummary((await api<{ text: string }>('ai/summary', 'POST', { today })).text);
+      } catch (e) {
+        toast((e as Error).message);
+      } finally {
+        setSummaryBusy(false);
+      }
+    };
+
+    return (
+      <>
+        <div className="phone-hello">
+          <h1 className="h1 display">{greeting}</h1>
+          <WeatherLine />
+        </div>
+        {data.ai ? <QuickAdd plain /> : <AddTask />}
+
+        <section aria-labelledby="ph-today" className="phone-list">
+          <h2 className="group-title" id="ph-today">
+            Сегодня
+          </h2>
+          {nothing ? (
+            <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня ничего — можно выдохнуть.</p>
+          ) : (
+            <>
+              {before.map(remRow)}
+              {shownTasks.map((t) => (
+                <TaskRow key={t.id} task={t} />
+              ))}
+              {urgent.length > shownTasks.length && (
+                <Link className="card-link" href="/tasks" style={{ marginLeft: 0, padding: '8px 0' }}>
+                  Ещё дела: {urgent.length - shownTasks.length} <Icon name="arrow" size={16} />
+                </Link>
+              )}
+              {after.map(remRow)}
+            </>
+          )}
+        </section>
+
+        <div className="tiles">
+          {next && (
+            <Link className="tile" href="/tasks">
+              <Icon name="calendar" size={18} />
+              <span className="tile-label">Скоро</span>
+              <span className="tile-value">
+                {shortDate(next.due_date!, today)} · {next.title}
+              </span>
+            </Link>
+          )}
+          {toBuy.length > 0 && (
+            <Link className="tile" href="/kitchen?tab=shopping">
+              <Icon name="cart" size={18} />
+              <span className="tile-label">Купить</span>
+              <span className="tile-value">{toBuy.length}</span>
+            </Link>
+          )}
+          {(active || planned) && (
+            <Link className="tile" href={active ? `/workouts?open=${active.id}` : '/workouts'}>
+              <Icon name="dumbbell" size={18} />
+              <span className="tile-label">{active ? 'Идёт тренировка' : 'Тренировка'}</span>
+              <span className="tile-value">{active ? duration(active.started_at, null, now) : planned!.title}</span>
+            </Link>
+          )}
+          {inProgress && (
+            <button className="tile" type="button" onClick={() => openList(inProgress.c.id)}>
+              <Icon name="list" size={18} />
+              <span className="tile-label">{inProgress.c.title}</span>
+              <span className="tile-value">
+                {inProgress.got} из {inProgress.total}
+              </span>
+            </button>
+          )}
+          {pinned.length > 0 && (
+            <Link className="tile" href={pinned.length === 1 ? `/notes?open=${pinned[0].id}` : '/notes'}>
+              <Icon name="pin" size={18} />
+              <span className="tile-label">{pinned.length === 1 ? 'Закреплено' : `Закреплено · ${pinned.length}`}</span>
+              <span className="tile-value">{noteTitle(pinned[0])}</span>
+            </Link>
+          )}
+        </div>
+
+        {data.ai &&
+          (summary ? (
+            <div className="phone-summary">
+              <p style={{ margin: 0, lineHeight: 1.55 }}>{summary}</p>
+            </div>
+          ) : (
+            <AiButton busy={summaryBusy} onClick={makeSummary} style={{ marginTop: 16 }}>
+              Сводка дня
+            </AiButton>
+          ))}
+      </>
+    );
+  }
+
   return (
     <>
       <div className="page-head">
@@ -304,8 +437,7 @@ export default function Home() {
           <h1 className="h1 display">{greeting}</h1>
         </div>
       </div>
-      <QuickAdd />
-      <AddTask />
+      {data.ai ? <QuickAdd plain /> : <AddTask />}
       <div className="home-cols">
         <div className="home-col">
           {urgentCard}

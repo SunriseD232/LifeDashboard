@@ -1377,16 +1377,6 @@ mark {
   box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.5);
 }
 
-.fab {
-  position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(20px, env(safe-area-inset-bottom));
-  z-index: 30;
-  border-radius: 16px;
-  padding: 14px 20px;
-  box-shadow: 0 10px 24px -8px rgb(14 124 123 / 0.6);
-}
-
 .only-mobile {
   display: none;
 }
@@ -1561,13 +1551,6 @@ mark {
   .only-mobile {
     display: inline-grid;
   }
-  .fab.only-mobile {
-    display: inline-flex;
-  }
-  /* Над нижней панелью. */
-  .fab {
-    bottom: calc(72px + max(8px, env(safe-area-inset-bottom)));
-  }
   .toast {
     bottom: calc(80px + max(8px, env(safe-area-inset-bottom)));
   }
@@ -1681,4 +1664,294 @@ mark {
   border-radius: 12px;
   background: var(--soft);
   font-size: 14px;
+}
+
+/* ---------------------------------------------------------------- телефон: простой вид */
+.fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 10px 24px -8px rgb(14 124 123 / 0.6);
+  cursor: pointer;
+}
+.fab:active {
+  transform: scale(0.96);
+}
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  background: var(--scrim);
+}
+.sheet {
+  width: 100%;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  border-radius: 22px 22px 0 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: sheet-in 0.18s ease-out;
+}
+.sheet::before {
+  content: '';
+  align-self: center;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* В окне форма без своей карточки. */
+.sheet .card {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+.only-phone {
+  display: none !important;
+}
+
+@media (max-width: 860px) {
+  .only-phone {
+    display: revert !important;
+  }
+  .hide-phone {
+    display: none !important;
+  }
+  /* Меньше рамок и украшений: карточки легче, иконки у заголовков не нужны. */
+  .card {
+    padding: 16px;
+    gap: 12px;
+  }
+  .card-title {
+    font-size: 17px;
+  }
+  .card-title > svg {
+    display: none;
+  }
+  .page {
+    padding-bottom: 150px;
+  }
+}
+.weather-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* главная на телефоне */
+.phone-hello {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.quick-add {
+  margin-bottom: 18px !important;
+}
+.phone-list {
+  display: flex;
+  flex-direction: column;
+}
+.phone-list > .group-title {
+  padding: 0 0 4px;
+}
+.phone-list .check,
+.phone-list .task-row {
+  border-bottom: 1px solid var(--line);
+}
+.phone-list .task-row .check {
+  border-bottom: 0;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 20px;
+}
+.tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tile > svg {
+  color: var(--accent-ink);
+}
+.tile-label {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tile-value {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phone-summary {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--soft);
+}
+.phone-list .check {
+  padding: 10px 2px;
+  border-radius: 0;
+}
+.phone-list .check:hover {
+  background: none;
+}
+@media (max-width: 860px) {
+  /* Списки на телефоне — без карточек вокруг: строки на фоне страницы. */
+  .tasks-grid > .card,
+  .rem-list.card {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+  .tasks-grid .task-row {
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet .add-row {
+    flex-wrap: wrap;
+  }
+  .sheet .add-row > .field {
+    flex: 1 1 100% !important;
+  }
+}
+.more-opts > summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  /* Напоминания на телефоне: строка «галочка · название · время · ⋯». */
+  .rem-row,
+  .rem-row.next {
+    flex-wrap: nowrap;
+    align-items: center !important;
+    gap: 10px;
+    padding: 10px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+  }
+  .rem-row .rem-time {
+    order: 2;
+    width: auto !important;
+    font-size: 14px;
+  }
+  .rem-row .rem-actions {
+    order: 3;
+    width: auto;
+    margin: 0;
+  }
+  .rem-row .rem-actions .btn {
+    min-height: 36px;
+    padding: 4px 10px;
+  }
+  .rem-row ol,
+  .rem-row ul {
+    gap: 0;
+  }
+}
+@media (max-width: 860px) {
+  /* Рецепты — компактными строками; фильтры — одной прокручиваемой лентой. */
+  .recipes-grid {
+    gap: 8px;
+  }
+  .recipe-card {
+    gap: 6px;
+    padding: 12px 14px;
+  }
+  .recipe-card .rc-title {
+    font-size: 16px !important;
+  }
+  .recipe-card .rc-bar {
+    display: none !important;
+  }
+  .chip-scroll {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    margin: 0 -16px;
+    padding: 0 16px 2px;
+    scrollbar-width: none;
+  }
+  .chip-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .chip-scroll > .chip {
+    flex: none;
+  }
+}
+@media (max-width: 860px) {
+  .tabs-row button {
+    padding: 8px 11px;
+  }
+  .recipe-card .chip {
+    max-width: 100%;
+    white-space: normal;
+    height: auto;
+  }
 }

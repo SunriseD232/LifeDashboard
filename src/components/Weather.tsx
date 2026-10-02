@@ -76,8 +76,8 @@ export function CityPicker({ onPicked }: { onPicked?: () => void }) {
   );
 }
 
-/** Карточка погоды на главной. Города нет — спрашиваем его прямо здесь. */
-export function WeatherCard() {
+/** Прогноз для города из настроек; обновляется раз в 30 минут. */
+function useWeather(): { city: string | null; w: Weather | null; error: string | null } {
   const { data } = useApp();
   const city = data.settings.city;
   const [w, setW] = useState<Weather | null>(null);
@@ -97,6 +97,87 @@ export function WeatherCard() {
       clearInterval(t);
     };
   }, [city, data.settings.lat, data.settings.lon]);
+  return { city, w, error };
+}
+
+/** По часам и по дням. */
+function WeatherDetails({ w }: { w: Weather }) {
+  return (
+    <>
+      <div className="weather-hours">
+        {w.hours.map((h) => (
+          <div key={h.time}>
+            <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+              {h.time}
+            </span>
+            <Icon name={h.icon} />
+            <span className="mono" style={{ fontWeight: 500 }}>
+              {temp(h.temp)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="weather-days">
+        {w.days.map((d) => (
+          <div key={d.day}>
+            <span style={{ color: 'var(--muted)' }}>{d.weekday}</span>
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              <Icon name={d.icon} size={18} />
+              <span className="mono">
+                {temp(d.max)} / {temp(d.min)}
+              </span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Погода одной строкой (телефон): «☁ +9° Переменная облачность», под ней —
+ * подсказка про зонт. Нажали — раскрывается прогноз по часам и дням.
+ */
+export function WeatherLine() {
+  const { city, w } = useWeather();
+  const [open, setOpen] = useState(false);
+  if (!city) {
+    return (
+      <Link href="/settings" className="weather-line" style={{ color: 'var(--muted)' }}>
+        <Icon name="partly" size={20} />
+        Укажите город — покажу погоду
+      </Link>
+    );
+  }
+  if (!w) return null;
+  return (
+    <div className="weather-line-box">
+      <button type="button" className="weather-line" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Icon name={w.now.icon} size={22} />
+        <b className="mono" style={{ fontSize: 17 }}>
+          {temp(w.now.temp)}
+        </b>
+        <span style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.now.label}</span>
+        <Icon name={open ? 'up' : 'down'} size={16} />
+      </button>
+      {w.hint && (
+        <div className="weather-hint" style={{ marginTop: 6 }}>
+          <Icon name="drop" size={16} />
+          {w.hint}
+        </div>
+      )}
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+          <WeatherDetails w={w} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Карточка погоды на главной. Города нет — спрашиваем его прямо здесь. */
+export function WeatherCard() {
+  const { city, w, error } = useWeather();
 
   return (
     <section className="card" aria-labelledby="w-title">
@@ -141,32 +222,7 @@ export function WeatherCard() {
               {w.hint}
             </div>
           )}
-          <div className="weather-hours">
-            {w.hours.map((h) => (
-              <div key={h.time}>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  {h.time}
-                </span>
-                <Icon name={h.icon} />
-                <span className="mono" style={{ fontWeight: 500 }}>
-                  {temp(h.temp)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="weather-days">
-            {w.days.map((d) => (
-              <div key={d.day}>
-                <span style={{ color: 'var(--muted)' }}>{d.weekday}</span>
-                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                  <Icon name={d.icon} size={18} />
-                  <span className="mono">
-                    {temp(d.max)} / {temp(d.min)}
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
+          <WeatherDetails w={w} />
           <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
             Прогноз:{' '}
             <a href="https://www.met.no/en" target="_blank" rel="noreferrer">

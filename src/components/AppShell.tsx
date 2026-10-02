@@ -271,22 +271,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <header className="mtop">
-          <Link className="brand-mark" href="/" aria-label="LifeDashboard — главная">
-            <Icon name="bag" size={20} strokeWidth={2} />
+          <Link href="/" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 15, color: 'inherit', textDecoration: 'none' }}>
+            {dayTitle(now)}
           </Link>
-          <div style={{ flex: 1, minWidth: 0, lineHeight: 1.25 }}>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{dayTitle(now)}</div>
-            <div className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
-              {time}
-            </div>
-          </div>
           <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">
             <Icon name="search" />
           </button>
-          <Link className="icon-btn bare" href="/settings" aria-label="Настройки (там же выход)">
+          <Link className="icon-btn bare" href="/settings" aria-label="Настройки (там же тема и выход)" aria-current={isActive('/settings') ? 'page' : undefined}>
             <Icon name="settings" />
           </Link>
-          <ThemeToggle />
         </header>
 
         <main className="page">{children}</main>

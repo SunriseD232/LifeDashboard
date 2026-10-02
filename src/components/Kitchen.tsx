@@ -10,6 +10,7 @@ import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import { MenuPlanner, PantryPhoto } from './KitchenAi';
+import { Fab, useIsPhone } from './Phone';
 
 // ---------------------------------------------------------------- общее
 
@@ -84,10 +85,10 @@ export function RecipeCard({ r, m, byId }: { r: Recipe; m: Match; byId: Map<stri
           </span>
         )}
       </span>
-      <span className="display" style={{ fontWeight: 700, fontSize: 18, lineHeight: 1.25 }}>
+      <span className="display rc-title" style={{ fontWeight: 700, fontSize: 18, lineHeight: 1.25 }}>
         {r.title}
       </span>
-      <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span className="rc-bar" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="bar" style={{ flex: 1 }} aria-hidden="true">
           <i style={{ width: `${pct}%` }} />
         </span>
@@ -124,7 +125,7 @@ function Pantry() {
       <h2 className="card-title display" id="pantry-title">
         Что есть дома
       </h2>
-      <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+      <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
         Подберу, что приготовить. Купленное в «Покупках» попадает сюда само. Соль, перец, вода и масло считаются всегда.
       </p>
       <form
@@ -245,7 +246,7 @@ function Recipes() {
         </label>
         <input id="recipes-q" className="field" style={{ paddingLeft: 40 }} placeholder="Название или ингредиент" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
-      <div role="group" aria-label="Фильтр" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div role="group" aria-label="Фильтр" className="chip-scroll" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button className="chip" type="button" aria-pressed={!cat} onClick={() => setCat(null)}>
           Любое
         </button>
@@ -407,7 +408,9 @@ export default function Kitchen() {
   const { data } = useApp();
   const params = useSearchParams();
   const router = useRouter();
-  const tab = params.get('tab') === 'shopping' ? 'shopping' : 'recipes';
+  const phone = useIsPhone();
+  const q = params.get('tab');
+  const tab = q === 'shopping' ? 'shopping' : q === 'pantry' && phone ? 'pantry' : 'recipes';
   const toBuy = data.items.filter((i) => i.checklist_id === data.kitchen.shopping_id && !i.done).length;
 
   return (
@@ -421,19 +424,33 @@ export default function Kitchen() {
           <button type="button" aria-pressed={tab === 'recipes'} onClick={() => router.replace('/kitchen')}>
             Рецепты
           </button>
+          {phone && (
+            <button type="button" aria-pressed={tab === 'pantry'} onClick={() => router.replace('/kitchen?tab=pantry')}>
+              Дома
+            </button>
+          )}
           <button type="button" aria-pressed={tab === 'shopping'} onClick={() => router.replace('/kitchen?tab=shopping')}>
             <Icon name="cart" size={16} />
             Покупки
             {toBuy > 0 && <span className="badge">{toBuy}</span>}
           </button>
         </div>
-        <Link className="btn btn-ghost" href="/kitchen/new">
+        <Link className="btn btn-ghost hide-phone" href="/kitchen/new">
           <Icon name="plus" size={18} />
           Рецепт
         </Link>
       </div>
       {tab === 'shopping' ? (
         <Shopping />
+      ) : phone ? (
+        tab === 'pantry' ? (
+          <Pantry />
+        ) : (
+          <>
+            <Recipes />
+            <Fab label="Новый рецепт" onClick={() => router.push('/kitchen/new')} />
+          </>
+        )
       ) : (
         <div className="kitchen-layout">
           <Pantry />

@@ -10,6 +10,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
+import { PhoneForm } from './Phone';
 
 // ---------------------------------------------------------------- действия
 
@@ -229,7 +230,7 @@ function WhenSeg({ dated, set }: { dated: boolean; set: (v: boolean) => void }) 
 }
 
 /** Быстрое добавление — на экране дел и на главной. */
-export function AddTask({ autoFocus = false }: { autoFocus?: boolean }) {
+export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; onDone?: () => void }) {
   const { data, reload, now, toast } = useApp();
   const today = localDay(now);
   const [d, setD] = useState<Draft>(() => draftOf(null, today));
@@ -245,6 +246,7 @@ export function AddTask({ autoFocus = false }: { autoFocus?: boolean }) {
       await reload();
       setD({ ...draftOf(null, today), dated: d.dated, due: d.due });
       toast('Дело добавлено');
+      onDone?.();
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -418,7 +420,7 @@ export default function Tasks() {
         )}
       </div>
 
-      <AddTask />
+      <PhoneForm title="Новое дело" fab="Новое дело" render={(done, inSheet) => <AddTask autoFocus={inSheet} onDone={inSheet ? done : undefined} />} />
 
       <div className="tabs-row only-mobile-flex" role="group" aria-label="Список" style={{ marginTop: 16 }}>
         <button type="button" aria-pressed={col === 'urgent'} onClick={() => setCol('urgent')}>
@@ -433,7 +435,7 @@ export default function Tasks() {
 
       <div className="tasks-grid" data-col={col}>
         <section className="card urgent-col" aria-labelledby="urgent-title" style={{ borderColor: 'var(--danger-line)' }}>
-          <div className="card-head">
+          <div className="card-head hide-phone">
             <h2 className="card-title display" id="urgent-title" style={{ color: 'var(--danger)' }}>
               <Icon name="flame" />
               Срочно
@@ -442,7 +444,7 @@ export default function Tasks() {
               {plural(urgent.length, 'дело', 'дела', 'дел')}
             </span>
           </div>
-          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+          <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
             Без даты — сделать как можно скорее. Сюда же переезжают дела за день до срока.
           </p>
           {urgent.length === 0 ? (
@@ -478,7 +480,7 @@ export default function Tasks() {
         </section>
 
         <section className="card later-col" aria-labelledby="later-title">
-          <div className="card-head">
+          <div className="card-head hide-phone">
             <h2 className="card-title display" id="later-title">
               <Icon name="calendar" />С датами — позже
             </h2>
@@ -486,7 +488,7 @@ export default function Tasks() {
               {plural(laterCount, 'дело', 'дела', 'дел')}
             </span>
           </div>
-          <p style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+          <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
             За день до срока дело само переедет в «Срочно» и пришлёт напоминание в {data.settings.deadline_time}.
           </p>
           {later.length === 0 ? (

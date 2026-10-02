@@ -35,3 +35,27 @@ export default function ThemeToggle() {
     </button>
   );
 }
+
+/** Тема тремя кнопками — в Настройках (на телефоне переключателя в панели нет). */
+export function ThemePicker() {
+  const [theme, setTheme] = useState<Theme>('system');
+  useEffect(() => {
+    const t = document.documentElement.dataset.theme as Theme | undefined;
+    if (t && ORDER.includes(t)) setTheme(t);
+  }, []);
+  const pick = (t: Theme) => {
+    setTheme(t);
+    document.documentElement.dataset.theme = t;
+    document.cookie = `${THEME_COOKIE}=${t}; path=/task; max-age=31536000; samesite=lax`;
+  };
+  return (
+    <div role="radiogroup" aria-label="Тема" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {ORDER.map((t) => (
+        <button key={t} type="button" className="chip" role="radio" aria-checked={theme === t} aria-pressed={theme === t} onClick={() => pick(t)}>
+          <Icon name={ICON[t]} size={16} />
+          {LABEL[t].charAt(0).toUpperCase() + LABEL[t].slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}

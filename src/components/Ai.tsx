@@ -80,7 +80,7 @@ async function saveItems(items: QuickItem[]): Promise<void> {
  * покупки. Например: «по вторникам и четвергам в 18:30 бассейн, а завтра
  * купить молоко и хлеб».
  */
-export function QuickAdd() {
+export function QuickAdd({ plain = false }: { plain?: boolean }) {
   const { reload, toast, now } = useApp();
   const ready = useAiReady();
   const today = localDay(now);
@@ -90,8 +90,23 @@ export function QuickAdd() {
   const [busy, setBusy] = useState(false);
   if (!ready) return null;
 
-  const parse = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /** plain: Enter и «+» — просто дело, сразу; ✨ — разобрать фразу ИИ. */
+  const addPlain = async () => {
+    setBusy(true);
+    try {
+      await api('tasks', 'POST', { title: text.trim().slice(0, 200), due_date: null });
+      await reload();
+      toast('Дело добавлено');
+      setText('');
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const parse = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!text.trim()) return;
     setBusy(true);
     try {
@@ -122,8 +137,17 @@ export function QuickAdd() {
   };
 
   return (
-    <form className="card ai-card" onSubmit={parse} style={{ padding: 12, gap: 10, marginBottom: 12 }}>
-      <div className="add-row">
+    <form
+      className="card ai-card quick-add"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!text.trim()) return;
+        if (plain) addPlain();
+        else parse();
+      }}
+      style={{ padding: 12, gap: 10, marginBottom: 12 }}
+    >
+      <div className="add-row" style={plain ? { flexWrap: 'nowrap' } : undefined}>
         <label className="sr-only" htmlFor="ai-quick">
           Скажите, что сделать
         </label>
@@ -132,14 +156,26 @@ export function QuickAdd() {
           className="field"
           style={{ flex: 1 }}
           maxLength={1000}
-          placeholder="Скажите своими словами: «по вт и чт в 18:30 бассейн, завтра купить хлеб»"
+          placeholder={plain ? 'Что нужно сделать?' : 'Скажите своими словами: «по вт и чт в 18:30 бассейн, завтра купить хлеб»'}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
-        <button className="btn btn-ai" type="submit" disabled={busy || !text.trim()}>
-          <Icon name="sparkles" size={18} />
-          <span className="btn-text">{busy && !items ? 'Думаю…' : 'Разобрать'}</span>
-        </button>
+        {plain ? (
+          <>
+            <button className="btn btn-ai" type="button" disabled={busy || !text.trim()} onClick={() => parse()} aria-label="Разобрать своими словами (ИИ)" title="Разобрать своими словами: даты, повторы, покупки" style={{ padding: '0 12px' }}>
+              <Icon name="sparkles" size={18} />
+              {busy && !items && <span className="btn-text">Думаю…</span>}
+            </button>
+            <button className="btn btn-primary" type="submit" disabled={busy || !text.trim()} aria-label="Добавить дело" style={{ padding: '0 12px' }}>
+              <Icon name="plus" size={18} />
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-ai" type="submit" disabled={busy || !text.trim()}>
+            <Icon name="sparkles" size={18} />
+            <span className="btn-text">{busy && !items ? 'Думаю…' : 'Разобрать'}</span>
+          </button>
+        )}
       </div>
       {items && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

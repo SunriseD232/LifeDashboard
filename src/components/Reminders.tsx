@@ -13,6 +13,7 @@ import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import RuleEditor from './RuleEditor';
 import { Icon } from './icons';
+import { Fab, Sheet, useIsPhone } from './Phone';
 
 interface Props {
   data: AppData;
@@ -73,6 +74,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(now));
   const [formKey, setFormKey] = useState(0);
   const [saving, setSaving] = useState(false);
+  const phone = useIsPhone();
+  const [sheet, setSheet] = useState(false);
   const [confirm, setConfirm] = useState<Reminder | null>(null);
   const [chorePick, setChorePick] = useState<string[]>([]);
   const [addingChores, setAddingChores] = useState(false);
@@ -157,6 +160,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const openForm = (d: Draft) => {
     setDraft(d);
     setFormKey((k) => k + 1);
+    // На телефоне форма — в окне снизу (фокус ставит само окно).
+    if (phone) return setSheet(true);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => titleRef.current?.focus(), 250);
   };
@@ -188,6 +193,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       toast(draft.id ? 'Напоминание сохранено' : 'Напоминание добавлено');
       setDraft(emptyDraft(now));
       setFormKey((k) => k + 1);
+      setSheet(false);
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -195,7 +201,50 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     }
   };
 
-  const actions = (r: Reminder) => (
+  /** На телефоне все действия — в одном меню «⋯», чтобы строка была короткой. */
+  const closeMenu = (e: React.MouseEvent) => ((e.currentTarget.closest('details') as HTMLDetailsElement).open = false);
+  const actions = (r: Reminder, o?: Occurrence) =>
+    phone ? (
+      <details className="menu">
+        <summary className="icon-btn bare" aria-label={`Действия: «${r.title}»`}>
+          <Icon name="dots" size={18} />
+        </summary>
+        <div className="menu-list" role="group" aria-label="Действия">
+          {o &&
+            !o.done &&
+            SNOOZES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={(e) => {
+                  closeMenu(e);
+                  snooze(o, m);
+                }}
+              >
+                Отложить {m < 60 ? `на ${m} мин` : `на ${m / 60} ч`}
+              </button>
+            ))}
+          <button
+            type="button"
+            onClick={(e) => {
+              closeMenu(e);
+              startEdit(r);
+            }}
+          >
+            Изменить
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              closeMenu(e);
+              setConfirm(r);
+            }}
+          >
+            Удалить
+          </button>
+        </div>
+      </details>
+    ) : (
     <>
       <button className="icon-btn bare" type="button" aria-label={`Изменить «${r.title}»`} onClick={() => startEdit(r)}>
         <Icon name="edit" size={18} />
@@ -204,7 +253,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         <Icon name="trash" size={18} />
       </button>
     </>
-  );
+    );
 
   const checklistChip = (r: Reminder) => {
     const name = listName(r.checklist_id);
@@ -232,7 +281,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
           const overdue = r.rule.kind === 'after' && !o.done && today > dueDay(r.rule, r.last_done);
           return (
             <li key={o.key} className={`rem-row${isNext ? ' next' : ''}`}>
-              <span className="mono" style={{ width: 52, flex: 'none', paddingTop: 1, color: isNext ? 'var(--warm)' : 'var(--muted)' }}>
+              <span className="mono rem-time" style={{ width: 52, flex: 'none', paddingTop: 1, color: isNext ? 'var(--warm)' : 'var(--muted)' }}>
                 {t}
               </span>
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -243,7 +292,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                   </span>
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', paddingLeft: 32 }}>
-                  <span style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                  <span className="hide-phone" style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                     <Icon name="repeat" size={14} />
                     {describe(r.rule)}
                   </span>
@@ -262,11 +311,11 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                     </span>
                   )}
                   {overdue && <span style={{ fontSize: 13, color: 'var(--danger)' }}>давно пора</span>}
-                  {past && !overdue && <span style={{ fontSize: 13, color: 'var(--warm)' }}>время прошло</span>}
+                  {past && !overdue && !phone && <span style={{ fontSize: 13, color: 'var(--warm)' }}>время прошло</span>}
                 </div>
               </div>
               <div className="rem-actions">
-                {!o.done && (
+                {!o.done && !phone && (
                   <details className="menu">
                     <summary className="icon-btn bare" aria-label={`Отложить «${r.title}»`} title="Отложить">
                       <Icon name="clock" size={18} />
@@ -287,7 +336,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                     </div>
                   </details>
                 )}
-                {actions(r)}
+                {actions(r, o)}
               </div>
             </li>
           );
@@ -386,7 +435,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                 : { text: `через ${plural(left, 'день', 'дня', 'дней')}`, color: 'var(--muted)' };
         return (
           <div key={r.id} className="rem-row" style={{ alignItems: 'center' }}>
-            <span className="list-icon">
+            <span className="list-icon hide-phone">
               <Icon name="repeat" size={20} />
             </span>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -452,6 +501,88 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       </ul>
     );
 
+  // Редкие настройки: на телефоне — свёрнуты под «Ещё».
+  const extras = (
+    <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="label" htmlFor="r-list">
+            Чек-лист
+          </label>
+          <select id="r-list" className="field" value={draft.checklist_id} onChange={(e) => setDraft({ ...draft, checklist_id: e.target.value })}>
+            <option value="">Без чек-листа</option>
+            {data.checklists.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label className="label" htmlFor="r-nag">
+            Если не отметили «Сделано»
+          </label>
+          <select id="r-nag" className="field" value={draft.nag} onChange={(e) => setDraft({ ...draft, nag: Number(e.target.value) })}>
+            <option value={0}>Не повторять</option>
+            <option value={15}>Напомнить ещё раз через 15 минут</option>
+            <option value={30}>Напомнить ещё раз через 30 минут</option>
+            <option value={60}>Напомнить ещё раз через час</option>
+          </select>
+          {draft.nag > 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>До трёх повторов — пока не нажмёте «Сделано» в уведомлении или здесь.</span>}
+        </div>
+    </>
+  );
+
+  const form = (
+    <form ref={formRef} className={phone ? undefined : 'panel'} style={{ padding: phone ? 0 : 24, display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={submit}>
+      {!phone && (
+        <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
+          {draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
+        </h2>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label className="label" htmlFor="r-what">
+          Что сделать
+        </label>
+        <input
+          ref={titleRef}
+          id="r-what"
+          className="field"
+          maxLength={120}
+          placeholder="Например, взять пропуск"
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+        />
+      </div>
+      <RuleEditor key={formKey} rule={draft.rule} times={draft.times} today={today} onChange={(rule, times) => setDraft({ ...draft, rule, times })} />
+      {phone ? (
+        <details className="more-opts">
+          <summary>Ещё: чек-лист, повтор, если не отметили</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>{extras}</div>
+        </details>
+      ) : (
+        extras
+      )}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className="btn btn-primary" type="submit" disabled={saving || !draft.title.trim()} style={{ flex: 1 }}>
+          <Icon name={draft.id ? 'check' : 'plus'} size={18} />
+          {saving ? 'Сохраняем…' : draft.id ? 'Сохранить' : 'Добавить'}
+        </button>
+        {draft.id && (
+          <button
+            className="btn btn-ghost"
+            type="button"
+            onClick={() => {
+              setDraft(emptyDraft(now));
+              setFormKey((k) => k + 1);
+            }}
+          >
+            Отмена
+          </button>
+        )}
+      </div>
+    </form>
+  );
+
   const views: { id: View; label: string; count?: number }[] = [
     { id: 'today', label: 'Сегодня', count: todays.length - doneCount },
     { id: 'chores', label: 'Быт по кругу', count: chores.filter((r) => r.rule.kind === 'after' && today >= dueDay(r.rule, r.last_done) && !doneSet.has(occurrenceKey(r.id, r.times[0]))).length },
@@ -467,12 +598,12 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
               Напоминания
             </h1>
             <p style={{ margin: '6px 0 0', color: 'var(--muted)' }}>
-              {dayTitle(now)}
-              {todays.length > 0 && ` · ${doneCount} из ${todays.length} сделано`}
+              {phone ? (todays.length > 0 ? `Сделано ${doneCount} из ${todays.length}` : 'На сегодня ничего') : dayTitle(now)}
+              {!phone && todays.length > 0 && ` · ${doneCount} из ${todays.length} сделано`}
             </p>
           </div>
           {todays.length > 0 && (
-            <div className="bar warm" style={{ flex: '0 1 220px' }} aria-hidden="true">
+            <div className="bar warm hide-phone" style={{ flex: '0 1 220px' }} aria-hidden="true">
               <i style={{ width: `${(doneCount / todays.length) * 100}%` }} />
             </div>
           )}
@@ -492,71 +623,9 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       </section>
 
       <aside style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <form ref={formRef} className="panel" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={submit}>
-          <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
-            {draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label className="label" htmlFor="r-what">
-              Что сделать
-            </label>
-            <input
-              ref={titleRef}
-              id="r-what"
-              className="field"
-              maxLength={120}
-              placeholder="Например, взять пропуск"
-              value={draft.title}
-              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-            />
-          </div>
-          <RuleEditor key={formKey} rule={draft.rule} times={draft.times} today={today} onChange={(rule, times) => setDraft({ ...draft, rule, times })} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label className="label" htmlFor="r-list">
-              Чек-лист
-            </label>
-            <select id="r-list" className="field" value={draft.checklist_id} onChange={(e) => setDraft({ ...draft, checklist_id: e.target.value })}>
-              <option value="">Без чек-листа</option>
-              {data.checklists.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label className="label" htmlFor="r-nag">
-              Если не отметили «Сделано»
-            </label>
-            <select id="r-nag" className="field" value={draft.nag} onChange={(e) => setDraft({ ...draft, nag: Number(e.target.value) })}>
-              <option value={0}>Не повторять</option>
-              <option value={15}>Напомнить ещё раз через 15 минут</option>
-              <option value={30}>Напомнить ещё раз через 30 минут</option>
-              <option value={60}>Напомнить ещё раз через час</option>
-            </select>
-            {draft.nag > 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>До трёх повторов — пока не нажмёте «Сделано» в уведомлении или здесь.</span>}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-primary" type="submit" disabled={saving || !draft.title.trim()} style={{ flex: 1 }}>
-              <Icon name={draft.id ? 'check' : 'plus'} size={18} />
-              {saving ? 'Сохраняем…' : draft.id ? 'Сохранить' : 'Добавить'}
-            </button>
-            {draft.id && (
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={() => {
-                  setDraft(emptyDraft(now));
-                  setFormKey((k) => k + 1);
-                }}
-              >
-                Отмена
-              </button>
-            )}
-          </div>
-        </form>
+        {!phone && form}
 
-        <section style={{ padding: '0 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <section className="hide-phone" style={{ padding: '0 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <h2 className="group-title" style={{ padding: 0 }}>
             Завтра, {weekdayName(tomorrow)}
           </h2>
@@ -578,10 +647,18 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         </section>
       </aside>
 
-      <button className="btn btn-primary fab only-mobile" type="button" onClick={() => openForm(emptyDraft(now))}>
-        <Icon name="plus" size={20} />
-        Напоминание
-      </button>
+      {phone && <Fab label="Новое напоминание" onClick={() => openForm(emptyDraft(now))} />}
+      {phone && sheet && (
+        <Sheet
+          title={draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
+          onClose={() => {
+            setSheet(false);
+            if (draft.id) setDraft(emptyDraft(now));
+          }}
+        >
+          {form}
+        </Sheet>
+      )}
 
       {confirm && (
         <Confirm

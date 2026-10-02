@@ -6,6 +6,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
+import { ThemePicker } from './ThemeToggle';
 import { CalendarCard, NavEditor } from './SettingsExtra';
 
 /**
@@ -196,6 +197,11 @@ export default function Settings() {
           )}
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600, minWidth: 60 }}>Тема</span>
+        <ThemePicker />
+      </section>
 
       <section className="card" style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ flex: 1, minWidth: 0 }}>
