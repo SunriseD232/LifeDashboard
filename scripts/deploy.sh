@@ -164,7 +164,7 @@ ls -1dt "$ROOT"/releases/*/ | tail -n +4 | while read -r old; do
   rm -rf "$old"
 done
 
-if ! node --env-file="$ROOT/.env" -e "const D=require('$REL/node_modules/better-sqlite3');const d=new D('$DB',{readonly:true});const k=process.env.LD_DATA_KEY;if(k){d.pragma(\"cipher='sqlcipher'\");d.pragma('legacy=4');d.pragma(\"key='\"+k+\"'\")}process.exit(d.prepare('select count(*) n from users').get().n?0:1)" 2>/dev/null; then
+if ! (cd "$REL" && node --env-file="$ROOT/.env" scripts/has-users.mjs) 2>/dev/null; then
   echo
   echo "!! Пользователей ещё нет — войти не получится. Заведите себя на сервере:"
   echo "   cd $ROOT/current && node --env-file=$ROOT/.env scripts/add-user.mjs <логин> --adopt"
