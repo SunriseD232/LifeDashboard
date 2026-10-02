@@ -1,25 +1,27 @@
-import { summarize, type Forecast } from '@/lib/weather';
+import { fromMetNo, summarize, type MetNo } from '@/lib/weather';
 import { HttpError, type Ctx } from '../http';
 import { readSettings } from '../settings';
 
 /** Прогноз меняется не чаще раза в полчаса — дальше отдаём из памяти. */
 const TTL_MS = 30 * 60_000;
-const cache = new Map<string, { at: number; data: Forecast }>();
+const cache = new Map<string, { at: number; data: MetNo }>();
 
-async function forecast(lat: number, lon: number): Promise<Forecast> {
-  const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+/** MET Norway просит представляться: имя приложения и как с нами связаться. */
+const USER_AGENT = 'LifeDashboard/1.0 (+https://media-watch.ru/task)';
+
+async function metno(lat: number, lon: number): Promise<MetNo> {
+  // Не больше 4 знаков после запятой — так просит MET Norway (и кэшу лучше).
+  const la = lat.toFixed(4);
+  const lo = lon.toFixed(4);
+  const key = `${la},${lo}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
-  const url =
-    'https://api.open-meteo.com/v1/forecast' +
-    `?latitude=${lat}&longitude=${lon}` +
-    '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m' +
-    '&hourly=temperature_2m,precipitation_probability,weather_code' +
-    '&daily=weather_code,temperature_2m_max,temperature_2m_min' +
-    '&timezone=auto&forecast_days=5&wind_speed_unit=ms';
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`open-meteo ${res.status}`);
-  const data = (await res.json()) as Forecast;
+  const res = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${la}&lon=${lo}`, {
+    headers: { 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!res.ok) throw new Error(`met.no ${res.status}`);
+  const data = (await res.json()) as MetNo;
   if (cache.size > 200) cache.clear();
   cache.set(key, { at: Date.now(), data });
   return data;
@@ -31,7 +33,8 @@ export async function weather({ d, userId, method, id }: Ctx): Promise<unknown> 
   const s = readSettings(d, userId);
   if (s.lat === null || s.lon === null || !s.city) return { weather: null };
   try {
-    return { weather: summarize(await forecast(s.lat, s.lon), s.city) };
+    // Пояс неизвестен (город выбран до того, как мы стали его запоминать) — Москва.
+    return { weather: summarize(fromMetNo(await metno(s.lat, s.lon), s.tz ?? 'Europe/Moscow'), s.city) };
   } catch (e) {
     console.error('[lifedashboard weather]', (e as Error).message);
     throw new HttpError(502, 'Сервис погоды не ответил.');
