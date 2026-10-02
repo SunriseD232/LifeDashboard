@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { localDay, plural } from '@/lib/dates';
@@ -376,6 +377,15 @@ export default function Tasks() {
   const [open, setOpen] = useState<Task | null>(null);
   const [col, setCol] = useState<'urgent' | 'later'>('urgent');
   const [tag, setTag] = useState<string | null>(null);
+  const params = useSearchParams();
+
+  // Пришли из поиска: /tasks?open=<id> — открываем дело.
+  useEffect(() => {
+    const id = params.get('open');
+    const t = id ? data.tasks.find((x) => x.id === id) : null;
+    if (t) setOpen(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const all = data.tasks.filter((t) => !tag || t.tag === tag);
   const urgent = sortUrgent(all.filter((t) => bucket(t, today) === 'urgent'));

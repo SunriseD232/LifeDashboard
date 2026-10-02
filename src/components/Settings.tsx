@@ -12,7 +12,7 @@ import { CityPicker } from './Weather';
  * дела, а дальше — покупки). Тема — переключателем в панели.
  */
 export default function Settings() {
-  const { data, reload, toast } = useApp();
+  const { data, reload, toast, logout } = useApp();
   const s = data.settings;
   const hh = data.household;
   const [changingCity, setChangingCity] = useState(!s.city);
@@ -160,6 +160,16 @@ export default function Settings() {
           )}
         </section>
       </div>
+
+      <section className="card" style={{ marginTop: 20, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          Вы вошли как <b>{data.login}</b>
+        </span>
+        <button className="btn btn-ghost" type="button" onClick={logout}>
+          <Icon name="logout" size={18} />
+          Выйти
+        </button>
+      </section>
 
       {leaving && me && (
         <Confirm

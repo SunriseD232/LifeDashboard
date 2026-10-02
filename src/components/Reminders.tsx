@@ -1,5 +1,6 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { addDays, dayTitle, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
@@ -156,6 +157,18 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
 
   const startEdit = (r: Reminder) =>
     openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '' });
+
+  // Пришли из поиска: /reminders?edit=<id> — открываем его в форме.
+  const params = useSearchParams();
+  useEffect(() => {
+    const id = params.get('edit');
+    const r = id ? data.reminders.find((x) => x.id === id) : null;
+    if (r) {
+      setView('all');
+      startEdit(r);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

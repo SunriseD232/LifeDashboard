@@ -13,6 +13,17 @@ export function householdOf(d: Database.Database, userId: string): string | null
   return row?.household_id ?? null;
 }
 
+/**
+ * Условие «видно этому человеку» для таблицы с user_id и household_id под
+ * псевдонимом alias: своё или общее его семьи. Чужое не найти даже по id.
+ */
+export function visibleWhere(d: Database.Database, userId: string, alias: string): { where: string; params: (string | null)[] } {
+  return {
+    where: `(${alias}.user_id = ? or (${alias}.household_id is not null and ${alias}.household_id = ?))`,
+    params: [userId, householdOf(d, userId)],
+  };
+}
+
 export interface HouseholdInfo {
   id: string;
   name: string;

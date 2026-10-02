@@ -36,3 +36,18 @@ export interface Snooze {
   slot: string;
   at: string;
 }
+
+/** Заметка (src/server/noteStore.ts). */
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  pinned: boolean;
+  /** Общая для семьи — или null, личная. */
+  household_id: string | null;
+  checklist_id: string | null;
+  /** Кто написал — для общих заметок, если не я. */
+  author: string | null;
+  updated_at: string;
+}

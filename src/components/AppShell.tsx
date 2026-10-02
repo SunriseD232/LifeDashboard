@@ -7,9 +7,10 @@ import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
 import { bucket, type Task } from '@/lib/tasks';
-import type { Checklist, ChecklistItem, Reminder, Snooze } from '@/lib/types';
+import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
+import SearchDialog from './SearchDialog';
 import ThemeToggle from './ThemeToggle';
 
 export interface AppData {
@@ -24,6 +25,7 @@ export interface AppData {
   tasks: Task[];
   /** id дел, отмеченных сегодня (в том числе повторяющихся, переехавших дальше). */
   tasksDoneToday: string[];
+  notes: Note[];
   settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
@@ -42,6 +44,7 @@ interface AppContext {
   /** Какой чек-лист открыт — общий, чтобы напоминание могло открыть свой. */
   openList: string | null;
   setOpenList: (id: string | null) => void;
+  logout: () => Promise<void>;
 }
 
 const Ctx = createContext<AppContext | null>(null);
@@ -63,6 +66,7 @@ const EMPTY: AppData = {
   snoozed: [],
   tasks: [],
   tasksDoneToday: [],
+  notes: [],
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00' },
   household: null,
 };
@@ -71,6 +75,7 @@ const EMPTY: AppData = {
 const SECTIONS = [
   { href: '/', label: 'Главная', icon: 'home' },
   { href: '/tasks', label: 'Дела', icon: 'tasks' },
+  { href: '/notes', label: 'Заметки', icon: 'note' },
   { href: '/lists', label: 'Чек-листы', icon: 'list' },
   { href: '/reminders', label: 'Напоминания', icon: 'bell' },
 ] as const;
@@ -92,6 +97,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [openList, setOpenList] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const [searching, setSearching] = useState(false);
   const dayRef = useRef(localDay());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -135,6 +141,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [reload]);
+
+  // Ctrl K / ⌘K — поиск отовсюду.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK')) {
+        e.preventDefault();
+        setSearching(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const mutate: Mutate = useCallback(
     (update, request) => {
@@ -206,7 +224,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const time = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <Ctx.Provider value={{ data, mutate, reload, toast, now, openList, setOpenList }}>
+    <Ctx.Provider value={{ data, mutate, reload, toast, now, openList, setOpenList, logout }}>
       <div className="shell">
         <aside className="side">
           <Link className="brand display" href="/">
@@ -218,6 +236,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="side-date">
             {dayTitle(now)} · <span className="mono">{time}</span>
           </div>
+          <button className="searchbtn" type="button" onClick={() => setSearching(true)}>
+            <Icon name="search" size={18} />
+            <span style={{ flex: 1 }}>Поиск</span>
+            <kbd>Ctrl K</kbd>
+          </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {SECTIONS.map((s) => (
               <Link key={s.href} className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
@@ -251,15 +274,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               {time}
             </div>
           </div>
-          <Link className="icon-btn bare" href="/settings" aria-label="Настройки">
+          <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">
+            <Icon name="search" />
+          </button>
+          <Link className="icon-btn bare" href="/settings" aria-label="Настройки (там же выход)">
             <Icon name="settings" />
           </Link>
           <ThemeToggle />
-          {data.login && (
-            <button className="icon-btn bare" type="button" onClick={logout} aria-label={`Выйти (${data.login})`}>
-              <Icon name="logout" />
-            </button>
-          )}
         </header>
 
         <main className="page">{children}</main>
@@ -274,6 +295,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
       </div>
+
+      {searching && <SearchDialog onClose={() => setSearching(false)} />}
 
       {toastText && (
         <div className="toast" role="status">
