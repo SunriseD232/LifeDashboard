@@ -99,18 +99,18 @@ export async function login(loginRaw: string, password: string, ip: string): Pro
     return { ok: false, status: 401, error: 'Неверный логин или пароль.' };
   }
   keys.forEach((k) => fails.delete(k));
+  startSession(user.id);
+  return { ok: true };
+}
 
+/** Новая сессия и кука — после входа, регистрации или сброса пароля. */
+export function startSession(userId: string): void {
   const token = randomBytes(32).toString('base64url');
   const expires = new Date(Date.now() + SESSION_DAYS * DAY_MS);
   const d = db();
   d.prepare('delete from sessions where expires_at < ?').run(new Date().toISOString());
-  d.prepare('insert into sessions (token_hash, user_id, expires_at) values (?, ?, ?)').run(
-    sha256(token),
-    user.id,
-    expires.toISOString(),
-  );
+  d.prepare('insert into sessions (token_hash, user_id, expires_at) values (?, ?, ?)').run(sha256(token), userId, expires.toISOString());
   setCookie(token, expires);
-  return { ok: true };
 }
 
 /** Выйти: удалить сессию из базы и куку из браузера. */

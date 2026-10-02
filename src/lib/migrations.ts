@@ -519,6 +519,27 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 8,
+    name: 'коды из писем: регистрация и сброс пароля',
+    up: (db) =>
+      db.exec(`
+    -- Коды подтверждения почты (src/server/emailCodes.ts). Хранится только
+    -- хэш кода; у кода срок, счётчик попыток и IP — для ограничений.
+    create table email_codes (
+      id text primary key,
+      email text not null,
+      purpose text not null check (purpose in ('register', 'reset')),
+      code_hash text not null,
+      expires_at text not null,
+      attempts integer not null default 0,
+      ip text,
+      created_at text not null
+    );
+    create index email_codes_email_idx on email_codes (email, purpose, created_at);
+    create index email_codes_ip_idx on email_codes (ip, created_at);
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
