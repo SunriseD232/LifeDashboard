@@ -3,17 +3,26 @@ import { readSettings } from '../settings';
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+function validTz(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('ru', { timeZone: tz });
+    return tz.length < 64;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Настройки человека: /api/settings и поиск города /api/settings/geocode?q=.
- * Город ищем у Open-Meteo (тот же сервис, что даёт погоду), сохраняем
- * название и координаты.
+ * Город ищем у Open-Meteo (поиск городов), сохраняем название, координаты
+ * и часовой пояс — прогноз (MET Norway) приходит в UTC.
  */
 export async function settings({ d, userId, method, body, id, req }: Ctx): Promise<unknown> {
   if (method === 'GET' && id === 'geocode') {
     const q = (req.nextUrl.searchParams.get('q') ?? '').trim();
     if (q.length < 2) return { results: [] };
     const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q.slice(0, 80))}&count=6&language=ru&format=json`;
-    let data: { results?: { name: string; admin1?: string; country?: string; latitude: number; longitude: number }[] };
+    let data: { results?: { name: string; admin1?: string; country?: string; latitude: number; longitude: number; timezone?: string }[] };
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
       if (!res.ok) throw new Error(String(res.status));
@@ -27,18 +36,20 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
         region: [r.admin1, r.country].filter(Boolean).join(', '),
         lat: r.latitude,
         lon: r.longitude,
+        tz: r.timezone ?? null,
       })),
     };
   }
 
   if (method === 'PATCH' && !id) {
     const cur = readSettings(d, userId);
-    let { city, lat, lon, deadline_time } = cur;
+    let { city, lat, lon, tz, deadline_time } = cur;
     if (body.city !== undefined) {
       if (body.city === null) {
         city = null;
         lat = null;
         lon = null;
+        tz = null;
       } else {
         city = text(body.city, 120, 'Город');
         const la = Number(body.lat);
@@ -48,6 +59,7 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
         }
         lat = la;
         lon = lo;
+        tz = typeof body.tz === 'string' && validTz(body.tz) ? body.tz : null;
       }
     }
     if (body.deadline_time !== undefined) {
@@ -55,10 +67,10 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
       deadline_time = body.deadline_time;
     }
     d.prepare(
-      `insert into user_settings (user_id, city, lat, lon, deadline_time) values (?, ?, ?, ?, ?)
+      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time) values (?, ?, ?, ?, ?, ?)
        on conflict (user_id) do update set city = excluded.city, lat = excluded.lat, lon = excluded.lon,
-         deadline_time = excluded.deadline_time`,
-    ).run(userId, city, lat, lon, deadline_time);
+         tz = excluded.tz, deadline_time = excluded.deadline_time`,
+    ).run(userId, city, lat, lon, tz, deadline_time);
     return { ok: true };
   }
 

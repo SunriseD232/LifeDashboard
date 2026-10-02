@@ -1,11 +1,16 @@
 /**
- * Погода для главной — из Open-Meteo (бесплатно, без ключа). Сервер берёт
- * прогноз для города из настроек (src/server/api/weather.ts), а здесь —
- * разбор ответа в то, что нужно карточке: сейчас, по часам, на 3 дня и
- * подсказка вроде «дождь около 18:00 — возьмите зонт».
+ * Погода для главной. Прогноз — MET Norway (api.met.no, бесплатно, без
+ * ключа, требуется подпись источника); сервер берёт его для города из
+ * настроек (src/server/api/weather.ts). Open-Meteo с нашего сервера
+ * недоступен, поэтому у него — только поиск городов.
  *
- * Время в ответе — местное для города (timezone=auto), строками
- * 'ГГГГ-ММ-ДДTЧЧ:ММ'; сравниваем их как строки.
+ * Ответ MET Norway переводим (fromMetNo) в простую форму Forecast — по часам,
+ * в местном времени города, с кодами погоды WMO, — а summarize делает из неё
+ * то, что нужно карточке: сейчас, по часам, на 3 дня и подсказку вроде
+ * «дождь около 18:00 — возьмите зонт».
+ *
+ * Время в Forecast — местное для города, строками 'ГГГГ-ММ-ДДTЧЧ:ММ';
+ * сравниваем их как строки.
  */
 
 export type WeatherIcon = 'sun' | 'partly' | 'cloud' | 'fog' | 'rain' | 'snow' | 'storm';
@@ -111,4 +116,121 @@ export function summarize(f: Forecast, city: string): Weather {
 /** «+11°», «−3°», «0°». */
 export function temp(n: number): string {
   return n > 0 ? `+${n}°` : n < 0 ? `−${-n}°` : '0°';
+}
+
+// ---------------------------------------------------------------- MET Norway
+
+interface MetNoPoint {
+  time: string;
+  data: {
+    instant: { details: { air_temperature: number; wind_speed?: number } };
+    next_1_hours?: { summary: { symbol_code: string }; details?: { precipitation_amount?: number } };
+    next_6_hours?: { summary: { symbol_code: string }; details?: { precipitation_amount?: number } };
+    next_12_hours?: { summary: { symbol_code: string } };
+  };
+}
+
+export interface MetNo {
+  properties: { timeseries: MetNoPoint[] };
+}
+
+/** Значок MET Norway («lightrainshowers_day») → код погоды WMO. */
+export function symbolToWmo(symbol: string): number {
+  const s = symbol.replace(/_(day|night|polartwilight)$/, '');
+  if (s.includes('thunder')) return 95;
+  if (s.includes('sleet')) return 66;
+  if (s.includes('snowshowers')) return 85;
+  if (s.includes('snow')) return s.startsWith('heavy') ? 75 : s.startsWith('light') ? 71 : 73;
+  if (s.includes('rainshowers')) return 80;
+  if (s.includes('rain')) return s.startsWith('heavy') ? 65 : s.startsWith('light') ? 61 : 63;
+  if (s === 'fog') return 45;
+  if (s === 'cloudy') return 3;
+  if (s === 'partlycloudy') return 2;
+  if (s === 'fair') return 1;
+  if (s === 'clearsky') return 0;
+  return 3;
+}
+
+/** «Ощущается как»: ветро-холодовой индекс в холод, в тепло — как есть. */
+export function feelsLike(t: number, windMs: number): number {
+  const v = windMs * 3.6;
+  if (t > 10 || v < 4.8) return t;
+  const p = Math.pow(v, 0.16);
+  return 13.12 + 0.6215 * t - 11.37 * p + 0.3965 * t * p;
+}
+
+/** UTC → 'ГГГГ-ММ-ДДTЧЧ:ММ' в поясе tz. */
+function localIso(utc: string, tz: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(utc));
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '00';
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+
+/**
+ * Ответ MET Norway → Forecast в местном времени города. Вероятности осадков
+ * в бесплатном ответе нет — берём количество за час: от 0,2 мм считаем, что
+ * дождь будет.
+ */
+export function fromMetNo(m: MetNo, tz: string): Forecast {
+  const points = m.properties.timeseries;
+  if (!points.length) throw new Error('пустой прогноз');
+  // Почасовые точки — первые ~2,5 суток; дальше MET Norway даёт шаг 6 часов.
+  const hourly = points.filter((p) => p.data.next_1_hours);
+  const symbolOf = (p: MetNoPoint) =>
+    (p.data.next_1_hours ?? p.data.next_6_hours ?? p.data.next_12_hours)?.summary.symbol_code ?? 'cloudy';
+  const probOf = (p: MetNoPoint) => {
+    const mm = p.data.next_1_hours?.details?.precipitation_amount ?? 0;
+    return mm >= 0.2 ? 80 : mm > 0 ? 40 : 0;
+  };
+
+  // По дням: минимум и максимум по всем точкам, погода — ближе к полудню.
+  const days = new Map<string, { min: number; max: number; code: number; noonGap: number }>();
+  for (const p of points) {
+    const iso = localIso(p.time, tz);
+    const day = iso.slice(0, 10);
+    const t = p.data.instant.details.air_temperature;
+    const gap = Math.abs(Number(iso.slice(11, 13)) - 12);
+    const sym = (p.data.next_6_hours ?? p.data.next_1_hours ?? p.data.next_12_hours)?.summary.symbol_code ?? 'cloudy';
+    const cur = days.get(day);
+    if (!cur) days.set(day, { min: t, max: t, code: symbolToWmo(sym), noonGap: gap });
+    else {
+      cur.min = Math.min(cur.min, t);
+      cur.max = Math.max(cur.max, t);
+      if (gap < cur.noonGap) Object.assign(cur, { code: symbolToWmo(sym), noonGap: gap });
+    }
+  }
+  const dayKeys = [...days.keys()];
+
+  const first = points[0];
+  const t0 = first.data.instant.details.air_temperature;
+  const w0 = first.data.instant.details.wind_speed ?? 0;
+  return {
+    current: {
+      time: localIso(first.time, tz),
+      temperature_2m: t0,
+      apparent_temperature: feelsLike(t0, w0),
+      weather_code: symbolToWmo(symbolOf(first)),
+      wind_speed_10m: w0,
+    },
+    hourly: {
+      time: hourly.map((p) => localIso(p.time, tz)),
+      temperature_2m: hourly.map((p) => p.data.instant.details.air_temperature),
+      precipitation_probability: hourly.map(probOf),
+      weather_code: hourly.map((p) => symbolToWmo(symbolOf(p))),
+    },
+    daily: {
+      time: dayKeys,
+      weather_code: dayKeys.map((k) => days.get(k)!.code),
+      temperature_2m_max: dayKeys.map((k) => days.get(k)!.max),
+      temperature_2m_min: dayKeys.map((k) => days.get(k)!.min),
+    },
+  };
 }

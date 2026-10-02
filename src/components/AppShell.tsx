@@ -24,7 +24,7 @@ export interface AppData {
   tasks: Task[];
   /** id дел, отмеченных сегодня (в том числе повторяющихся, переехавших дальше). */
   tasksDoneToday: string[];
-  settings: { city: string | null; lat: number | null; lon: number | null; deadline_time: string };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
@@ -63,7 +63,7 @@ const EMPTY: AppData = {
   snoozed: [],
   tasks: [],
   tasksDoneToday: [],
-  settings: { city: null, lat: null, lon: null, deadline_time: '09:00' },
+  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00' },
   household: null,
 };
 

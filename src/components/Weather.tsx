@@ -12,6 +12,7 @@ interface Place {
   region: string;
   lat: number;
   lon: number;
+  tz: string | null;
 }
 
 /** Поиск и выбор города для погоды — в настройках и на главной, пока город не задан. */
@@ -37,7 +38,7 @@ export function CityPicker({ onPicked }: { onPicked?: () => void }) {
 
   const pick = async (p: Place) => {
     try {
-      await api('settings', 'PATCH', { city: p.name, lat: p.lat, lon: p.lon });
+      await api('settings', 'PATCH', { city: p.name, lat: p.lat, lon: p.lon, tz: p.tz });
       await reload();
       setResults(null);
       setQ('');
@@ -166,6 +167,12 @@ export function WeatherCard() {
               </div>
             ))}
           </div>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+            Прогноз:{' '}
+            <a href="https://www.met.no/en" target="_blank" rel="noreferrer">
+              MET Norway
+            </a>
+          </p>
         </>
       )}
     </section>

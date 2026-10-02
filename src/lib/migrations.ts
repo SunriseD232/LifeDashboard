@@ -247,6 +247,11 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 4,
+    name: 'часовой пояс города для погоды',
+    up: (db) => db.exec('alter table user_settings add column tz text'),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
