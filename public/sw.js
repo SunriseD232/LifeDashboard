@@ -28,7 +28,7 @@ self.addEventListener('push', (event) => {
     badge: '/task/badge-96.png',
     lang: 'ru',
     renotify: !!data.tag,
-    data: { url: data.url || '/task#reminders', reminderId: data.reminderId, day: data.day },
+    data: { url: data.url || '/task/reminders', reminderId: data.reminderId, day: data.day },
     actions: data.reminderId ? [{ action: 'done', title: 'Сделано' }] : [],
   };
   event.waitUntil(self.registration.showNotification(data.title || 'LifeDashboard', options));
@@ -57,10 +57,10 @@ self.addEventListener('notificationclick', (event) => {
       const open = all.find((c) => new URL(c.url).pathname.startsWith('/task'));
       if (open) {
         await open.focus();
-        if ('navigate' in open) await open.navigate(url || '/task#reminders');
+        if ('navigate' in open) await open.navigate(url || '/task/reminders');
         return;
       }
-      await self.clients.openWindow(url || '/task#reminders');
+      await self.clients.openWindow(url || '/task/reminders');
     })(),
   );
 });

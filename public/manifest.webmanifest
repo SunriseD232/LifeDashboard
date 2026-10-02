@@ -3,7 +3,7 @@
   "short_name": "LifeDashboard",
   "description": "Чек-листы сборов и напоминания на день",
   "id": "/task",
-  "start_url": "/task#reminders",
+  "start_url": "/task",
   "scope": "/task",
   "display": "standalone",
   "background_color": "#eef3f2",

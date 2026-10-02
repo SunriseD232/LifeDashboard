@@ -1,6 +1,8 @@
-/* LifeDashboard — стили по макету в Claude Design («Сборы и дела»).
-   Прохладный светлый фон, бирюза бассейна для чек-листов, тёплый янтарь
-   для времени и напоминаний. */
+/* LifeDashboard — стили по макету в Claude Design («LifeDashboard»).
+   Прохладный фон, бирюза для основного действия, тёплый янтарь для времени и
+   сроков. Все цвета — токены: светлая тема в :root, тёмная — ниже. Тема
+   выбирается кукой ld_theme (src/components/ThemeToggle.tsx) и приходит в
+   <html data-theme>: light, dark или system — как в системе. */
 :root {
   color-scheme: light;
   --font-display: 'Onest';
@@ -9,16 +11,91 @@
   --ink: #13201f;
   --muted: #566563;
   --line: #d9e2e0;
+  --line-strong: #c3d0cd;
   --ground: #eef3f2;
   --surface: #ffffff;
   --soft: #f5f8f7;
+  --field: #ffffff;
+  --seg: #e2e9e7;
+  --track: #dde6e4;
+  --box: #8fa29f;
+  --box-done: #9fb0ad;
   --accent: #0e7c7b;
   --accent-hover: #0b6564;
+  --accent-ink: #0b6564;
+  --sel: #e3f0ef;
+  --sel-ink: #0b4f4e;
   --warm: #9a5a09;
   --warm-bg: #fdf1de;
   --warm-line: #efc98d;
   --danger: #b42318;
+  --danger-solid: #b42318;
+  --danger-line: #f0c8c4;
+  --toast-bg: #13201f;
+  --toast-ink: #ffffff;
+  --shadow: rgb(19 32 31 / 0.08);
+  --scrim: rgb(19 32 31 / 0.35);
   --radius: 16px;
+}
+
+/* Тёмная тема: явно выбранная — и «как в системе», когда система тёмная. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ink: #e4eeec;
+  --muted: #9bb0ac;
+  --line: #2a3b39;
+  --line-strong: #3d524f;
+  --ground: #0e1615;
+  --surface: #16211f;
+  --soft: #1c2a28;
+  --field: #111b1a;
+  --seg: #0a1110;
+  --track: #263634;
+  --box: #5d716e;
+  --box-done: #5d716e;
+  --accent-hover: #12908f;
+  --accent-ink: #5cc8c4;
+  --sel: #173634;
+  --sel-ink: #9fe3df;
+  --warm: #f0b45c;
+  --warm-bg: #33260f;
+  --warm-line: #6b4a1a;
+  --danger: #ff8f82;
+  --danger-line: #6e2b25;
+  --toast-bg: #e4eeec;
+  --toast-ink: #0e1615;
+  --shadow: rgb(0 0 0 / 0.4);
+  --scrim: rgb(0 0 0 / 0.55);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] {
+    color-scheme: dark;
+    --ink: #e4eeec;
+    --muted: #9bb0ac;
+    --line: #2a3b39;
+    --line-strong: #3d524f;
+    --ground: #0e1615;
+    --surface: #16211f;
+    --soft: #1c2a28;
+    --field: #111b1a;
+    --seg: #0a1110;
+    --track: #263634;
+    --box: #5d716e;
+    --box-done: #5d716e;
+    --accent-hover: #12908f;
+    --accent-ink: #5cc8c4;
+    --sel: #173634;
+    --sel-ink: #9fe3df;
+    --warm: #f0b45c;
+    --warm-bg: #33260f;
+    --warm-line: #6b4a1a;
+    --danger: #ff8f82;
+    --danger-line: #6e2b25;
+    --toast-bg: #e4eeec;
+    --toast-ink: #0e1615;
+    --shadow: rgb(0 0 0 / 0.4);
+    --scrim: rgb(0 0 0 / 0.55);
+  }
 }
 
 * {
@@ -44,11 +121,11 @@ select {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
 }
 
@@ -108,13 +185,13 @@ a {
 }
 .btn-ghost:hover:not(:disabled) {
   background: var(--surface);
-  border-color: #c3d0cd;
+  border-color: var(--line-strong);
 }
 .btn-dashed {
   border-style: dashed;
 }
 .btn-danger {
-  background: var(--danger);
+  background: var(--danger-solid);
   color: #fff;
 }
 .btn-danger:hover {
@@ -123,7 +200,7 @@ a {
 .btn-danger-ghost {
   background: transparent;
   color: var(--danger);
-  border-color: #f0c8c4;
+  border-color: var(--danger-line);
 }
 
 .icon-btn {
@@ -141,7 +218,7 @@ a {
 }
 .icon-btn:hover:not(:disabled) {
   color: var(--ink);
-  border-color: #c3d0cd;
+  border-color: var(--line-strong);
 }
 .icon-btn:disabled {
   opacity: 0.35;
@@ -159,7 +236,7 @@ a {
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--field);
 }
 .field:focus {
   outline: none;
@@ -203,7 +280,7 @@ a {
 .bar {
   height: 8px;
   border-radius: 99px;
-  background: #dde6e4;
+  background: var(--track);
   overflow: hidden;
 }
 .bar > i {
@@ -240,8 +317,8 @@ a {
   height: 22px;
   margin: 0;
   border-radius: 7px;
-  border: 2px solid #8fa29f;
-  background: #fff;
+  border: 2px solid var(--box);
+  background: var(--field);
   cursor: pointer;
 }
 .check input:checked {
@@ -259,7 +336,7 @@ a {
 .check.done .check-text {
   color: var(--muted);
   text-decoration: line-through;
-  text-decoration-color: #9fb0ad;
+  text-decoration-color: var(--box-done);
 }
 .check-text {
   min-width: 0;
@@ -275,25 +352,32 @@ a {
   color: var(--muted);
 }
 
-/* ---------- каркас ---------- */
-.topbar {
+/* ---------- каркас: боковая панель (компьютер) и нижняя (телефон) ---------- */
+.shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.side {
   position: sticky;
   top: 0;
-  z-index: 20;
+  height: 100vh;
+  height: 100dvh;
   display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
-  padding-top: max(12px, env(safe-area-inset-top));
-  border-bottom: 1px solid var(--line);
-  background: rgb(238 243 242 / 0.92);
-  backdrop-filter: blur(12px);
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 16px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 22px;
+  padding: 0 8px;
+  font-size: 20px;
   font-weight: 800;
   text-decoration: none;
   color: var(--ink);
@@ -301,54 +385,115 @@ a {
 .brand-mark {
   display: grid;
   place-items: center;
+  flex: none;
   width: 34px;
   height: 34px;
   border-radius: 11px;
   background: var(--accent);
   color: #fff;
 }
-.tabs {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 14px;
-  background: #e2e9e7;
+.side-date {
+  padding: 6px 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
 }
-.tab {
-  white-space: nowrap;
-  display: inline-flex;
+.nav {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 40px;
-  padding: 8px 16px;
-  border: 0;
-  border-radius: 11px;
-  background: transparent;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
   color: var(--muted);
   font-weight: 600;
-  font-size: 15px;
-  cursor: pointer;
   text-decoration: none;
 }
-.tab:hover {
+.nav:hover {
   color: var(--ink);
+  background: var(--soft);
 }
-.tab[aria-current='page'] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgb(19 32 31 / 0.08), 0 0 0 1px var(--line);
+.nav[aria-current='page'] {
+  background: var(--sel);
+  color: var(--sel-ink);
 }
-.today {
+.nav .badge {
   margin-left: auto;
-  text-align: right;
-  line-height: 1.3;
+}
+.side-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0 0 8px;
+  border-top: 1px solid var(--line);
+}
+.side-foot .who {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mtop,
+.tabbar {
+  display: none;
 }
 
 .page {
   max-width: 1240px;
-  margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: 32px 40px 48px;
+}
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.h1 {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 800;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.card-link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: start;
 }
 
 .panel {
@@ -378,7 +523,7 @@ a {
   transition: border-color 0.15s ease;
 }
 .list-card:hover {
-  border-color: #b8c7c4;
+  border-color: var(--line-strong);
 }
 .list-card[aria-current='true'] {
   border-color: var(--accent);
@@ -392,7 +537,7 @@ a {
   height: 40px;
   border-radius: 12px;
   background: var(--soft);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .groups-grid {
   display: grid;
@@ -442,7 +587,7 @@ a {
   cursor: pointer;
 }
 .seg button[aria-pressed='true'] {
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
 }
@@ -455,13 +600,14 @@ a {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgb(19 32 31 / 0.35);
+  background: var(--scrim);
 }
 .dialog {
   width: min(400px, 100%);
   padding: 22px;
   border-radius: 18px;
-  background: #fff;
+  background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow: 0 20px 50px -12px rgb(19 32 31 / 0.4);
   display: flex;
   flex-direction: column;
@@ -476,8 +622,8 @@ a {
   max-width: calc(100vw - 32px);
   padding: 12px 18px;
   border-radius: 14px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--toast-bg);
+  color: var(--toast-ink);
   font-size: 14px;
   box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.5);
 }
@@ -498,22 +644,72 @@ a {
 
 /* ---------- телефон ---------- */
 @media (max-width: 860px) {
-  .topbar {
-    flex-wrap: wrap;
+  .shell {
+    display: block;
+  }
+  .side {
+    display: none;
+  }
+  .mtop {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
     gap: 10px;
+    padding: 10px max(12px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    padding-top: max(10px, env(safe-area-inset-top));
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ground) 92%, transparent);
+    backdrop-filter: blur(12px);
   }
-  .brand {
-    font-size: 18px;
-  }
-  .topbar .tabs {
-    order: 3;
-    flex-basis: 100%;
+  .tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding: 6px max(4px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .tabbar a {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 48px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .tabbar a[aria-current='page'] {
+    color: var(--accent-ink);
+  }
+  .tabbar .badge {
+    position: absolute;
+    top: 2px;
+    left: calc(50% + 6px);
+    padding: 0 6px;
+    font-size: 11px;
   }
   .page {
-    padding: 16px 16px 112px;
+    padding: 16px 16px 120px;
   }
+  .h1 {
+    font-size: 28px;
+  }
+  .page-head {
+    margin-bottom: 16px;
+  }
+  .home-grid,
   .lists-layout,
   .rem-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -527,19 +723,15 @@ a {
   .only-mobile {
     display: inline-grid;
   }
-  /* Вкладки на телефоне: без значков, в бейдже только число — иначе
-     «Чек-листы» и «1 сегодня» переносились на две строки. */
-  .tab {
-    padding: 8px 10px;
-    font-size: 14px;
-    gap: 6px;
-  }
-  .tab > svg,
-  .badge-word {
-    display: none;
-  }
   .fab.only-mobile {
     display: inline-flex;
+  }
+  /* Над нижней панелью. */
+  .fab {
+    bottom: calc(72px + max(8px, env(safe-area-inset-bottom)));
+  }
+  .toast {
+    bottom: calc(80px + max(8px, env(safe-area-inset-bottom)));
   }
   .only-desktop {
     display: none !important;
@@ -547,14 +739,6 @@ a {
   .rem-row {
     gap: 12px;
     padding: 12px 14px;
-  }
-}
-
-/* Узкий телефон: «LifeDashboard», дата и кнопка выхода в строку не влезают —
-   оставляем от логотипа только значок. */
-@media (max-width: 420px) {
-  .brand-name {
-    display: none;
   }
 }
 

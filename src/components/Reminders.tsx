@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { addDays, appliesOn, dayTitle, hhmm, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
 import { REPEAT_LABELS, type Reminder, type Repeat } from '@/lib/types';
-import type { AppData, Mutate } from './App';
+import type { AppData, Mutate } from './AppShell';
 import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import { Icon } from './icons';
@@ -178,7 +178,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                         </button>
                       )}
                       {isNext && (
-                        <span className="badge" style={{ background: '#fff' }}>
+                        <span className="badge" style={{ background: 'var(--surface)' }}>
                           {inMinutes(minutesOf(r.at_time) - nowMin)}
                         </span>
                       )}

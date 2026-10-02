@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { plural } from '@/lib/dates';
 import type { Checklist, ChecklistItem, IconName } from '@/lib/types';
-import type { AppData, Mutate } from './App';
+import type { AppData, Mutate } from './AppShell';
 import Confirm from './Confirm';
 import { Icon, LIST_ICONS } from './icons';
 
@@ -197,7 +197,7 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
                   <i style={{ width: `${items.length ? (done / items.length) * 100 : 0}%` }} />
                 </span>
                 {all ? (
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-ink)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                     <Icon name="check" size={16} />
                     Всё собрано
                   </span>
@@ -400,7 +400,7 @@ function ChecklistDetail({
               className="icon-btn"
               aria-label={ic.label}
               aria-pressed={list.icon === ic.id}
-              style={list.icon === ic.id ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : undefined}
+              style={list.icon === ic.id ? { borderColor: 'var(--accent)', color: 'var(--accent-ink)' } : undefined}
               onClick={() =>
                 mutate(
                   (d) => ({ ...d, checklists: d.checklists.map((c) => (c.id === list.id ? { ...c, icon: ic.id } : c)) }),

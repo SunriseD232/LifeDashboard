@@ -11,8 +11,20 @@
 
 - **Next.js 14** с `basePath: '/task'`, процесс `lifedashboard-web` под pm2
   на `127.0.0.1:3100`. Снаружи до него доходит только nginx.
+- **Разделы — отдельные страницы** (`src/app/<раздел>/page.tsx`): `/task`,
+  `/task/lists`, `/task/reminders`. Каркас с навигацией и данными —
+  `src/components/AppShell.tsx` в корневом layout: боковая панель на
+  компьютере, нижняя на телефоне; страницы берут данные через `useApp()`.
+- **Тема** — светлая, тёмная или как в системе; выбор на устройстве, кука
+  `ld_theme`. Все цвета — токены в `src/app/globals.css`.
 - **База — SQLite** (`/opt/lifedashboard/data/lifedashboard.db`, см.
-  `src/lib/db.ts`). Схема создаётся при первом обращении. Бэкап — копия файла.
+  `src/lib/db.ts`). Схема — нумерованные миграции в `src/lib/migrations.ts`,
+  номер применённой хранится в базе (`PRAGMA user_version`). Опубликованную
+  миграцию не меняем — только добавляем следующую.
+- **Копии базы** (`src/lib/backup.ts`) — в `data/backups` рядом с базой:
+  ночная раз в сутки (хранится 14 последних) и перед каждой миграцией (не
+  удаляются). Восстановление — остановить процесс и положить копию на место
+  `lifedashboard.db`.
 - **Вход — свой** (`src/lib/auth.ts`): логин и пароль (хэш scrypt) и сессии
   лежат в той же базе, кука `ld_session` — httpOnly, только на `/task`.
   Регистрации из интерфейса нет, пользователей заводит скрипт:
@@ -24,7 +36,9 @@
 
   На сервере — из `/opt/lifedashboard/current` с
   `node --env-file=/opt/lifedashboard/.env ...`.
-- **API** — один обработчик `src/app/api/[...path]/route.ts`.
+- **API** — одна точка входа `src/app/api/[...path]/route.ts` (вход, сессия,
+  разбор тела), разделы — `src/server/api/<раздел>.ts`, общее —
+  `src/server/http.ts`.
 - **Push-уведомления** (`src/lib/push.ts`, `public/sw.js`) — без отдельного
   приложения, через Web Push. Android и компьютеры — прямо в браузере;
   iPhone (iOS 16.4+) — только если LifeDashboard добавлен на экран «Домой».
@@ -38,6 +52,12 @@
 ```bash
 npm install
 LD_DEV_USER=dev-user npm run dev   # http://localhost:3200/task
+```
+
+Проверки перед выкладкой:
+
+```bash
+npm run typecheck && npm test && npm run build
 ```
 
 `LD_DEV_USER` подставляет тестового пользователя только в `next dev`, без

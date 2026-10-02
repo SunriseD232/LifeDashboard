@@ -28,7 +28,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <main className="page" style={{ display: 'grid', placeItems: 'center', minHeight: '80vh' }}>
+    <main className="page" style={{ display: 'grid', placeItems: 'center', minHeight: '80vh', margin: '0 auto' }}>
       <form
         className="panel"
         onSubmit={submit}

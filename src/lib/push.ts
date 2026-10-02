@@ -160,7 +160,7 @@ async function tick(): Promise<void> {
         title: r.title,
         body: r.checklist_title ? `${hm} · чек-лист «${r.checklist_title}»` : `${hm} — пора`,
         tag: `${r.id}:${lp.day}`,
-        url: '/task#reminders',
+        url: '/task/reminders',
         reminderId: r.id,
         day: lp.day,
       });
