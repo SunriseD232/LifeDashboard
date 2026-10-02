@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { ProxyAgent } from 'undici';
+import { fetch as undiciFetch, ProxyAgent } from 'undici';
 import { parseJsonLoose } from '@/lib/aiParse';
 import { HttpError } from './http';
 
@@ -17,7 +17,9 @@ import { HttpError } from './http';
  */
 
 const URL_ = 'https://openrouter.ai/api/v1/chat/completions';
-const TIMEOUT_MS = 60_000;
+// Меньше, чем ждёт nginx (proxy_read_timeout 90s): лучше понятная ошибка,
+// чем «504 Gateway Timeout».
+const TIMEOUT_MS = 75_000;
 const DEFAULT_MODEL = 'z-ai/glm-5.3-flash';
 
 export type Part = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
@@ -49,9 +51,29 @@ async function openRouter(req: AiRequest): Promise<string> {
   if (!key) throw new HttpError(503, 'ИИ пока не подключён.');
   const proxy = process.env.AI_PROXY_URL;
   if (proxy && !agent) agent = new ProxyAgent(proxy);
-  let res: Response;
+  // Срок — на весь ответ целиком: OpenRouter шлёт заголовки сразу, а тело —
+  // когда модель допишет, и таймаут только на соединение тут не спасает.
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
-    res = await fetch(URL_, {
+    return await call(req, key, ctl.signal);
+  } catch (e) {
+    if (ctl.signal.aborted) {
+      console.error('[lifedashboard ai] не уложился в', TIMEOUT_MS / 1000, 'с');
+      throw new HttpError(504, 'ИИ думает слишком долго. Попробуйте ещё раз или короче.');
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function call(req: AiRequest, key: string, signal: AbortSignal): Promise<string> {
+  let res: Awaited<ReturnType<typeof undiciFetch>>;
+  try {
+    // fetch из undici, а не встроенный в Next: он честно слушает и прокси
+    // (dispatcher), и отмену (signal).
+    res = await undiciFetch(URL_, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
@@ -66,15 +88,17 @@ async function openRouter(req: AiRequest): Promise<string> {
           { role: 'user', content: req.user },
         ],
         response_format: { type: 'json_object' },
+        // Модель по умолчанию долго «думает» (тысячи токенов, больше минуты);
+        // нашим задачам хватает короткого размышления — в 3 раза быстрее.
+        reasoning: { effort: 'low' },
         max_tokens: (req.maxTokens ?? 2000) + REASONING_ALLOWANCE,
         temperature: 0.3,
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      // Через прокси — dispatcher из undici; с телом запроса нужен duplex,
-      // иначе fetch повисает (проверено в MediaWatch).
-      ...(agent ? { dispatcher: agent, duplex: 'half' } : {}),
-    } as RequestInit);
+      signal,
+      ...(agent ? { dispatcher: agent } : {}),
+    });
   } catch (e) {
+    if (signal.aborted) throw e;
     console.error('[lifedashboard ai] сеть:', (e as Error).message);
     throw new HttpError(502, 'ИИ не ответил. Попробуйте ещё раз.');
   }
