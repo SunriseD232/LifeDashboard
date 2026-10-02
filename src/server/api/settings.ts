@@ -1,4 +1,6 @@
 import { HttpError, text, type Ctx } from '../http';
+import { randomBytes } from 'node:crypto';
+import { parseNav } from '@/lib/nav';
 import { readSettings } from '../settings';
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -43,7 +45,7 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
 
   if (method === 'PATCH' && !id) {
     const cur = readSettings(d, userId);
-    let { city, lat, lon, tz, deadline_time } = cur;
+    let { city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token } = cur;
     if (body.city !== undefined) {
       if (body.city === null) {
         city = null;
@@ -66,11 +68,19 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
       if (typeof body.deadline_time !== 'string' || !TIME_RE.test(body.deadline_time)) throw new HttpError(400, 'Неверное время.');
       deadline_time = body.deadline_time;
     }
+    if (body.summary_time !== undefined) {
+      if (body.summary_time !== null && (typeof body.summary_time !== 'string' || !TIME_RE.test(body.summary_time))) throw new HttpError(400, 'Неверное время.');
+      summary_time = body.summary_time;
+    }
+    if (body.nav !== undefined) nav = body.nav === null ? null : parseNav(body.nav);
+    // Календарь: true — выдать (или перевыпустить) ссылку, false — отключить.
+    if (body.calendar !== undefined) calendar_token = body.calendar ? randomBytes(24).toString('base64url') : null;
     d.prepare(
-      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time) values (?, ?, ?, ?, ?, ?)
+      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
        on conflict (user_id) do update set city = excluded.city, lat = excluded.lat, lon = excluded.lon,
-         tz = excluded.tz, deadline_time = excluded.deadline_time`,
-    ).run(userId, city, lat, lon, tz, deadline_time);
+         tz = excluded.tz, deadline_time = excluded.deadline_time, summary_time = excluded.summary_time,
+         nav = excluded.nav, calendar_token = excluded.calendar_token`,
+    ).run(userId, city, lat, lon, tz, deadline_time, summary_time, nav ? JSON.stringify(nav) : null, calendar_token);
     return { ok: true };
   }
 

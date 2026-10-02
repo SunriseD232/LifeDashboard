@@ -123,6 +123,15 @@ body {
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* iPhone при повороте сам увеличивает шрифт — не надо. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+/* Ничто не должно растягивать страницу шире экрана (иначе iPhone уменьшает
+   масштаб и после поворота остаётся «раздвинутым»). */
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button,
@@ -567,7 +576,7 @@ a {
 }
 .groups-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 24px;
 }
 
@@ -670,7 +679,7 @@ a {
 }
 .task-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
   gap: 10px;
   align-items: end;
 }
@@ -693,6 +702,29 @@ a {
 textarea.field {
   resize: vertical;
   font: inherit;
+}
+/* Дата и время на iPhone: родной виджет иначе шире поля и вылезает за край. */
+input[type='date'].field,
+input[type='time'].field {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+}
+input[type='date'].field::-webkit-date-and-time-value,
+input[type='time'].field::-webkit-date-and-time-value {
+  text-align: left;
+}
+/* На телефоне поля ввода — 16px: при меньшем шрифте iPhone приближает
+   страницу на фокусе и потом не отдаляет обратно. */
+@media (pointer: coarse) {
+  .field,
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* главная: три колонки карточек */
@@ -895,7 +927,7 @@ textarea.field {
 }
 .recipes-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 14px;
 }
 .recipe-card {
@@ -1058,14 +1090,14 @@ textarea.field {
   .gym-side {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
     align-items: start;
   }
 }
 
 .tpl-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 10px;
 }
 
@@ -1085,6 +1117,36 @@ textarea.field {
   color: var(--muted);
   text-decoration: none;
   cursor: default;
+}
+
+/* ИИ: заметный, но спокойный акцент */
+.btn-ai {
+  background: var(--sel);
+  border-color: var(--accent);
+  color: var(--sel-ink);
+}
+.btn-ai:hover:not(:disabled) {
+  background: var(--surface);
+}
+.ai-card {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.menu-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: 14px;
+}
+.menu-meal {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.menu-meal:hover {
+  color: var(--accent-ink);
 }
 
 /* поиск (Ctrl K) */
@@ -1529,4 +1591,94 @@ mark {
   * {
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Настройки → разделы меню */
+.nav-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-radius: 10px;
+  background: var(--soft);
+}
+.nav-edit[data-hidden] {
+  opacity: 0.6;
+}
+
+/* поддержка */
+.support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 20px;
+  align-items: start;
+}
+.sup-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.sup-item .sup-item {
+  padding: 0;
+  border: 0;
+}
+.sup-status {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  font-weight: 600;
+}
+.sup-status[data-status='done'] {
+  color: var(--accent-ink);
+}
+.sup-reply {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--soft);
+  font-size: 14px;
+}
+@media (max-width: 860px) {
+  .support-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* как пользоваться */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+}
+.guide-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guide h2 {
+  margin: 0;
+  scroll-margin-top: 80px;
+}
+.guide ul {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.55;
+}
+.guide kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--font-mono, ui-monospace), monospace;
+  font-size: 13px;
+}
+.guide-tip {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--soft);
+  font-size: 14px;
 }

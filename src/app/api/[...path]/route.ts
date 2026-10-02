@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { currentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { ai } from '@/server/api/ai';
 import { auth } from '@/server/api/auth';
 import { checklists } from '@/server/api/checklists';
 import { household } from '@/server/api/household';
@@ -10,11 +11,13 @@ import { kitchen } from '@/server/api/kitchen';
 import { push } from '@/server/api/push';
 import { reminders } from '@/server/api/reminders';
 import { search } from '@/server/api/search';
+import { support } from '@/server/api/support';
 import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
 import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
+import { calendarFeed } from '@/server/calendar';
 import { HttpError, type Ctx } from '@/server/http';
 
 /**
@@ -39,6 +42,8 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   notes,
   search,
   kitchen,
+  ai,
+  support,
   workouts,
   'workout-exercises': workoutExercises,
   'workout-sets': workoutSets,
@@ -66,6 +71,15 @@ async function handle(req: NextRequest, path: string[]) {
   return result;
 }
 async function route(req: NextRequest, { params }: { params: { path: string[] } }) {
+  // Календарь по подписке — без входа, по секрету в ссылке (src/server/calendar.ts).
+  const [res, file] = params.path ?? [];
+  if (res === 'calendar' && req.method === 'GET' && file) {
+    const ics = calendarFeed(db(), file.replace(/\.ics$/, ''));
+    if (!ics) return new NextResponse('Not found', { status: 404 });
+    return new NextResponse(ics, {
+      headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="lifedashboard.ics"', 'Cache-Control': 'private, max-age=300' },
+    });
+  }
   try {
     return NextResponse.json(await handle(req, params.path ?? []));
   } catch (e) {

@@ -6,6 +6,8 @@ import { occurrencesOn, type Occurrence } from './occurrences';
 import { deadlineNotices } from './tasks';
 import { readSettings } from '../server/settings';
 import { readTasks } from '../server/taskStore';
+import { aiConfigured } from '../server/ai';
+import { daySummary } from '../server/summary';
 import { dueDay } from './recur';
 
 /**
@@ -22,6 +24,8 @@ import { dueDay } from './recur';
  */
 
 const WINDOW_MIN = 10;
+/** Сколько раз повторить push, если дело так и не отметили. */
+export const NAG_TIMES = 3;
 const TICK_MS = 30_000;
 const FALLBACK_TZ = 'Europe/Moscow';
 
@@ -118,15 +122,22 @@ function localParts(tz: string, now: Date): { day: string; minutes: number } {
  * отметка об отправке (push_sent.slot). Окно в 10 минут переживает
  * перезапуск процесса и пропущенный тик, но не шлёт «пора» спустя час.
  */
-export function sendsDue(o: Occurrence, minutes: number): { mark: string; hm: string }[] {
+export function sendsDue(o: Occurrence, minutes: number): { mark: string; hm: string; repeat?: number }[] {
   if (o.done) return [];
-  const inWindow = (hm: string) => {
-    const late = minutes - minutesOf(hm);
-    return late >= 0 && late <= WINDOW_MIN;
-  };
-  const out: { mark: string; hm: string }[] = [];
-  if (inWindow(o.slot)) out.push({ mark: o.slot, hm: o.slot });
-  if (o.snoozedTo && inWindow(o.snoozedTo)) out.push({ mark: `${o.slot}>${o.snoozedTo}`, hm: o.snoozedTo });
+  const late = (base: number) => minutes - base;
+  const inWindow = (base: number) => late(base) >= 0 && late(base) <= WINDOW_MIN;
+  const out: { mark: string; hm: string; repeat?: number }[] = [];
+  if (inWindow(minutesOf(o.slot))) out.push({ mark: o.slot, hm: o.slot });
+  if (o.snoozedTo && inWindow(minutesOf(o.snoozedTo))) out.push({ mark: `${o.slot}>${o.snoozedTo}`, hm: o.snoozedTo });
+  // Не отметили — повторяем через nag минут от последнего срока (своего или
+  // «отложено до»), до NAG_TIMES раз. Отметили «сделано» — o.done, тишина.
+  const nag = o.reminder.nag;
+  if (nag) {
+    const base = o.snoozedTo ?? o.slot;
+    for (let k = 1; k <= NAG_TIMES; k++) {
+      if (inWindow(minutesOf(base) + k * nag)) out.push({ mark: `${base}+${k}`, hm: base, repeat: k });
+    }
+  }
   return out;
 }
 
@@ -158,7 +169,7 @@ async function tick(): Promise<void> {
         const r = o.reminder as StoredReminder;
         // «После выполнения» и срок уже прошёл — висит с прошлых дней.
         const overdue = r.rule.kind === 'after' && lp.day > dueDay(r.rule, r.last_done);
-        const lead = s.hm !== o.slot ? `${s.hm} · отложено` : overdue ? `${o.slot} · давно пора` : `${o.slot}`;
+        const lead = s.repeat ? `${s.hm} · не отмечено, напоминаю ещё раз` : s.hm !== o.slot ? `${s.hm} · отложено` : overdue ? `${o.slot} · давно пора` : `${o.slot}`;
         await sendToUser(userId, {
           title: r.title,
           body: r.checklist_title ? `${lead} · чек-лист «${r.checklist_title}»` : `${lead} — пора`,
@@ -185,6 +196,23 @@ async function tick(): Promise<void> {
         tag: `task:${n.task.id}:${lp.day}`,
         url: '/task/tasks',
       });
+    }
+
+    // Утренняя сводка от ИИ — в выбранное время, раз в день.
+    const st = readSettings(d, userId);
+    if (st.summary_time && aiConfigured()) {
+      const late = lp.minutes - minutesOf(st.summary_time);
+      if (late >= 0 && late <= WINDOW_MIN) {
+        const fresh = d.prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)').run(`summary:${userId}`, lp.day, 'summary');
+        if (fresh.changes) {
+          try {
+            const text = await daySummary(d, userId, lp.day);
+            await sendToUser(userId, { title: 'Сводка дня', body: text.slice(0, 400), tag: `summary:${lp.day}`, url: '/task' });
+          } catch (e) {
+            console.error('[lifedashboard push] сводка не получилась:', (e as Error).message);
+          }
+        }
+      }
     }
   }
 

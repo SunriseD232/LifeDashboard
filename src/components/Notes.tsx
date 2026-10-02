@@ -8,6 +8,9 @@ import type { Note } from '@/lib/types';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
+import { AiButton, useAiReady } from './Ai';
+import { localDay } from '@/lib/dates';
+import { shortDate } from '@/lib/tasks';
 
 const SAVE_DELAY = 700;
 
@@ -30,6 +33,79 @@ export function editedLabel(updatedAt: string, now: Date): string {
 const parseTags = (s: string) => [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 10);
 
 type Patch = Partial<Pick<Note, 'title' | 'body' | 'tags' | 'pinned' | 'checklist_id'>> & { shared?: boolean };
+
+/** ИИ: найти в заметке дела со сроками → отметить нужные → в «Дела». */
+function NoteTasks({ noteId }: { noteId: string }) {
+  const { reload, toast, now } = useApp();
+  const ready = useAiReady();
+  const [found, setFound] = useState<{ title: string; due_date: string | null }[] | null>(null);
+  const [pick, setPick] = useState<boolean[]>([]);
+  const [busy, setBusy] = useState(false);
+  if (!ready) return null;
+
+  const find = async () => {
+    setBusy(true);
+    try {
+      const r = await api<{ tasks: { title: string; due_date: string | null }[] }>('ai/note-tasks', 'POST', { note_id: noteId, today: localDay(now) });
+      if (!r.tasks.length) toast('Дел в заметке не нашёл');
+      setFound(r.tasks.length ? r.tasks : null);
+      setPick(r.tasks.map(() => true));
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const add = async () => {
+    try {
+      for (const [i, t] of (found ?? []).entries()) if (pick[i]) await api('tasks', 'POST', { title: t.title, due_date: t.due_date });
+      await reload();
+      toast(`В «Дела»: ${pick.filter(Boolean).length}`);
+      setFound(null);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {found && (
+        <div
+          className="added-box"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            fontWeight: 400,
+          }}
+        >
+          {found.map((t, i) => (
+            <label key={i} className="check" style={{ padding: '4px 0' }}>
+              <input type="checkbox" checked={pick[i]} onChange={(e) => setPick(pick.map((p, j) => (j === i ? e.target.checked : p)))} />
+              <span className="check-text">
+                {t.title}
+                {t.due_date && <span style={{ color: 'var(--muted)', fontSize: 13 }}> · до {shortDate(t.due_date, localDay(now))}</span>}
+              </span>
+            </label>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" type="button" disabled={!pick.some(Boolean)} onClick={add}>
+              В дела ({pick.filter(Boolean).length})
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={() => setFound(null)}>
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+      {!found && (
+        <AiButton busy={busy} onClick={find} style={{ alignSelf: 'flex-start' }}>
+          Найти дела в заметке
+        </AiButton>
+      )}
+    </div>
+  );
+}
 
 /**
  * Редактор: пишется — сохраняется (через SAVE_DELAY после последней буквы,
@@ -202,6 +278,8 @@ function Editor({ note, onBack, onDeleted }: { note: Note; onBack: () => void; o
           </label>
         )}
       </div>
+
+      <NoteTasks noteId={note.id} />
 
       {confirm && (
         <Confirm title={`Удалить «${noteTitle({ title, body })}»?`} text="Заметка удалится насовсем." action="Удалить" onCancel={() => setConfirm(false)} onConfirm={remove} />

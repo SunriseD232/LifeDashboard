@@ -51,7 +51,9 @@ function fromPreset(p: Preset, today: string, prev: Rule): Rule {
     case 'after':
       return { kind: 'after', unit: 'day', every: 7, start };
     case 'custom':
-      return prev.kind === 'once' ? { kind: 'repeat', unit: 'day', every: 2, start } : prev;
+      // Из «после выполнения» — тот же шаг, но уже по календарю.
+      if (prev.kind === 'repeat') return prev;
+      return prev.kind === 'after' ? { kind: 'repeat', unit: prev.unit, every: prev.every, start } : { kind: 'repeat', unit: 'day', every: 2, start };
   }
 }
 
@@ -314,7 +316,7 @@ function Advanced({ rule, set }: { rule: Extract<Rule, { kind: 'repeat' }>; set:
         </fieldset>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 10 }}>
         <Field label="Начиная с" id="rep-start">
           <input id="rep-start" className="field" type="date" value={rule.start} onChange={(e) => e.target.value && set({ ...rule, start: e.target.value })} />
         </Field>

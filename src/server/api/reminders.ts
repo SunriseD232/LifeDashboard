@@ -5,6 +5,13 @@ import { DAY_RE, HttpError, own, text, type Ctx } from '../http';
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_TIMES = 8;
+export const NAG_OPTIONS = [15, 30, 60];
+
+function nag(v: unknown): number | null {
+  if (v === null || v === undefined || v === 0) return null;
+  if (typeof v !== 'number' || !NAG_OPTIONS.includes(v)) throw new HttpError(400, 'Повтор — через 15, 30 или 60 минут.');
+  return v;
+}
 
 function times(v: unknown): string[] {
   if (!Array.isArray(v) || v.length === 0) throw new HttpError(400, 'Укажите время.');
@@ -43,13 +50,14 @@ export function reminders({ d, userId, method, body, id, action }: Ctx): unknown
     const r = rule(body.rule);
     checkPair(t, r);
     const rid = randomUUID();
-    d.prepare('insert into reminders (id, user_id, title, times, rule, checklist_id) values (?, ?, ?, ?, ?, ?)').run(
+    d.prepare('insert into reminders (id, user_id, title, times, rule, checklist_id, nag) values (?, ?, ?, ?, ?, ?, ?)').run(
       rid,
       userId,
       text(body.title, 120, 'Что сделать'),
       JSON.stringify(t),
       JSON.stringify(r),
       checklistId(body.checklist_id),
+      nag(body.nag),
     );
     return { id: rid };
   }
@@ -77,6 +85,7 @@ export function reminders({ d, userId, method, body, id, action }: Ctx): unknown
     checkPair(t, r);
     d.transaction(() => {
       if (body.title !== undefined) d.prepare('update reminders set title = ? where id = ?').run(text(body.title, 120, 'Что сделать'), id);
+      if (body.nag !== undefined) d.prepare('update reminders set nag = ? where id = ?').run(nag(body.nag), id);
       if (body.checklist_id !== undefined) d.prepare('update reminders set checklist_id = ? where id = ?').run(checklistId(body.checklist_id), id);
       d.prepare('update reminders set times = ?, rule = ? where id = ?').run(JSON.stringify(t), JSON.stringify(r), id);
       // Убранное время — его отметки и отложенные больше не нужны.

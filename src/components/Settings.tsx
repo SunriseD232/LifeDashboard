@@ -6,6 +6,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
+import { CalendarCard, NavEditor } from './SettingsExtra';
 
 /**
  * Настройки: город для погоды, время напоминаний о сроках, семья (общие
@@ -84,6 +85,41 @@ export default function Settings() {
             </button>
           </form>
         </section>
+
+        {data.ai && (
+          <section className="card ai-card" aria-labelledby="set-summary">
+            <h2 className="card-title display" id="set-summary">
+              <Icon name="sparkles" />
+              Сводка дня
+            </h2>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Каждое утро — push от ИИ: сроки, напоминания, погода, что взять с собой.</p>
+            <label className="check" style={{ padding: 0 }}>
+              <input
+                type="checkbox"
+                checked={!!s.summary_time}
+                onChange={(e) => run(() => api('settings', 'PATCH', { summary_time: e.target.checked ? '08:00' : null }), e.target.checked ? 'Сводка в 08:00' : 'Сводка выключена')}
+              />
+              <span className="check-text">Присылать сводку</span>
+            </label>
+            {s.summary_time && (
+              <div className="fld">
+                <label className="label" htmlFor="set-summary-time">
+                  Во сколько
+                </label>
+                <input
+                  id="set-summary-time"
+                  className="field mono"
+                  type="time"
+                  defaultValue={s.summary_time}
+                  onBlur={(e) => e.target.value && e.target.value !== s.summary_time && run(() => api('settings', 'PATCH', { summary_time: e.target.value }), 'Сохранено')}
+                />
+              </div>
+            )}
+          </section>
+        )}
+
+        <NavEditor />
+        <CalendarCard />
 
         <section className="card" aria-labelledby="set-family" style={{ gridColumn: '1 / -1' }}>
           <h2 className="card-title display" id="set-family">

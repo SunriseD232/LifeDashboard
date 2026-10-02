@@ -35,6 +35,11 @@ function getTransport(): Transporter | null {
   return transport;
 }
 
+/** Письмо как есть — для поддержки и прочего служебного. */
+export function sendMail(to: string, subject: string, text: string): Promise<void> {
+  return send(to, subject, text);
+}
+
 async function send(to: string, subject: string, text: string): Promise<void> {
   const t = getTransport();
   if (!t) {

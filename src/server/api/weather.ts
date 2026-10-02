@@ -1,6 +1,6 @@
-import { fromMetNo, summarize, type MetNo } from '@/lib/weather';
+import { fromMetNo, summarize, type MetNo, type Weather } from '@/lib/weather';
 import { HttpError, type Ctx } from '../http';
-import { readSettings } from '../settings';
+import { readSettings, type Settings } from '../settings';
 
 /** Прогноз меняется не чаще раза в полчаса — дальше отдаём из памяти. */
 const TTL_MS = 30 * 60_000;
@@ -27,14 +27,18 @@ async function metno(lat: number, lon: number): Promise<MetNo> {
   return data;
 }
 
+/** Погода для настроек человека (из кэша на 30 минут) или null, если города нет. */
+export async function cachedWeather(s: Settings): Promise<Weather | null> {
+  if (s.lat === null || s.lon === null || !s.city) return null;
+  // Пояс неизвестен (город выбран до того, как мы стали его запоминать) — Москва.
+  return summarize(fromMetNo(await metno(s.lat, s.lon), s.tz ?? 'Europe/Moscow'), s.city);
+}
+
 /** Погода для города из настроек: /api/weather. Города нет — { weather: null }. */
 export async function weather({ d, userId, method, id }: Ctx): Promise<unknown> {
   if (method !== 'GET' || id) return undefined;
-  const s = readSettings(d, userId);
-  if (s.lat === null || s.lon === null || !s.city) return { weather: null };
   try {
-    // Пояс неизвестен (город выбран до того, как мы стали его запоминать) — Москва.
-    return { weather: summarize(fromMetNo(await metno(s.lat, s.lon), s.tz ?? 'Europe/Moscow'), s.city) };
+    return { weather: await cachedWeather(readSettings(d, userId)) };
   } catch (e) {
     console.error('[lifedashboard weather]', (e as Error).message);
     throw new HttpError(502, 'Сервис погоды не ответил.');

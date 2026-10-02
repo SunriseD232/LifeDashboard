@@ -3,6 +3,8 @@ import { readChecklists, readItems } from '../checklistStore';
 import { householdInfo } from '../household';
 import { readPantry, readProducts, readRecipes, scopeOf, shoppingList } from '../kitchenStore';
 import { readNotes } from '../noteStore';
+import { aiConfigured } from '../ai';
+import { isAdmin } from './support';
 import { readExercises, readTemplates, readWorkouts } from '../workoutStore';
 import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
@@ -44,6 +46,8 @@ export function state({ d, userId, method, req }: Ctx): unknown {
       settings: readSettings(d, userId),
       household: householdInfo(d, userId),
       login: userLogin(userId),
+      ai: aiConfigured(),
+      admin: isAdmin(userLogin(userId)),
     };
   }
   return undefined;

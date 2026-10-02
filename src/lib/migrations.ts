@@ -540,6 +540,52 @@ export const MIGRATIONS: Migration[] = [
     create index email_codes_ip_idx on email_codes (ip, created_at);
     `),
   },
+  {
+    version: 9,
+    name: 'ИИ: лимит запросов и утренняя сводка; поддержка: обращения',
+    up: (db) =>
+      db.exec(`
+    -- Сколько запросов к ИИ человек сделал за день (src/server/ai.ts).
+    create table ai_usage (
+      user_id text not null,
+      day text not null,
+      count integer not null default 0,
+      primary key (user_id, day)
+    );
+    -- Утренняя сводка в push: во сколько (null — выключена).
+    alter table user_settings add column summary_time text;
+
+    -- Обращения в поддержку (src/server/api/support.ts): идея, ошибка,
+    -- вопрос; статус и ответ видит автор.
+    create table feedback (
+      id text primary key,
+      user_id text not null,
+      kind text not null check (kind in ('idea', 'bug', 'question', 'other')),
+      text text not null,
+      page text,
+      status text not null default 'new' check (status in ('new', 'in_progress', 'done')),
+      reply text,
+      created_at text not null default (datetime('now')),
+      updated_at text not null default (datetime('now'))
+    );
+    create index feedback_user_idx on feedback (user_id, created_at);
+    create index feedback_status_idx on feedback (status, created_at);
+    `),
+  },
+  {
+    version: 10,
+    name: 'Повтор push до отметки, свои разделы меню, календарь по подписке',
+    up: (db) =>
+      db.exec(`
+    -- Не отметили «сделано» — повторить push через столько минут (до 3 раз).
+    alter table reminders add column nag integer;
+    -- Порядок и скрытые разделы меню: JSON [{"href":"/tasks","hidden":false}, …].
+    alter table user_settings add column nav text;
+    -- Секрет ссылки-подписки на календарь (.ics); null — не включали.
+    alter table user_settings add column calendar_token text;
+    create unique index user_settings_calendar_idx on user_settings (calendar_token) where calendar_token is not null;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
