@@ -1069,6 +1069,24 @@ textarea.field {
   gap: 10px;
 }
 
+/* кнопка, которая выглядит как ссылка */
+.link-btn {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-btn:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: default;
+}
+
 /* поиск (Ctrl K) */
 .searchbtn {
   display: flex;

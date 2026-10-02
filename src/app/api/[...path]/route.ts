@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { currentUserId, login, logout } from '@/lib/auth';
+import { currentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { auth } from '@/server/api/auth';
 import { checklists } from '@/server/api/checklists';
 import { household } from '@/server/api/household';
 import { notes } from '@/server/api/notes';
@@ -14,7 +15,7 @@ import { state } from '@/server/api/state';
 import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
-import { HttpError, text, type Ctx } from '@/server/http';
+import { HttpError, type Ctx } from '@/server/http';
 
 /**
  * API LifeDashboard — одна точка входа на все маршруты /task/api/…: здесь
@@ -49,21 +50,11 @@ async function handle(req: NextRequest, path: string[]) {
   const body = method === 'GET' || method === 'DELETE' ? {} : await req.json().catch(() => ({}));
   const [res, id, action] = path;
 
-  // ---- вход и выход (src/lib/auth.ts) — до проверки сессии ----
-  if (res === 'auth' && method === 'POST' && id === 'login') {
-    const name = text(body.login, 64, 'Логин')!;
-    if (typeof body.password !== 'string' || !body.password || body.password.length > 200) {
-      throw new HttpError(400, 'Введите пароль.');
-    }
-    // IP клиента ставит nginx; без него (локальный запуск) — общий ключ.
-    const ip = req.headers.get('x-real-ip') ?? 'local';
-    const r = await login(name, body.password, ip);
-    if (!r.ok) throw new HttpError(r.status, r.error);
-    return { ok: true };
-  }
-  if (res === 'auth' && method === 'POST' && id === 'logout') {
-    logout();
-    return { ok: true };
+  // ---- вход, регистрация, сброс пароля — до проверки сессии ----
+  if (res === 'auth') {
+    const r = await auth(db(), req, body, id, action);
+    if (r === undefined) throw new HttpError(404, 'Нет такого действия.');
+    return r;
   }
 
   const userId = await currentUserId();
