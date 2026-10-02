@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
 import type { Product, Recipe } from '@/lib/kitchen';
+import { arrange, HELP, HOME, type NavPref } from '@/lib/nav';
 import { bucket, type Task } from '@/lib/tasks';
 import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
@@ -30,7 +31,7 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
@@ -77,20 +78,9 @@ const EMPTY: AppData = {
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   gym: { workouts: [], exercises: [], templates: [] },
-  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null },
+  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null },
   household: null,
 };
-
-/** Разделы. phone — в нижней панели телефона; остальные — в «Ещё» (/more). */
-export const SECTIONS = [
-  { href: '/', label: 'Главная', icon: 'home', phone: true },
-  { href: '/tasks', label: 'Дела', icon: 'tasks', phone: true },
-  { href: '/notes', label: 'Заметки', icon: 'note', phone: false },
-  { href: '/lists', label: 'Чек-листы', icon: 'list', phone: false },
-  { href: '/reminders', label: 'Напоминания', icon: 'bell', phone: false },
-  { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом и спорт' },
-  { href: '/workouts', label: 'Тренировки', icon: 'dumbbell', phone: true, short: 'Спорт' },
-] as const;
 
 /**
  * Каркас LifeDashboard: вход (Login), загрузка данных одним запросом и
@@ -219,6 +209,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const leftToday = occurrencesOn(data.reminders, localDay(now), new Set(data.done)).filter((o) => !o.done).length;
+  const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const urgent = data.tasks.filter((t) => bucket(t, localDay(now)) === 'urgent').length;
   const counts: Record<string, [number, string]> = {
@@ -254,9 +245,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <kbd>Ctrl K</kbd>
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {SECTIONS.map((s) => (
+            {[HOME, ...nav.visible, ...HELP].map((s) => (
               <Fragment key={s.href}>
-                {'group' in s && <div className="nav-sep">{s.group}</div>}
+                {s.group && (!nav.custom || HELP.includes(s)) && <div className="nav-sep">{s.group}</div>}
                 <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
                   <Icon name={s.icon} />
                   {s.label}
@@ -301,14 +292,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="page">{children}</main>
 
         <nav className="tabbar" aria-label="Разделы">
-          {SECTIONS.filter((s) => s.phone).map((s) => (
+          {[HOME, ...nav.phone].map((s) => (
             <Link key={s.href} href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
               <Icon name={s.icon} size={22} />
-              {'short' in s ? s.short : s.label}
+              {s.short ?? s.label}
               {badge(s.href)}
             </Link>
           ))}
-          <Link href="/more" aria-current={isActive('/more') || SECTIONS.some((s) => !s.phone && isActive(s.href)) ? 'page' : undefined}>
+          <Link href="/more" aria-current={isActive('/more') || [...nav.visible, ...HELP].some((s) => !nav.phone.includes(s) && isActive(s.href)) ? 'page' : undefined}>
             <Icon name="dots" size={22} />
             Ещё
           </Link>

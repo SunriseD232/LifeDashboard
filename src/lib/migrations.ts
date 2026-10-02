@@ -572,6 +572,20 @@ export const MIGRATIONS: Migration[] = [
     create index feedback_status_idx on feedback (status, created_at);
     `),
   },
+  {
+    version: 10,
+    name: 'Повтор push до отметки, свои разделы меню, календарь по подписке',
+    up: (db) =>
+      db.exec(`
+    -- Не отметили «сделано» — повторить push через столько минут (до 3 раз).
+    alter table reminders add column nag integer;
+    -- Порядок и скрытые разделы меню: JSON [{"href":"/tasks","hidden":false}, …].
+    alter table user_settings add column nav text;
+    -- Секрет ссылки-подписки на календарь (.ics); null — не включали.
+    alter table user_settings add column calendar_token text;
+    create unique index user_settings_calendar_idx on user_settings (calendar_token) where calendar_token is not null;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

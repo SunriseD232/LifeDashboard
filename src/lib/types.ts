@@ -39,6 +39,8 @@ export interface Reminder {
   checklist_id: string | null;
   /** Последний день, когда отметили сделанным (для «после выполнения»). */
   last_done: string | null;
+  /** Не отметили — повторить push через столько минут (до NAG_TIMES раз); null — не повторять. */
+  nag: number | null;
 }
 
 /** Отложенное время дела на сегодня: напомнить ещё раз в at. */

@@ -17,6 +17,7 @@ import { state } from '@/server/api/state';
 import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
+import { calendarFeed } from '@/server/calendar';
 import { HttpError, type Ctx } from '@/server/http';
 
 /**
@@ -70,6 +71,15 @@ async function handle(req: NextRequest, path: string[]) {
   return result;
 }
 async function route(req: NextRequest, { params }: { params: { path: string[] } }) {
+  // Календарь по подписке — без входа, по секрету в ссылке (src/server/calendar.ts).
+  const [res, file] = params.path ?? [];
+  if (res === 'calendar' && req.method === 'GET' && file) {
+    const ics = calendarFeed(db(), file.replace(/\.ics$/, ''));
+    if (!ics) return new NextResponse('Not found', { status: 404 });
+    return new NextResponse(ics, {
+      headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="lifedashboard.ics"', 'Cache-Control': 'private, max-age=300' },
+    });
+  }
   try {
     return NextResponse.json(await handle(req, params.path ?? []));
   } catch (e) {

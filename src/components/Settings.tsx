@@ -6,6 +6,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
+import { CalendarCard, NavEditor } from './SettingsExtra';
 
 /**
  * Настройки: город для погоды, время напоминаний о сроках, семья (общие
@@ -116,6 +117,9 @@ export default function Settings() {
             )}
           </section>
         )}
+
+        <NavEditor />
+        <CalendarCard />
 
         <section className="card" aria-labelledby="set-family" style={{ gridColumn: '1 / -1' }}>
           <h2 className="card-title display" id="set-family">

@@ -536,7 +536,7 @@ function ChecklistDetail({
         newGroup ? (
           <form
             className="panel"
-            style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, alignItems: 'end' }}
+            style={{ padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 10, alignItems: 'end' }}
             onSubmit={(e) => {
               e.preventDefault();
               const name = newGroup.name.trim();

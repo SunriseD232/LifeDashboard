@@ -15,6 +15,7 @@ interface Row {
   rule: string;
   checklist_id: string | null;
   last_done: string | null;
+  nag: number | null;
   checklist_title?: string | null;
 }
 
@@ -23,7 +24,7 @@ export type StoredReminder = Reminder & { checklist_title: string | null };
 export function readReminders(d: Database.Database, userId: string): StoredReminder[] {
   const rows = d
     .prepare(
-      `select r.id, r.title, r.times, r.rule, r.checklist_id, c.title as checklist_title,
+      `select r.id, r.title, r.times, r.rule, r.checklist_id, r.nag, c.title as checklist_title,
          (select max(day) from reminder_done x where x.reminder_id = r.id) as last_done
        from reminders r left join checklists c on c.id = r.checklist_id
        where r.user_id = ?
@@ -38,6 +39,7 @@ export function readReminders(d: Database.Database, userId: string): StoredRemin
     checklist_id: r.checklist_id,
     checklist_title: r.checklist_title ?? null,
     last_done: r.last_done,
+    nag: r.nag ?? null,
   }));
 }
 

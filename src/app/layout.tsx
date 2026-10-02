@@ -31,6 +31,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // iPhone (особенно с экрана «Домой») после поворота оставался приближенным.
+  // Свой зум пальцами iOS всё равно разрешает — это его правило доступности.
+  maximumScale: 1,
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#eef3f2' },

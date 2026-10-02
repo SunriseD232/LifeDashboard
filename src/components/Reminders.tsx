@@ -31,6 +31,8 @@ interface Draft {
   times: string[];
   rule: Rule;
   checklist_id: string;
+  /** Повтор push, если не отметили: минуты или 0 — не повторять. */
+  nag: number;
 }
 
 const NOTIFIED_KEY = 'lifedashboard:notified';
@@ -45,6 +47,7 @@ function emptyDraft(now: Date, rule?: Rule): Draft {
     times: [`${String(h).padStart(2, '0')}:00`],
     rule: rule ?? { kind: 'once', date: localDay(now) },
     checklist_id: '',
+    nag: 0,
   };
 }
 
@@ -159,7 +162,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   };
 
   const startEdit = (r: Reminder) =>
-    openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '' });
+    openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '', nag: r.nag ?? 0 });
 
   // Пришли из поиска: /reminders?edit=<id> — открываем его в форме.
   const params = useSearchParams();
@@ -177,7 +180,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     e.preventDefault();
     if (!draft.title.trim() || draft.times.length === 0 || draft.times.some((t) => !t)) return;
     setSaving(true);
-    const body = { title: draft.title.trim(), times: draft.times, rule: draft.rule, checklist_id: draft.checklist_id || null };
+    const body = { title: draft.title.trim(), times: draft.times, rule: draft.rule, checklist_id: draft.checklist_id || null, nag: draft.nag || null };
     try {
       if (draft.id) await api(`reminders/${draft.id}`, 'PATCH', body);
       else await api('reminders', 'POST', body);
@@ -520,6 +523,18 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                 </option>
               ))}
             </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label className="label" htmlFor="r-nag">
+              Если не отметили «Сделано»
+            </label>
+            <select id="r-nag" className="field" value={draft.nag} onChange={(e) => setDraft({ ...draft, nag: Number(e.target.value) })}>
+              <option value={0}>Не повторять</option>
+              <option value={15}>Напомнить ещё раз через 15 минут</option>
+              <option value={30}>Напомнить ещё раз через 30 минут</option>
+              <option value={60}>Напомнить ещё раз через час</option>
+            </select>
+            {draft.nag > 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>До трёх повторов — пока не нажмёте «Сделано» в уведомлении или здесь.</span>}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" type="submit" disabled={saving || !draft.title.trim()} style={{ flex: 1 }}>
