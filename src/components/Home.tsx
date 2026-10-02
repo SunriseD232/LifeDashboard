@@ -8,12 +8,14 @@ import { dayTitle, localDay } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
 import { bucket, shortDate, sortUrgent } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
+import { duration, plannedFor, setLabel } from '@/lib/workouts';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
 import { WeatherCard } from './Weather';
+import { useGym } from './Workouts';
 
 /**
  * Главная: всё на сегодня одним взглядом — срочные дела, напоминания,
@@ -220,6 +222,58 @@ export default function Home() {
       )}
     </section>
   );
+  const { gym, names, records, active, start, today: gymDay } = useGym();
+  const planned = plannedFor(gym.templates, gymDay);
+  const lastDone = gym.workouts.find((w) => w.finished_at);
+  // Последний рекорд — самый свежий подход-рекорд в журнале.
+  const lastRecord = (() => {
+    for (const w of gym.workouts) for (const e of w.exercises) for (const s of [...e.sets].reverse()) if (records.has(s.id)) return { name: names.get(e.exercise_id), s };
+    return null;
+  })();
+  const gymCard = (gym.workouts.length > 0 || gym.templates.length > 0) && (
+    <section className="card" aria-labelledby="home-gym">
+      <div className="card-head">
+        <h2 className="card-title display" id="home-gym">
+          <Icon name="dumbbell" />
+          Тренировка
+        </h2>
+        <Link className="card-link" href="/workouts">
+          Журнал <Icon name="arrow" size={16} />
+        </Link>
+      </div>
+      {active ? (
+        <Link className="btn btn-primary" href={`/workouts?open=${active.id}`}>
+          Идёт: {active.title} · {duration(active.started_at, null, now)}
+        </Link>
+      ) : (
+        <>
+          {planned && <div style={{ fontWeight: 600 }}>Сегодня по плану — {planned.title.toLowerCase()}</div>}
+          {lastDone && (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Прошлая: {lastDone.title.toLowerCase()} · {duration(lastDone.started_at, lastDone.finished_at)}
+            </div>
+          )}
+          <button
+            className="btn btn-primary"
+            type="button"
+            onClick={async () => {
+              const id = await start(planned?.id);
+              if (id) router.push(`/workouts?open=${id}`);
+            }}
+          >
+            <Icon name="plus" size={18} />
+            {planned ? `Начать: ${planned.title}` : 'Начать тренировку'}
+          </button>
+        </>
+      )}
+      {lastRecord && (
+        <span className="chip chip-warm" style={{ alignSelf: 'flex-start' }}>
+          <Icon name="trophy" size={14} />
+          {lastRecord.name}: {setLabel(lastRecord.s)}
+        </span>
+      )}
+    </section>
+  );
   const pinned = data.notes.filter((n) => n.pinned).slice(0, 3);
   const pinnedCard = pinned.length > 0 && (
     <section className="card" aria-labelledby="home-pinned" style={{ background: 'var(--warm-bg)', borderColor: 'var(--warm-line)' }}>
@@ -257,6 +311,7 @@ export default function Home() {
         </div>
         <div className="home-col">
           {deadlinesCard}
+          {gymCard}
           {listsCard}
           {pinnedCard}
         </div>

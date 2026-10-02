@@ -175,6 +175,19 @@ const PATHS: Record<string, JSX.Element> = {
       <circle cx="19" cy="12" r="1.3" />
     </>
   ),
+  dumbbell: <path d="M6 7v10M18 7v10M3 9.5v5M21 9.5v5M6 12h12" />,
+  trophy: (
+    <>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0z" />
+      <path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M9 20h6" />
+    </>
+  ),
+  chart: (
+    <>
+      <path d="M4 20h16" />
+      <path d="M6 16l4-4 3 3 6-7" />
+    </>
+  ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   logout: (
     <>

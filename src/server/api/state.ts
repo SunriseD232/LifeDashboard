@@ -3,6 +3,7 @@ import { readChecklists, readItems } from '../checklistStore';
 import { householdInfo } from '../household';
 import { readPantry, readProducts, readRecipes, scopeOf, shoppingList } from '../kitchenStore';
 import { readNotes } from '../noteStore';
+import { readExercises, readTemplates, readWorkouts } from '../workoutStore';
 import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
 import { readTasks } from '../taskStore';
@@ -34,6 +35,11 @@ export function state({ d, userId, method, req }: Ctx): unknown {
         recipes: readRecipes(d, userId),
         pantry: readPantry(d, scopeOf(d, userId)),
         shopping_id: shoppingList(d, userId, false)?.id ?? null,
+      },
+      gym: {
+        workouts: readWorkouts(d, userId),
+        exercises: readExercises(d, userId),
+        templates: readTemplates(d, userId),
       },
       settings: readSettings(d, userId),
       household: householdInfo(d, userId),
