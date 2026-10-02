@@ -37,6 +37,13 @@ export function setAiTransport(t: Transport | null): void {
 
 let agent: ProxyAgent | null = null;
 
+/**
+ * Модель сначала «думает» (reasoning) и тратит на это токены из того же
+ * max_tokens — сотни на простой вопрос. Без запаса короткие ответы (сводка,
+ * совет) обрезались бы до пустого. Платим только за потраченное.
+ */
+const REASONING_ALLOWANCE = 3000;
+
 async function openRouter(req: AiRequest): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new HttpError(503, 'ИИ пока не подключён.');
@@ -59,7 +66,7 @@ async function openRouter(req: AiRequest): Promise<string> {
           { role: 'user', content: req.user },
         ],
         response_format: { type: 'json_object' },
-        max_tokens: req.maxTokens ?? 2000,
+        max_tokens: (req.maxTokens ?? 2000) + REASONING_ALLOWANCE,
         temperature: 0.3,
       }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -76,9 +83,12 @@ async function openRouter(req: AiRequest): Promise<string> {
     console.error(`[lifedashboard ai] HTTP ${res.status}: ${body.slice(0, 300)}`);
     throw new HttpError(res.status === 401 || res.status === 402 ? 503 : 502, res.status === 401 ? 'ИИ не подключён: ключ OpenRouter не принят.' : res.status === 402 ? 'ИИ: на счёте OpenRouter закончились деньги.' : 'ИИ не ответил. Попробуйте ещё раз.');
   }
-  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const data = (await res.json()) as { choices?: { message?: { content?: string }; finish_reason?: string }[] };
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new HttpError(502, 'ИИ ответил пусто. Попробуйте ещё раз.');
+  if (!content) {
+    console.error('[lifedashboard ai] пустой ответ, finish_reason:', data.choices?.[0]?.finish_reason);
+    throw new HttpError(502, 'ИИ ответил пусто. Попробуйте ещё раз.');
+  }
   return content;
 }
 
