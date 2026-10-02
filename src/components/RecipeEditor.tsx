@@ -8,6 +8,8 @@ import { CATEGORY_LABELS, type Category } from '@/lib/kitchenSeed';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import { ProductsList } from './Kitchen';
+import { AiButton, compressImage, useAiReady } from './Ai';
+import type { RecipeDraft } from '@/lib/aiParse';
 
 const UNITS = ['г', 'кг', 'мл', 'л', 'шт.', 'ст. л.', 'ч. л.', 'стакан', 'зубчик', 'ломтик', 'банка', 'пучок', 'упак.'];
 
@@ -34,6 +36,34 @@ export default function RecipeEditor({ id }: { id?: string }) {
   const [steps, setSteps] = useState((r?.steps ?? []).join('\n'));
   const [shared, setShared] = useState(r ? !!r.household_id : !!data.household);
   const [busy, setBusy] = useState(false);
+  const aiReady = useAiReady();
+  const [source, setSource] = useState('');
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [filling, setFilling] = useState(false);
+
+  /** ИИ: текст, ссылка или фото → поля формы (сохраняет человек сам). */
+  const fill = async () => {
+    setFilling(true);
+    try {
+      const isUrl = /^https?:\/\//i.test(source.trim());
+      const { recipe: r2 } = await api<{ recipe: RecipeDraft }>('ai/recipe', 'POST', {
+        url: isUrl ? source.trim() : undefined,
+        text: isUrl ? undefined : source.trim() || undefined,
+        image: photo ?? undefined,
+      });
+      setTitle(r2.title);
+      setCategory(r2.category);
+      setMinutes(r2.minutes ? String(r2.minutes) : '');
+      setServings(String(r2.servings));
+      setRows(r2.ingredients.map((i) => ({ name: i.name, qty: i.qty === null ? '' : String(i.qty), unit: i.unit ?? 'г' })));
+      setSteps(r2.steps.join('\n'));
+      toast('Заполнено — проверьте и сохраните');
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setFilling(false);
+    }
+  };
 
   if (id && !r) {
     return (
@@ -80,6 +110,38 @@ export default function RecipeEditor({ id }: { id?: string }) {
       <div className="page-head" style={{ marginTop: 8 }}>
         <h1 className="h1 display">{r ? 'Изменить рецепт' : 'Новый рецепт'}</h1>
       </div>
+      {aiReady && (
+        <details className="card ai-card" style={{ maxWidth: 820, marginBottom: 16 }} open={!r}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600, minHeight: 32, display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Icon name="sparkles" size={18} />
+            Заполнить с помощью ИИ — из текста, ссылки или фото
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+            <label className="sr-only" htmlFor="re-source">
+              Текст рецепта или ссылка
+            </label>
+            <textarea id="re-source" className="field" rows={4} placeholder="Вставьте ссылку на рецепт или его текст — хоть из переписки" value={source} onChange={(e) => setSource(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
+                <Icon name="camera" size={18} />
+                {photo ? 'Фото выбрано' : 'Фото страницы'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (f) setPhoto(await compressImage(f, 1600).catch(() => null));
+                  }}
+                />
+              </label>
+              <AiButton busy={filling} disabled={!source.trim() && !photo} onClick={fill}>
+                Заполнить
+              </AiButton>
+            </div>
+          </div>
+        </details>
+      )}
       <form className="card" onSubmit={save} style={{ maxWidth: 820, gap: 16 }}>
         <div className="fld">
           <label className="label" htmlFor="re-title">

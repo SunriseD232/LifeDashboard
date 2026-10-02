@@ -43,7 +43,7 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
 
   if (method === 'PATCH' && !id) {
     const cur = readSettings(d, userId);
-    let { city, lat, lon, tz, deadline_time } = cur;
+    let { city, lat, lon, tz, deadline_time, summary_time } = cur;
     if (body.city !== undefined) {
       if (body.city === null) {
         city = null;
@@ -66,11 +66,15 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
       if (typeof body.deadline_time !== 'string' || !TIME_RE.test(body.deadline_time)) throw new HttpError(400, 'Неверное время.');
       deadline_time = body.deadline_time;
     }
+    if (body.summary_time !== undefined) {
+      if (body.summary_time !== null && (typeof body.summary_time !== 'string' || !TIME_RE.test(body.summary_time))) throw new HttpError(400, 'Неверное время.');
+      summary_time = body.summary_time;
+    }
     d.prepare(
-      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time) values (?, ?, ?, ?, ?, ?)
+      `insert into user_settings (user_id, city, lat, lon, tz, deadline_time, summary_time) values (?, ?, ?, ?, ?, ?, ?)
        on conflict (user_id) do update set city = excluded.city, lat = excluded.lat, lon = excluded.lon,
-         tz = excluded.tz, deadline_time = excluded.deadline_time`,
-    ).run(userId, city, lat, lon, tz, deadline_time);
+         tz = excluded.tz, deadline_time = excluded.deadline_time, summary_time = excluded.summary_time`,
+    ).run(userId, city, lat, lon, tz, deadline_time, summary_time);
     return { ok: true };
   }
 

@@ -9,6 +9,7 @@ import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed'
 import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { MenuPlanner, PantryPhoto } from './KitchenAi';
 
 // ---------------------------------------------------------------- общее
 
@@ -105,6 +106,16 @@ export function RecipeCard({ r, m, byId }: { r: Recipe; m: Match; byId: Map<stri
 
 function Pantry() {
   const { k, byId, setHave, addHave } = useKitchen();
+  const { reload, toast } = useApp();
+  const addMany = async (names: string[]) => {
+    try {
+      for (const name of names) await api('kitchen/pantry', 'POST', { name });
+      await reload();
+      toast(`Добавлено: ${names.length}`);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
   const [name, setName] = useState('');
   const have = k.pantry.map((id) => byId.get(id)).filter(Boolean) as Product[];
 
@@ -134,7 +145,7 @@ function Pantry() {
         </button>
       </form>
       {have.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто — отметьте, что лежит в холодильнике.</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто — отметьте, что лежит в холодильнике, или сфотографируйте чек.</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {have.map((p) => (
@@ -147,6 +158,7 @@ function Pantry() {
           ))}
         </div>
       )}
+      <PantryPhoto onAdd={addMany} />
     </section>
   );
 }
@@ -223,6 +235,7 @@ function Recipes() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+      <MenuPlanner />
       <div style={{ position: 'relative' }}>
         <span style={{ position: 'absolute', left: 12, top: 12, color: 'var(--muted)' }}>
           <Icon name="search" size={18} />

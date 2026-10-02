@@ -19,6 +19,7 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from '@/lib/workouts';
+import { AiButton, useAiReady } from './Ai';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
@@ -387,6 +388,36 @@ function WorkoutView({ w, onBack, onDeleted }: { w: Workout; onBack: () => void;
 
 // ---------------------------------------------------------------- прогресс
 
+/** Совет по упражнению от ИИ — по журналу подходов. */
+function Advice({ exerciseId }: { exerciseId: string }) {
+  const { toast } = useApp();
+  const ready = useAiReady();
+  const [text, setText] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!ready) return null;
+  return (
+    <>
+      {text && <p className="added-box" style={{ fontWeight: 400, lineHeight: 1.55, margin: 0 }}>{text}</p>}
+      <AiButton
+        busy={busy}
+        style={{ alignSelf: 'flex-start' }}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setText((await api<{ text: string }>('ai/workout-advice', 'POST', { exercise_id: exerciseId })).text);
+          } catch (e) {
+            toast((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {text ? 'Ещё совет' : 'Совет тренера'}
+      </AiButton>
+    </>
+  );
+}
+
 function Progress() {
   const { gym, names, today } = useGym();
   const used = [...new Set(gym.workouts.flatMap((w) => w.exercises.filter((e) => e.sets.some((s) => s.weight !== null)).map((e) => e.exercise_id)))];
@@ -459,6 +490,7 @@ function Progress() {
         })}
       </div>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Лучший вес за неделю. Подписи — понедельник недели.</p>
+      <Advice key={id} exerciseId={id} />
     </section>
   );
 }

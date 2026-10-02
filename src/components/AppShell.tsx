@@ -30,10 +30,14 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
+  /** Подключён ли ИИ (src/server/ai.ts) — иначе ИИ-кнопок не показываем. */
+  ai?: boolean;
+  /** Разбирает обращения в поддержку. */
+  admin?: boolean;
 }
 
 export type Mutate = (update: (d: AppData) => AppData, request: () => Promise<unknown>) => void;
@@ -73,7 +77,7 @@ const EMPTY: AppData = {
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   gym: { workouts: [], exercises: [], templates: [] },
-  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00' },
+  settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null },
   household: null,
 };
 

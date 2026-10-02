@@ -1087,6 +1087,36 @@ textarea.field {
   cursor: default;
 }
 
+/* ИИ: заметный, но спокойный акцент */
+.btn-ai {
+  background: var(--sel);
+  border-color: var(--accent);
+  color: var(--sel-ink);
+}
+.btn-ai:hover:not(:disabled) {
+  background: var(--surface);
+}
+.ai-card {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.menu-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.menu-meal {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.menu-meal:hover {
+  color: var(--accent-ink);
+}
+
 /* поиск (Ctrl K) */
 .searchbtn {
   display: flex;

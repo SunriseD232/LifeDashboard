@@ -6,6 +6,8 @@ import { occurrencesOn, type Occurrence } from './occurrences';
 import { deadlineNotices } from './tasks';
 import { readSettings } from '../server/settings';
 import { readTasks } from '../server/taskStore';
+import { aiConfigured } from '../server/ai';
+import { daySummary } from '../server/summary';
 import { dueDay } from './recur';
 
 /**
@@ -185,6 +187,23 @@ async function tick(): Promise<void> {
         tag: `task:${n.task.id}:${lp.day}`,
         url: '/task/tasks',
       });
+    }
+
+    // Утренняя сводка от ИИ — в выбранное время, раз в день.
+    const st = readSettings(d, userId);
+    if (st.summary_time && aiConfigured()) {
+      const late = lp.minutes - minutesOf(st.summary_time);
+      if (late >= 0 && late <= WINDOW_MIN) {
+        const fresh = d.prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)').run(`summary:${userId}`, lp.day, 'summary');
+        if (fresh.changes) {
+          try {
+            const text = await daySummary(d, userId, lp.day);
+            await sendToUser(userId, { title: 'Сводка дня', body: text.slice(0, 400), tag: `summary:${lp.day}`, url: '/task' });
+          } catch (e) {
+            console.error('[lifedashboard push] сводка не получилась:', (e as Error).message);
+          }
+        }
+      }
     }
   }
 

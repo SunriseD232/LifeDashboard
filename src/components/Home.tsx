@@ -14,6 +14,7 @@ import { Icon } from './icons';
 import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
+import { QuickAdd, SummaryCard } from './Ai';
 import { WeatherCard } from './Weather';
 import { useGym } from './Workouts';
 
@@ -303,6 +304,7 @@ export default function Home() {
           <h1 className="h1 display">{greeting}</h1>
         </div>
       </div>
+      <QuickAdd />
       <AddTask />
       <div className="home-cols">
         <div className="home-col">
@@ -316,6 +318,7 @@ export default function Home() {
           {pinnedCard}
         </div>
         <div className="home-col">
+          <SummaryCard />
           <WeatherCard />
           {kitchenCard}
         </div>
