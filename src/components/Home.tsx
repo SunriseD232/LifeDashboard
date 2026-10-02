@@ -10,6 +10,7 @@ import { bucket, shortDate, sortUrgent } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
 import { WeatherCard } from './Weather';
 
@@ -182,6 +183,27 @@ export default function Home() {
     </section>
   );
 
+  const pinned = data.notes.filter((n) => n.pinned).slice(0, 3);
+  const pinnedCard = pinned.length > 0 && (
+    <section className="card" aria-labelledby="home-pinned" style={{ background: 'var(--warm-bg)', borderColor: 'var(--warm-line)' }}>
+      <div className="card-head">
+        <h2 className="card-title display" id="home-pinned">
+          <Icon name="pin" />
+          Закреплено
+        </h2>
+        <Link className="card-link" href="/notes">
+          Заметки <Icon name="arrow" size={16} />
+        </Link>
+      </div>
+      {pinned.map((n) => (
+        <Link key={n.id} href={`/notes?open=${n.id}`} className="pinned-note">
+          <span style={{ fontWeight: 600 }}>{noteTitle(n)}</span>
+          <span className="pinned-body">{n.title.trim() ? n.body : n.body.split('\n').slice(1).join('\n')}</span>
+        </Link>
+      ))}
+    </section>
+  );
+
   return (
     <>
       <div className="page-head">
@@ -199,6 +221,7 @@ export default function Home() {
         <div className="home-col">
           {deadlinesCard}
           {listsCard}
+          {pinnedCard}
         </div>
         <div className="home-col">
           <WeatherCard />

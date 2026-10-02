@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { Rule } from '@/lib/recur';
 import type { Task } from '@/lib/tasks';
-import { householdOf } from './household';
+import { visibleWhere } from './household';
 
 /**
  * Дела из базы: личные и общие дела семьи. Каждый доступ — через visible():
@@ -21,10 +21,7 @@ interface Row {
   author: string | null;
 }
 
-/** Условие видимости для таблицы tasks под псевдонимом t и параметры к нему. */
-export function visible(d: Database.Database, userId: string): { where: string; params: (string | null)[] } {
-  return { where: '(t.user_id = ? or (t.household_id is not null and t.household_id = ?))', params: [userId, householdOf(d, userId)] };
-}
+const visible = (d: Database.Database, userId: string) => visibleWhere(d, userId, 't');
 
 function toTask(r: Row, userId: string): Task {
   return {

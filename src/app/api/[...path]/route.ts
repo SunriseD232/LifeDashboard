@@ -3,9 +3,11 @@ import { currentUserId, login, logout } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { checklists } from '@/server/api/checklists';
 import { household } from '@/server/api/household';
+import { notes } from '@/server/api/notes';
 import { items } from '@/server/api/items';
 import { push } from '@/server/api/push';
 import { reminders } from '@/server/api/reminders';
+import { search } from '@/server/api/search';
 import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
 import { tasks } from '@/server/api/tasks';
@@ -31,6 +33,8 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   household,
   settings,
   weather,
+  notes,
+  search,
 };
 
 async function handle(req: NextRequest, path: string[]) {

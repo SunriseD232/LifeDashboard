@@ -1,6 +1,7 @@
 import { userLogin } from '@/lib/auth';
 import type { Checklist } from '@/lib/types';
 import { householdInfo } from '../household';
+import { readNotes } from '../noteStore';
 import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
 import { readTasks } from '../taskStore';
@@ -34,6 +35,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
       snoozed,
       tasks,
       tasksDoneToday: doneToday,
+      notes: readNotes(d, userId),
       settings: readSettings(d, userId),
       household: householdInfo(d, userId),
       login: userLogin(userId),

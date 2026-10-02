@@ -252,6 +252,100 @@ export const MIGRATIONS: Migration[] = [
     name: 'часовой пояс города для погоды',
     up: (db) => db.exec('alter table user_settings add column tz text'),
   },
+  {
+    version: 5,
+    name: 'заметки и полнотекстовый поиск',
+    up: (db) =>
+      db.exec(`
+    -- Заметки: заголовок, текст, метки (JSON-массив), закрепление; общие —
+    -- для семьи, как дела. checklist_id — заметка к чек-листу.
+    create table notes (
+      id text primary key,
+      user_id text not null,
+      household_id text references households(id) on delete set null,
+      title text not null default '',
+      body text not null default '',
+      tags text not null default '[]',
+      pinned integer not null default 0,
+      checklist_id text references checklists(id) on delete set null,
+      created_at text not null default (datetime('now')),
+      updated_at text not null default (datetime('now'))
+    );
+    create index notes_user_idx on notes (user_id, updated_at);
+    create index notes_household_idx on notes (household_id);
+
+    -- Быстрый поиск (Ctrl K): полнотекстовый индекс по делам, заметкам,
+    -- чек-листам, их пунктам и напоминаниям. Его ведут триггеры ниже —
+    -- код приложения о нём не думает. Текст в индексе — с «е» вместо «ё»
+    -- (так же нормализуется запрос, src/server/api/search.ts): токенизатор
+    -- unicode61 их не сводит. Новый раздел — свои триггеры и заполнение.
+    create virtual table search_fts using fts5(
+      title, body,
+      kind unindexed, ref_id unindexed, user_id unindexed, household_id unindexed,
+      tokenize = 'unicode61 remove_diacritics 2'
+    );
+    create trigger notes_search_ai after insert on notes begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('note', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(new.body, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger notes_search_au after update on notes begin
+      delete from search_fts where kind = 'note' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('note', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(new.body, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger notes_search_ad after delete on notes begin
+      delete from search_fts where kind = 'note' and ref_id = old.id;
+    end;
+    create trigger tasks_search_ai after insert on tasks begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('task', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.tag, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger tasks_search_au after update on tasks begin
+      delete from search_fts where kind = 'task' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('task', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.tag, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger tasks_search_ad after delete on tasks begin
+      delete from search_fts where kind = 'task' and ref_id = old.id;
+    end;
+    create trigger checklists_search_ai after insert on checklists begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('checklist', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger checklists_search_au after update on checklists begin
+      delete from search_fts where kind = 'checklist' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('checklist', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger checklists_search_ad after delete on checklists begin
+      delete from search_fts where kind = 'checklist' and ref_id = old.id;
+    end;
+    create trigger checklist_items_search_ai after insert on checklist_items begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('item', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.group_name, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger checklist_items_search_au after update on checklist_items begin
+      delete from search_fts where kind = 'item' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('item', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.group_name, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger checklist_items_search_ad after delete on checklist_items begin
+      delete from search_fts where kind = 'item' and ref_id = old.id;
+    end;
+    create trigger reminders_search_ai after insert on reminders begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger reminders_search_au after update on reminders begin
+      delete from search_fts where kind = 'reminder' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger reminders_search_ad after delete on reminders begin
+      delete from search_fts where kind = 'reminder' and ref_id = old.id;
+    end;
+    insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+    select 'note', t.id, t.user_id, t.household_id, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(t.body, ''), 'ё', 'е'), 'Ё', 'Е') from notes t;
+    insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+    select 'task', t.id, t.user_id, t.household_id, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(t.tag, '') || ' ' || coalesce(t.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from tasks t;
+    insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+    select 'checklist', t.id, t.user_id, null, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е') from checklists t;
+    insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+    select 'item', t.id, t.user_id, null, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(t.group_name, '') || ' ' || coalesce(t.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from checklist_items t;
+    insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+    select 'reminder', t.id, t.user_id, null, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е') from reminders t;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
