@@ -13,6 +13,7 @@ import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
 import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
+import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
 import { HttpError, text, type Ctx } from '@/server/http';
 
 /**
@@ -37,6 +38,10 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   notes,
   search,
   kitchen,
+  workouts,
+  'workout-exercises': workoutExercises,
+  'workout-sets': workoutSets,
+  'workout-templates': workoutTemplates,
 };
 
 async function handle(req: NextRequest, path: string[]) {

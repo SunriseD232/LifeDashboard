@@ -460,6 +460,65 @@ export const MIGRATIONS: Migration[] = [
       for (const p of SEED_PRODUCTS) add.run(randomUUID(), p.name, p.dept, JSON.stringify(p.aliases ?? []), p.basic ? 1 : 0);
     },
   },
+  {
+    version: 7,
+    name: 'журнал тренировок: упражнения, тренировки, подходы, шаблоны',
+    up: (db) =>
+      db.exec(`
+    -- Тренировки — личные. Упражнения — свой справочник человека (заводятся
+    -- по названию при первом использовании).
+    create table exercises (
+      id text primary key,
+      user_id text not null,
+      name text not null,
+      created_at text not null default (datetime('now')),
+      unique (user_id, name)
+    );
+
+    -- Тренировка: день (местный), начало и конец (UTC), заметка.
+    create table workouts (
+      id text primary key,
+      user_id text not null,
+      title text not null,
+      day text not null,
+      started_at text not null default (datetime('now')),
+      finished_at text,
+      note text,
+      template_id text
+    );
+    create index workouts_user_idx on workouts (user_id, day);
+
+    -- Упражнения в тренировке по порядку и их подходы. weight null — свой
+    -- вес (подтягивания); reps — повторы.
+    create table workout_exercises (
+      id text primary key,
+      workout_id text not null references workouts(id) on delete cascade,
+      exercise_id text not null references exercises(id),
+      position integer not null default 0
+    );
+    create index workout_exercises_workout_idx on workout_exercises (workout_id, position);
+    create table workout_sets (
+      id text primary key,
+      workout_exercise_id text not null references workout_exercises(id) on delete cascade,
+      weight real,
+      reps integer not null,
+      position integer not null default 0,
+      created_at text not null default (datetime('now'))
+    );
+    create index workout_sets_we_idx on workout_sets (workout_exercise_id, position);
+
+    -- Шаблоны: упражнения с планом подходов и дни недели («ноги — пн, чт»):
+    -- в эти дни главная предлагает начать тренировку по шаблону.
+    create table workout_templates (
+      id text primary key,
+      user_id text not null,
+      title text not null,
+      weekdays text not null default '[]',
+      plan text not null default '[]',
+      created_at text not null default (datetime('now'))
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

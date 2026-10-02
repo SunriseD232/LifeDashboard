@@ -8,6 +8,7 @@ import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
 import type { Product, Recipe } from '@/lib/kitchen';
 import { bucket, type Task } from '@/lib/tasks';
+import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
 import Login from './Login';
@@ -28,6 +29,7 @@ export interface AppData {
   tasksDoneToday: string[];
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
+  gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
   settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
@@ -70,6 +72,7 @@ const EMPTY: AppData = {
   tasksDoneToday: [],
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
+  gym: { workouts: [], exercises: [], templates: [] },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00' },
   household: null,
 };
@@ -80,8 +83,9 @@ export const SECTIONS = [
   { href: '/tasks', label: 'Дела', icon: 'tasks', phone: true },
   { href: '/notes', label: 'Заметки', icon: 'note', phone: false },
   { href: '/lists', label: 'Чек-листы', icon: 'list', phone: false },
-  { href: '/reminders', label: 'Напоминания', icon: 'bell', phone: true },
-  { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом' },
+  { href: '/reminders', label: 'Напоминания', icon: 'bell', phone: false },
+  { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом и спорт' },
+  { href: '/workouts', label: 'Тренировки', icon: 'dumbbell', phone: true, short: 'Спорт' },
 ] as const;
 
 /**
@@ -296,7 +300,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {SECTIONS.filter((s) => s.phone).map((s) => (
             <Link key={s.href} href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
               <Icon name={s.icon} size={22} />
-              {s.label}
+              {'short' in s ? s.short : s.label}
               {badge(s.href)}
             </Link>
           ))}
