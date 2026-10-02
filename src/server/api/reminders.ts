@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { parseRule, RuleError, type Rule } from '@/lib/recur';
+import { findChecklist } from '../checklistStore';
 import { DAY_RE, HttpError, own, text, type Ctx } from '../http';
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -29,7 +30,7 @@ function rule(v: unknown): Rule {
 export function reminders({ d, userId, method, body, id, action }: Ctx): unknown {
   const checklistId = (v: unknown) => {
     const cid = typeof v === 'string' ? v : null;
-    return cid && d.prepare('select 1 from checklists where id = ? and user_id = ?').get(cid, userId) ? cid : null;
+    return cid && findChecklist(d, userId, cid) ? cid : null;
   };
   // «После выполнения» считается от отметки — второе время в сутках там
   // путало бы отсчёт.

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { plural } from '@/lib/dates';
 import type { Checklist, ChecklistItem, IconName } from '@/lib/types';
-import type { AppData, Mutate } from './AppShell';
+import { useApp, type AppData, type Mutate } from './AppShell';
 import Confirm from './Confirm';
 import { Icon, LIST_ICONS } from './icons';
 
@@ -264,6 +264,7 @@ function ChecklistDetail({
   onBack: () => void;
   onDeleted: () => void;
 }) {
+  const { data } = useApp();
   const groups = groupItems(items);
   const done = items.filter((i) => i.done).length;
   const [newItem, setNewItem] = useState('');
@@ -352,6 +353,7 @@ function ChecklistDetail({
           <p style={{ margin: '6px 0 0', color: 'var(--muted)' }}>
             {plural(items.length, 'вещь', 'вещи', 'вещей')}
             {items.length > 0 && done === items.length ? ' · всё собрано' : ''}
+            {list.household_id ? ` · общий${list.author ? `, завёл(а) ${list.author}` : ''}` : ''}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -382,9 +384,11 @@ function ChecklistDetail({
               Изменить
             </button>
           )}
-          <button className="icon-btn" type="button" aria-label={`Удалить чек-лист «${list.title}»`} onClick={() => setConfirm({ kind: 'list' })}>
-            <Icon name="trash" size={18} />
-          </button>
+          {!list.author && (
+            <button className="icon-btn" type="button" aria-label={`Удалить чек-лист «${list.title}»`} onClick={() => setConfirm({ kind: 'list' })}>
+              <Icon name="trash" size={18} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -412,6 +416,23 @@ function ChecklistDetail({
             </button>
           ))}
         </fieldset>
+      )}
+
+      {editing && data.household && !list.author && (
+        <label className="check" style={{ padding: 0, alignSelf: 'flex-start' }}>
+          <input
+            type="checkbox"
+            checked={!!list.household_id}
+            onChange={(e) => {
+              const shared = e.target.checked;
+              mutate(
+                (d) => ({ ...d, checklists: d.checklists.map((c) => (c.id === list.id ? { ...c, household_id: shared ? data.household!.id : null } : c)) }),
+                () => api(`checklists/${list.id}`, 'PATCH', { shared }),
+              );
+            }}
+          />
+          <span className="check-text">Общий для семьи — видят и отмечают все</span>
+        </label>
       )}
 
       {items.length > 0 && !editing && (

@@ -1,6 +1,5 @@
 import type Database from 'better-sqlite3';
 import type { NextRequest } from 'next/server';
-import type { ChecklistItem } from '@/lib/types';
 
 /** Общее для обработчиков API (src/server/api/*): ошибки, проверка полей. */
 
@@ -32,10 +31,6 @@ export function text(v: unknown, max: number, field: string, optional = false): 
   const t = v.trim();
   if (t.length > max) throw new HttpError(400, `«${field}» — не длиннее ${max} символов.`);
   return t;
-}
-
-export function itemRow(r: Record<string, unknown>): ChecklistItem {
-  return { ...(r as unknown as ChecklistItem), done: !!r.done };
 }
 
 export function own<T>(row: T | undefined, what: string): T {

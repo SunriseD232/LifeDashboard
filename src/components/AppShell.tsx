@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrencesOn } from '@/lib/occurrences';
+import type { Product, Recipe } from '@/lib/kitchen';
 import { bucket, type Task } from '@/lib/tasks';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
@@ -26,6 +27,7 @@ export interface AppData {
   /** id дел, отмеченных сегодня (в том числе повторяющихся, переехавших дальше). */
   tasksDoneToday: string[];
   notes: Note[];
+  kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
@@ -67,17 +69,19 @@ const EMPTY: AppData = {
   tasks: [],
   tasksDoneToday: [],
   notes: [],
+  kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00' },
   household: null,
 };
 
-/** Разделы. Новые добавляются сюда по мере готовности (план — README). */
-const SECTIONS = [
-  { href: '/', label: 'Главная', icon: 'home' },
-  { href: '/tasks', label: 'Дела', icon: 'tasks' },
-  { href: '/notes', label: 'Заметки', icon: 'note' },
-  { href: '/lists', label: 'Чек-листы', icon: 'list' },
-  { href: '/reminders', label: 'Напоминания', icon: 'bell' },
+/** Разделы. phone — в нижней панели телефона; остальные — в «Ещё» (/more). */
+export const SECTIONS = [
+  { href: '/', label: 'Главная', icon: 'home', phone: true },
+  { href: '/tasks', label: 'Дела', icon: 'tasks', phone: true },
+  { href: '/notes', label: 'Заметки', icon: 'note', phone: false },
+  { href: '/lists', label: 'Чек-листы', icon: 'list', phone: false },
+  { href: '/reminders', label: 'Напоминания', icon: 'bell', phone: true },
+  { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом' },
 ] as const;
 
 /**
@@ -243,11 +247,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {SECTIONS.map((s) => (
-              <Link key={s.href} className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
-                <Icon name={s.icon} />
-                {s.label}
-                {badge(s.href)}
-              </Link>
+              <Fragment key={s.href}>
+                {'group' in s && <div className="nav-sep">{s.group}</div>}
+                <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
+                  <Icon name={s.icon} />
+                  {s.label}
+                  {badge(s.href)}
+                </Link>
+              </Fragment>
             ))}
           </nav>
           <div className="side-foot">
@@ -286,13 +293,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="page">{children}</main>
 
         <nav className="tabbar" aria-label="Разделы">
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => s.phone).map((s) => (
             <Link key={s.href} href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
               <Icon name={s.icon} size={22} />
               {s.label}
               {badge(s.href)}
             </Link>
           ))}
+          <Link href="/more" aria-current={isActive('/more') || SECTIONS.some((s) => !s.phone && isActive(s.href)) ? 'page' : undefined}>
+            <Icon name="dots" size={22} />
+            Ещё
+          </Link>
         </nav>
       </div>
 

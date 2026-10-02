@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { SEED_PRODUCTS } from './kitchenSeed';
 
 /**
  * Миграции базы — нумерованные шаги, номер применённой хранится в самой базе
@@ -345,6 +347,118 @@ export const MIGRATIONS: Migration[] = [
     insert into search_fts (kind, ref_id, user_id, household_id, title, body)
     select 'reminder', t.id, t.user_id, null, replace(replace(coalesce(t.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce('', ''), 'ё', 'е'), 'Ё', 'Е') from reminders t;
     `),
+  },
+  {
+    version: 6,
+    name: 'кухня: продукты, рецепты, запасы, покупки; общие чек-листы',
+    up: (db) => {
+      db.exec(`
+    -- Справочник продуктов — один на всех (src/lib/kitchenSeed.ts). dept —
+    -- отдел магазина (группа в покупках), aliases — другие названия, basic —
+    -- «всегда есть», в подборе блюд не считается недостающим.
+    create table products (
+      id text primary key,
+      name text not null unique,
+      dept text not null,
+      aliases text not null default '[]',
+      basic integer not null default 0,
+      created_by text
+    );
+
+    -- Рецепты — свои или общие для семьи, как дела.
+    create table recipes (
+      id text primary key,
+      user_id text not null,
+      household_id text references households(id) on delete set null,
+      title text not null,
+      category text not null default 'dinner',
+      minutes integer,
+      servings integer not null default 2,
+      steps text not null default '[]',
+      note text,
+      created_at text not null default (datetime('now')),
+      updated_at text not null default (datetime('now'))
+    );
+    create index recipes_user_idx on recipes (user_id);
+    create index recipes_household_idx on recipes (household_id);
+    create table recipe_ingredients (
+      id text primary key,
+      recipe_id text not null references recipes(id) on delete cascade,
+      product_id text not null references products(id),
+      qty real,
+      unit text,
+      position integer not null default 0
+    );
+    create index recipe_ingredients_recipe_idx on recipe_ingredients (recipe_id, position);
+
+    -- «Что есть дома». scope — семья (её id) или человек ('u:' || id): у
+    -- семьи запасы общие.
+    create table pantry (
+      scope text not null,
+      product_id text not null references products(id) on delete cascade,
+      added_at text not null default (datetime('now')),
+      primary key (scope, product_id)
+    );
+
+    -- Чек-листы тоже бывают общими; kind = 'shopping' — список покупок (один
+    -- на семью или человека). У пунктов покупок — продукт и количество:
+    -- отметил купленным — продукт попадает в «что есть дома».
+    alter table checklists add column household_id text references households(id) on delete set null;
+    alter table checklists add column kind text not null default 'list';
+    alter table checklist_items add column product_id text references products(id) on delete set null;
+    alter table checklist_items add column qty real;
+    alter table checklist_items add column unit text;
+    alter table checklist_items add column recipe_title text;
+
+    -- Поиск: общий чек-лист и его пункты видны всей семье.
+    drop trigger checklists_search_ai;
+    drop trigger checklists_search_au;
+    drop trigger checklist_items_search_ai;
+    drop trigger checklist_items_search_au;
+    create trigger checklists_search_ai after insert on checklists begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+      values ('checklist', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), '');
+    end;
+    create trigger checklists_search_au after update on checklists begin
+      delete from search_fts where kind = 'checklist' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+      values ('checklist', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), '');
+      update search_fts set household_id = new.household_id
+      where kind = 'item' and ref_id in (select id from checklist_items where checklist_id = new.id);
+    end;
+    create trigger checklist_items_search_ai after insert on checklist_items begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+      values ('item', new.id, new.user_id, (select household_id from checklists where id = new.checklist_id), replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.group_name, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger checklist_items_search_au after update of title, group_name, note on checklist_items begin
+      delete from search_fts where kind = 'item' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body)
+      values ('item', new.id, new.user_id, (select household_id from checklists where id = new.checklist_id), replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce(coalesce(new.group_name, '') || ' ' || coalesce(new.note, ''), ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+
+    -- Поиск рецептов — по названию и ингредиентам («что из яиц?»).
+    create trigger recipes_search_ai after insert on recipes begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) select 'recipe', r.id, r.user_id, r.household_id, replace(replace(coalesce(r.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce((select group_concat(p.name, ' ') from recipe_ingredients i join products p on p.id = i.product_id where i.recipe_id = r.id) || ' ' || coalesce(r.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from recipes r where r.id = new.id;
+    end;
+    create trigger recipes_search_au after update on recipes begin
+      delete from search_fts where kind = 'recipe' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) select 'recipe', r.id, r.user_id, r.household_id, replace(replace(coalesce(r.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce((select group_concat(p.name, ' ') from recipe_ingredients i join products p on p.id = i.product_id where i.recipe_id = r.id) || ' ' || coalesce(r.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from recipes r where r.id = new.id;
+    end;
+    create trigger recipes_search_ad after delete on recipes begin
+      delete from search_fts where kind = 'recipe' and ref_id = old.id;
+    end;
+    create trigger recipe_ingredients_search_ai after insert on recipe_ingredients begin
+      delete from search_fts where kind = 'recipe' and ref_id = new.recipe_id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) select 'recipe', r.id, r.user_id, r.household_id, replace(replace(coalesce(r.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce((select group_concat(p.name, ' ') from recipe_ingredients i join products p on p.id = i.product_id where i.recipe_id = r.id) || ' ' || coalesce(r.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from recipes r where r.id = new.recipe_id;
+    end;
+    create trigger recipe_ingredients_search_ad after delete on recipe_ingredients begin
+      delete from search_fts where kind = 'recipe' and ref_id = old.recipe_id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) select 'recipe', r.id, r.user_id, r.household_id, replace(replace(coalesce(r.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(coalesce((select group_concat(p.name, ' ') from recipe_ingredients i join products p on p.id = i.product_id where i.recipe_id = r.id) || ' ' || coalesce(r.note, ''), ''), 'ё', 'е'), 'Ё', 'Е') from recipes r where r.id = old.recipe_id;
+    end;
+      `);
+      const add = db.prepare('insert into products (id, name, dept, aliases, basic) values (?, ?, ?, ?, ?)');
+      for (const p of SEED_PRODUCTS) add.run(randomUUID(), p.name, p.dept, JSON.stringify(p.aliases ?? []), p.basic ? 1 : 0);
+    },
   },
 ];
 

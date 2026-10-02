@@ -1,9 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { HttpError, own, text, type Ctx } from '../http';
+import { findChecklist } from '../checklistStore';
+import { householdOf } from '../household';
+import { HttpError, text, type Ctx } from '../http';
 
 const ICONS = new Set(['bag', 'wave', 'house', 'list']);
 
-/** Чек-листы: /api/checklists[/:id[/действие]]. */
+/**
+ * Чек-листы: /api/checklists[/:id[/действие]]. Свои и общие для семьи
+ * (shared в теле PATCH); удалить общий или сделать личным может только автор.
+ */
 export function checklists({ d, userId, method, body, id, action }: Ctx): unknown {
   if (method === 'POST' && !id) {
     const title = text(body.title, 80, 'Название')!;
@@ -32,10 +37,9 @@ export function checklists({ d, userId, method, body, id, action }: Ctx): unknow
     return { id: cid };
   }
 
-  const list = own(
-    d.prepare('select id from checklists where id = ? and user_id = ?').get(id, userId) as { id: string } | undefined,
-    'Чек-лист',
-  );
+  const list = findChecklist(d, userId, id);
+  if (!list) throw new HttpError(404, 'Чек-лист не найден.');
+  const mine = list.user_id === userId;
 
   if (method === 'PATCH' && !action) {
     if (body.title !== undefined) {
@@ -44,9 +48,16 @@ export function checklists({ d, userId, method, body, id, action }: Ctx): unknow
     if (body.icon !== undefined && ICONS.has(body.icon)) {
       d.prepare('update checklists set icon = ? where id = ?').run(body.icon, list.id);
     }
+    if (body.shared !== undefined) {
+      if (!body.shared && list.household_id && !mine) throw new HttpError(403, 'Сделать личным может только автор.');
+      const hh = body.shared ? householdOf(d, userId) : null;
+      if (body.shared && !hh) throw new HttpError(400, 'Чтобы делиться, создайте семью в настройках.');
+      d.prepare('update checklists set household_id = ? where id = ?').run(hh, list.id);
+    }
     return { ok: true };
   }
   if (method === 'DELETE' && !action) {
+    if (list.household_id && !mine) throw new HttpError(403, 'Удалить общий чек-лист может только автор.');
     d.prepare('delete from checklists where id = ?').run(list.id);
     return { ok: true };
   }

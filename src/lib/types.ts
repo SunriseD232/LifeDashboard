@@ -7,6 +7,12 @@ export interface Checklist {
   title: string;
   icon: IconName;
   position: number;
+  /** Общий для семьи — или null, личный. */
+  household_id: string | null;
+  /** 'shopping' — список покупок кухни, иначе 'list'. */
+  kind: 'list' | 'shopping';
+  /** Кто завёл — для общих, если не я. */
+  author: string | null;
 }
 
 export interface ChecklistItem {
@@ -17,6 +23,11 @@ export interface ChecklistItem {
   note: string | null;
   done: boolean;
   position: number;
+  /** У покупок: продукт (купил — попадает в «что есть дома»), количество, для какого рецепта. */
+  product_id?: string | null;
+  qty?: number | null;
+  unit?: string | null;
+  recipe_title?: string | null;
 }
 
 export interface Reminder {

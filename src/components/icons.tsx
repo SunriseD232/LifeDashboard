@@ -149,6 +149,32 @@ const PATHS: Record<string, JSX.Element> = {
       <path d="M14 3v5h5M9 13h7M9 17h5" />
     </>
   ),
+  pot: (
+    <>
+      <path d="M4 10h16v3a7 7 0 0 1-7 7h-2a7 7 0 0 1-7-7z" />
+      <path d="M2 10h20M9 7c0-1 1-1.5 1-3M14 7c0-1 1-1.5 1-3" />
+    </>
+  ),
+  cart: (
+    <>
+      <path d="M3 4h2l2 11h11l2-8H6" />
+      <circle cx="9" cy="19" r="1.5" />
+      <circle cx="17" cy="19" r="1.5" />
+    </>
+  ),
+  timer: (
+    <>
+      <circle cx="12" cy="13" r="7" />
+      <path d="M12 9v4l2 2M10 3h4" />
+    </>
+  ),
+  dots: (
+    <>
+      <circle cx="5" cy="12" r="1.3" />
+      <circle cx="12" cy="12" r="1.3" />
+      <circle cx="19" cy="12" r="1.3" />
+    </>
+  ),
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   logout: (
     <>
