@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { SEED_PRODUCTS } from './kitchenSeed';
+import { guessDept, SEED_PRODUCTS } from './kitchenSeed';
 
 /**
  * Миграции базы — нумерованные шаги, номер применённой хранится в самой базе
@@ -601,6 +601,22 @@ export const MIGRATIONS: Migration[] = [
     -- Итог дня вечером: во сколько (null — выключен).
     alter table user_settings add column review_time text;
     `),
+  },
+  {
+    version: 12,
+    name: 'Покупки: отделы для продуктов, заведённых людьми',
+    up: (db) => {
+      // Раньше новые продукты попадали в «Другое» — угадываем отдел по названию.
+      const rows = db.prepare("select id, name from products where dept = 'Другое'").all() as { id: string; name: string }[];
+      const set = db.prepare('update products set dept = ? where id = ?');
+      const items = db.prepare('update checklist_items set group_name = ? where product_id = ?');
+      for (const r of rows) {
+        const dept = guessDept(r.name);
+        if (dept === 'Другое') continue;
+        set.run(dept, r.id);
+        items.run(dept, r.id);
+      }
+    },
   },
 ];
 

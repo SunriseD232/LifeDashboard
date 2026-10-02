@@ -5,12 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { findProduct, groupOf, match, normName, type Match, type Product, type Recipe } from '@/lib/kitchen';
-import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
+import { CATEGORY_LABELS, deptRank, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
 import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import Empty from './Empty';
-import { MenuPlanner, PantryPhoto } from './KitchenAi';
+import { MenuPlanner, PantryPhoto, StoreMode } from './KitchenAi';
 import { Fab, useIsPhone } from './Phone';
 import Swipe from './Swipe';
 
@@ -294,7 +294,8 @@ export function Shopping() {
   const items = data.items.filter((i) => i.checklist_id === listId);
   const open = items.filter((i) => !i.done);
   const bought = items.filter((i) => i.done);
-  const depts = [...new Set(open.map((i) => i.group_name ?? 'Другое'))];
+  const depts = [...new Set(open.map((i) => i.group_name ?? 'Другое'))].sort((a, b) => deptRank(a) - deptRank(b));
+  const [store, setStore] = useState(false);
   const shared = !!data.checklists.find((c) => c.id === listId)?.household_id;
 
   const add = async (e: React.FormEvent) => {
@@ -364,6 +365,13 @@ export function Shopping() {
           {shared ? 'общий список семьи' : 'ваш список'}
         </span>
       </div>
+      {open.length > 0 && (
+        <button className="btn btn-primary" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setStore(true)}>
+          <Icon name="cart" size={18} />
+          В магазин — крупный список
+        </button>
+      )}
+      {store && <StoreMode items={items} onToggle={toggle} onClose={() => setStore(false)} />}
       <form onSubmit={add} style={{ display: 'flex', gap: 8 }}>
         <label className="sr-only" htmlFor="shop-add">
           Что купить
