@@ -4,7 +4,7 @@ import type { Task } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 
 vi.mock('@/lib/db', () => ({ db: () => { throw new Error('нет базы в тесте'); } }));
-const { icsFor } = await import('../calendar');
+const { icsFor, rrule } = await import('../calendar');
 
 const task = (over: Partial<Task>): Task => ({ id: 't', title: 'Оплатить свет', note: null, tag: null, due_date: '2026-10-05', rule: null, done_at: null, household_id: null, author: null, ...over });
 const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
@@ -17,10 +17,20 @@ describe('календарь (.ics)', () => {
     expect(ics).not.toContain('task-d@');
     expect(ics).not.toContain('task-n@');
   });
-  it('напоминание — на свои дни и время, плавающее', () => {
-    expect(ics).toContain('DTSTART:20261006T183000'); // вторник
-    expect(ics).toContain('DTSTART:20261008T183000'); // четверг
-    expect(ics).not.toContain('DTSTART:20261007T183000');
+  it('повтор — одно событие с RRULE с первого раза, время плавающее', () => {
+    expect(ics).toContain('DTSTART:20260901T183000'); // 1 сентября — вторник
+    expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=TU,TH;WKST=MO');
+    expect(ics.match(/UID:rem-r-/g)).toHaveLength(1);
+  });
+  it('правила → RRULE', () => {
+    const start = '2026-01-31';
+    expect(rrule({ kind: 'repeat', unit: 'day', every: 2, start })).toBe('RRULE:FREQ=DAILY;INTERVAL=2');
+    expect(rrule({ kind: 'repeat', unit: 'month', every: 1, start })).toBe('RRULE:FREQ=MONTHLY;BYMONTHDAY=28,29,30,31;BYSETPOS=-1');
+    expect(rrule({ kind: 'repeat', unit: 'month', every: 1, start, monthly: { type: 'nth', nth: 2, weekday: 6 } })).toBe('RRULE:FREQ=MONTHLY;BYDAY=2SA');
+    expect(rrule({ kind: 'repeat', unit: 'month', every: 1, start, monthly: { type: 'day', day: -1 } })).toBe('RRULE:FREQ=MONTHLY;BYMONTHDAY=-1');
+    expect(rrule({ kind: 'repeat', unit: 'year', every: 1, start: '2024-02-29' })).toBe('RRULE:FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=28,29;BYSETPOS=-1');
+    expect(rrule({ kind: 'repeat', unit: 'week', every: 1, start, weekdays: [1, 3], end: { type: 'until', date: '2026-12-31' } })).toBe('RRULE:FREQ=WEEKLY;BYDAY=MO,WE;WKST=MO;UNTIL=20261231T235959');
+    expect(rrule({ kind: 'repeat', unit: 'day', every: 1, start, end: { type: 'count', count: 5 } }, true)).toBe('RRULE:FREQ=DAILY;COUNT=5');
   });
   it('строки через CRLF и не длиннее 75 байт', () => {
     const long = icsFor([task({ title: 'Очень длинное название дела '.repeat(6) })], [], '2026-10-02');
@@ -43,7 +53,7 @@ describe('разделы меню', () => {
   it('свой порядок, скрытые, неизвестные отброшены, новые в конце', () => {
     const a = arrange([{ href: '/notes' }, { href: '/tasks', hidden: true }, { href: '/evil' }, { href: '/notes' }]);
     expect(a.all[0].href).toBe('/notes');
-    expect(a.all).toHaveLength(6);
+    expect(a.all).toHaveLength(7);
     expect(a.visible.some((s) => s.href === '/tasks')).toBe(false);
     expect(a.phone).toHaveLength(3);
     expect(parseNav('мусор')).toBeNull();
