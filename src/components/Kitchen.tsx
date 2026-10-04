@@ -320,11 +320,20 @@ export function Shopping() {
       () => api(`items/${i.id}`, 'PATCH', { done }),
     );
 
-  const remove = (i: ChecklistItem) =>
+  const remove = (i: ChecklistItem) => {
     mutate(
       (d) => ({ ...d, items: d.items.filter((x) => x.id !== i.id) }),
       () => api(`items/${i.id}`, 'DELETE'),
     );
+    toast(`Убрано: «${i.title}»`, async () => {
+      try {
+        await api('kitchen/shopping', 'POST', { items: [{ name: i.title, qty: i.qty ?? null, unit: i.unit ?? null }] });
+        await reload();
+      } catch (e) {
+        toast((e as Error).message);
+      }
+    });
+  };
 
   const clear = () =>
     mutate(

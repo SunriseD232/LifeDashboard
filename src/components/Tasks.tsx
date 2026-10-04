@@ -27,6 +27,8 @@ export function useTaskActions() {
 
   const complete = (t: Task) => {
     const next = t.rule ? nextDue(t.rule, t.due_date, today) : null;
+    // Короткий отклик пальцу (Android; iPhone вибрацию сайтам не даёт).
+    navigator.vibrate?.(12);
     mutate(
       (d) => ({
         ...d,
@@ -35,10 +37,10 @@ export function useTaskActions() {
       }),
       () => api(`tasks/${t.id}/done`, 'POST', { day: today }),
     );
-    if (next) toast(`Следующий раз — ${dueLabel(next, today)?.text}`);
+    toast(next ? `Сделано. Следующий раз — ${dueLabel(next, today)?.text}` : `Сделано: «${t.title}»`, () => undo(t));
   };
 
-  const undo = (t: Task) =>
+  function undo(t: Task) {
     mutate(
       (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, done_at: null } : x)), tasksDoneToday: d.tasksDoneToday.filter((x) => x !== t.id) }),
       async () => {
@@ -47,6 +49,7 @@ export function useTaskActions() {
         await reload();
       },
     );
+  }
 
   /** На завтра (свайп влево): срок — завтра, дело уйдёт из сегодняшних. */
   const tomorrow = (t: Task) => {
@@ -55,7 +58,13 @@ export function useTaskActions() {
       (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: day } : x)) }),
       () => api(`tasks/${t.id}`, 'PATCH', { due_date: day }),
     );
-    toast(`«${t.title}» — на завтра`);
+    const was = t.due_date;
+    toast(`«${t.title}» — на завтра`, () =>
+      mutate(
+        (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: was } : x)) }),
+        () => api(`tasks/${t.id}`, 'PATCH', { due_date: was }),
+      ),
+    );
   };
 
   const remove = (t: Task) => {
@@ -63,7 +72,15 @@ export function useTaskActions() {
       (d) => ({ ...d, tasks: d.tasks.filter((x) => x.id !== t.id) }),
       () => api(`tasks/${t.id}`, 'DELETE'),
     );
-    toast(`Удалено: «${t.title}»`);
+    // Вернуть — заводим заново с теми же полями (история отметок не вернётся).
+    toast(`Удалено: «${t.title}»`, async () => {
+      try {
+        await api('tasks', 'POST', { title: t.title, due_date: t.due_date, rule: t.rule, tag: t.tag, note: t.note, shared: !!t.household_id });
+        await reload();
+      } catch (e) {
+        toast((e as Error).message);
+      }
+    });
   };
 
   return { complete, undo, tomorrow, remove, today };
@@ -213,6 +230,18 @@ function bodyOf(d: Draft, today: string) {
   return { title: d.title.trim(), due_date: due, rule, tag: d.tag.trim() || null, shared: d.shared, note: d.note.trim() || null };
 }
 
+/** «Сегодня», «Завтра», «На выходных» (ближайшая суббота), «Через неделю». */
+function quickDates(today: string): { label: string; day: string }[] {
+  const wd = new Date(`${today}T12:00:00`).getDay();
+  const toSat = (6 - wd + 7) % 7 || 7;
+  return [
+    { label: 'Сегодня', day: today },
+    { label: 'Завтра', day: addDays(today, 1) },
+    { label: 'На выходных', day: wd === 6 || wd === 0 ? today : addDays(today, toSat) },
+    { label: 'Через неделю', day: addDays(today, 7) },
+  ];
+}
+
 function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Draft; set: (d: Draft) => void; tags: string[]; canShare: boolean; today: string; compact?: boolean; allowRemind?: boolean }) {
   return (
     <div className="task-fields" data-compact={compact ? 'true' : undefined}>
@@ -223,6 +252,13 @@ function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Dr
               Срок
             </label>
             <input id="t-due" className="field" type="date" min={today} value={d.due} onChange={(e) => e.target.value && set({ ...d, due: e.target.value })} />
+            <div className="quick-dates" role="group" aria-label="Быстро выбрать срок">
+              {quickDates(today).map((q) => (
+                <button key={q.label} type="button" className="chip" aria-pressed={d.due === q.day} onClick={() => set({ ...d, due: q.day })}>
+                  {q.label}
+                </button>
+              ))}
+            </div>
           </div>
           {allowRemind && (
             <div className="fld">
@@ -364,6 +400,7 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const phone = useIsPhone();
   useModalFocus(formRef);
   const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])];
 
@@ -402,12 +439,9 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
     return <Confirm title={`Удалить «${task.title}»?`} text="Дело удалится вместе с историей выполнения." action="Удалить" onCancel={() => setConfirm(false)} onConfirm={remove} />;
   }
 
-  return (
-    <div className="overlay" onClick={onClose}>
-      <form ref={formRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dlg" style={{ width: 'min(520px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <h2 id="task-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
-          Дело
-        </h2>
+  // На телефоне — окном снизу, как «Новое дело»; на компьютере — по центру.
+  const fields = (
+    <>
         <div className="fld">
           <label className="label" htmlFor="t-title">
             Что сделать
@@ -431,7 +465,7 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
             </button>
           )}
           <span style={{ flex: 1 }} />
-          <button className="btn btn-ghost" type="button" onClick={onClose}>
+          <button className="btn btn-ghost hide-phone" type="button" onClick={onClose}>
             Отмена
           </button>
           <button className="btn btn-primary" type="submit" disabled={busy || !d.title.trim()}>
@@ -439,6 +473,24 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
             Сохранить
           </button>
         </div>
+    </>
+  );
+  if (phone) {
+    return (
+      <Sheet title="Дело" onClose={onClose}>
+        <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {fields}
+        </form>
+      </Sheet>
+    );
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <form ref={formRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dlg" style={{ width: 'min(520px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
+        <h2 id="task-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
+          Дело
+        </h2>
+        {fields}
       </form>
     </div>
   );

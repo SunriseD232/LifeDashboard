@@ -24,7 +24,7 @@ interface Props {
   reload: () => Promise<void>;
   now: Date;
   onOpenChecklist: (id: string) => void;
-  toast: (m: string) => void;
+  toast: (m: string, undo?: () => void) => void;
   /**
    * Внутри раздела «Дела» (src/components/Tasks.tsx): без своего заголовка и
    * вкладок — только выбранный список («Быт по кругу» или «Повторы») и окна:

@@ -1966,6 +1966,19 @@ mark {
   gap: 16px;
   max-width: 680px;
 }
+/* На широком экране — две колонки: группы короче, листать не нужно. */
+@media (min-width: 1100px) {
+  .settings-col {
+    display: block;
+    columns: 2;
+    column-gap: 16px;
+    max-width: 1100px;
+  }
+  .settings-col > * {
+    break-inside: avoid;
+    margin-bottom: 16px;
+  }
+}
 .settings-col .panel {
   border: 0;
   padding: 0 !important;
@@ -2477,4 +2490,39 @@ button.task-open:hover > span:first-child {
   text-decoration: underline;
   text-decoration-color: var(--line-strong, var(--line));
   text-underline-offset: 3px;
+}
+
+/* «Отменить» в сообщении внизу */
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.toast-undo {
+  flex: none;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.14);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  .toast {
+    bottom: calc(150px + env(safe-area-inset-bottom));
+  }
+}
+
+.quick-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.quick-dates .chip {
+  min-height: 32px;
+  font-size: 13px;
 }

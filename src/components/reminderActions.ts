@@ -14,8 +14,12 @@ export function useReminderActions() {
   const today = localDay(now);
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
-  const done = (r: Reminder, slot: string, value: boolean) => {
+  const done = (r: Reminder, slot: string, value: boolean, quiet = false) => {
     const key = occurrenceKey(r.id, slot);
+    if (value && !quiet) {
+      navigator.vibrate?.(12);
+      toast(`Сделано: «${r.title}»`, () => done(r, slot, false, true));
+    }
     const after = r.rule.kind === 'after';
     mutate(
       (d) => ({

@@ -9,6 +9,7 @@ import { AiButton, useAiReady } from './Ai';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
+import { Sheet, useIsPhone } from './Phone';
 
 /**
  * Чек-лист из шаблона. У поездок — дата отъезда: тогда в названии будет дата,
@@ -25,6 +26,7 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
   const [remind, setRemind] = useState(true);
   const [busy, setBusy] = useState(false);
   const aiReady = useAiReady();
+  const phone = useIsPhone();
   const [where, setWhere] = useState('');
   const [tripDays, setTripDays] = useState('3');
   const [purpose, setPurpose] = useState('');
@@ -80,12 +82,8 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
     }
   };
 
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div ref={boxRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="tpl-dlg" style={{ width: 'min(560px, 100%)', maxHeight: '90dvh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <h2 id="tpl-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
-          {pick ? pick.title : 'Чек-лист из шаблона'}
-        </h2>
+  const content = (
+    <>
         {!pick ? (
           <>
             <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Возьмите готовый и поправьте под себя.</p>
@@ -189,6 +187,23 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
             </div>
           </form>
         )}
+    </>
+  );
+  // На телефоне — окном снизу, как остальные формы.
+  if (phone) {
+    return (
+      <Sheet title={pick ? pick.title : 'Чек-лист из шаблона'} onClose={onClose}>
+        {content}
+      </Sheet>
+    );
+  }
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div ref={boxRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="tpl-dlg" style={{ width: 'min(560px, 100%)', maxHeight: '90dvh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h2 id="tpl-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
+          {pick ? pick.title : 'Чек-лист из шаблона'}
+        </h2>
+        {content}
       </div>
     </div>
   );

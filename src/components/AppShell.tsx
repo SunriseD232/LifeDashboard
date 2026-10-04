@@ -51,7 +51,8 @@ interface AppContext {
   data: AppData;
   mutate: Mutate;
   reload: () => Promise<void>;
-  toast: (message: string) => void;
+  /** Сообщение внизу; undo — кнопка «Отменить» (держим подольше, 6 с). */
+  toast: (message: string, undo?: () => void) => void;
   /** «Сейчас», обновляется раз в 30 секунд. */
   now: Date;
   /** Какой чек-лист открыт — общий, чтобы напоминание могло открыть свой. */
@@ -128,15 +129,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<AppData>(EMPTY);
   const [openList, setOpenList] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [toastUndo, setToastUndo] = useState<(() => void) | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [searching, setSearching] = useState(false);
   const dayRef = useRef(localDay());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((message: string) => {
+  const toast = useCallback((message: string, undo?: () => void) => {
+    setToastUndo(() => undo ?? null);
     setToastText(message);
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastText(null), 4000);
+    toastTimer.current = setTimeout(() => setToastText(null), undo ? 6000 : 4000);
   }, []);
 
   // Без сети: показываем сохранённые данные, изменения копятся в очереди
@@ -146,12 +149,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const statusRef = useRef<Status>('loading');
   statusRef.current = status;
   const syncing = useRef(false);
+  const loadedAt = useRef(0);
 
   const reload = useCallback(async () => {
     try {
       const day = localDay();
       dayRef.current = day;
       const fresh = await api<AppData>(`state?day=${day}`);
+      loadedAt.current = Date.now();
       setData(fresh);
       saveState(fresh.login, fresh);
       setOffline(false);
@@ -229,8 +234,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       if (localDay(d) !== dayRef.current) reload();
     };
     const timer = setInterval(tick, 30_000);
+    // Вернулись в приложение (с другого экрана, из фона) — данные могли
+    // поменяться на другом устройстве или у семьи: перечитываем, если
+    // последнему чтению больше минуты.
     const onVisible = () => {
-      if (!document.hidden) tick();
+      if (document.hidden) return;
+      tick();
+      if (Date.now() - loadedAt.current > 60_000) reload();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -238,6 +248,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [reload]);
+
+  // Число на иконке приложения (экран «Домой»): сколько осталось на сегодня.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    const n = leftToday(timeline(data.tasks, data.reminders, localDay(now), new Set(data.done), data.snoozed));
+    (n > 0 ? nav.setAppBadge?.(n) : nav.clearAppBadge?.())?.catch(() => undefined);
+  }, [status, data, now]);
 
   // Ctrl K / ⌘K — поиск отовсюду.
   useEffect(() => {
@@ -410,7 +428,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {toastText && (
         <div className="toast" role="status">
-          {toastText}
+          <span>{toastText}</span>
+          {toastUndo && (
+            <button
+              type="button"
+              className="toast-undo"
+              onClick={() => {
+                toastUndo();
+                setToastText(null);
+              }}
+            >
+              Отменить
+            </button>
+          )}
         </div>
       )}
     </Ctx.Provider>

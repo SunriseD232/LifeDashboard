@@ -8,6 +8,7 @@ import { useApp, type AppData, type Mutate } from './AppShell';
 import Confirm from './Confirm';
 import Empty from './Empty';
 import Swipe from './Swipe';
+import { Fab, Sheet, useIsPhone } from './Phone';
 import { Icon, LIST_ICONS } from './icons';
 import TemplatePicker from './TemplatePicker';
 
@@ -17,7 +18,7 @@ interface Props {
   reload: () => Promise<void>;
   openId: string | null;
   setOpenId: (id: string | null) => void;
-  toast: (m: string) => void;
+  toast: (m: string, undo?: () => void) => void;
 }
 
 /** Пункты списка, разложенные по группам в порядке их первого появления. */
@@ -40,6 +41,8 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
+  const phone = useIsPhone();
+  const [adding, setAdding] = useState(false);
   const picker = picking && (
     <TemplatePicker
       onClose={() => setPicking(false)}
@@ -181,7 +184,7 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
         {creating ? (
           newListForm
         ) : (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="hide-phone" style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost btn-dashed" type="button" style={{ flex: 1 }} onClick={() => setCreating(true)}>
               <Icon name="plus" size={18} />
               Новый
@@ -192,6 +195,47 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
           </div>
         )}
         {picker}
+        {/* На телефоне «создать» — круглой «+»: своё название или готовый шаблон. */}
+        {phone && !openId && <Fab label="Новый чек-лист" onClick={() => setAdding(true)} />}
+        {adding && (
+          <Sheet title="Новый чек-лист" onClose={() => setAdding(false)}>
+            <form
+              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const title = newTitle.trim();
+                if (!title) return;
+                const id = await createList(title);
+                if (id) {
+                  setNewTitle('');
+                  setAdding(false);
+                  setOpenId(id);
+                  setEditId(id);
+                }
+              }}
+            >
+              <label className="sr-only" htmlFor="sheet-list">
+                Название чек-листа
+              </label>
+              <input id="sheet-list" className="field" maxLength={80} placeholder="Название, например «Поездка на дачу»" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+              <button className="btn btn-primary" type="submit" disabled={busy || !newTitle.trim()}>
+                <Icon name="plus" size={18} />
+                Создать свой
+              </button>
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={() => {
+                  setAdding(false);
+                  setPicking(true);
+                }}
+              >
+                <Icon name="list" size={18} />
+                Взять готовый: бассейн, поездка, переезд…
+              </button>
+            </form>
+          </Sheet>
+        )}
       </aside>
 
       <section className="lists-main">
@@ -234,7 +278,7 @@ function ChecklistDetail({
   setEditing: (on: boolean) => void;
   mutate: Mutate;
   reload: () => Promise<void>;
-  toast: (m: string) => void;
+  toast: (m: string, undo?: () => void) => void;
   onBack: () => void;
   onDeleted: () => void;
 }) {
@@ -519,11 +563,13 @@ function ChecklistDetail({
                       label: 'Удалить',
                       icon: 'trash',
                       tone: 'danger',
-                      onClick: () =>
+                      onClick: () => {
                         mutate(
                           (d) => ({ ...d, items: d.items.filter((i) => i.id !== it.id) }),
                           () => api(`items/${it.id}`, 'DELETE'),
-                        ),
+                        );
+                        toast(`Удалено: «${it.title}»`, () => addItem(it.title, it.group_name));
+                      },
                     },
                   ]}
                 >
