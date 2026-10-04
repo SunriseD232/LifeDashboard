@@ -60,10 +60,38 @@ export async function dayFacts(d: Database.Database, userId: string, day: string
 }
 
 /** Другой день (вчера, завтра, через неделю): его сроки, напоминания и прогноз. */
+const WEEKDAYS_ACC = ['воскресенье', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу'];
+const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+/** Как назвать день в сводке: «сегодня», «завтра», «вчера» или «в четверг, 15 октября». */
+export function dayWord(day: string, today: string): string {
+  const n = diffDays(today, day);
+  if (n === 0) return 'сегодня';
+  if (n === 1) return 'завтра';
+  if (n === -1) return 'вчера';
+  return `в ${WEEKDAYS_ACC[weekday(day)]}, ${Number(day.slice(8))} ${MONTHS_GEN[Number(day.slice(5, 7)) - 1]}`;
+}
+
+/**
+ * Страховка: модель иногда пишет «сегодня»/«завтра» про другой день — меняем
+ * на правильное название («в четверг, 15 октября»).
+ */
+export function fixDayWords(text: string, day: string, today: string): string {
+  const n = diffDays(today, day);
+  const word = dayWord(day, today);
+  const swap = (t: string, re: RegExp) =>
+    t.replace(re, (m: string, pre: string, first: string) => pre + (first === first.toUpperCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word));
+  let out = text;
+  if (n !== 0) out = swap(out, /(^|[^А-Яа-яЁё])([Сс])егодня(?![А-Яа-яЁё])/g);
+  if (n !== 0 && n !== 1) out = swap(out, /(^|[^А-Яа-яЁё])([Зз])автра(?![А-Яа-яЁё])/g);
+  return out;
+}
+
 async function otherDayFacts(d: Database.Database, userId: string, day: string, today: string): Promise<string> {
   const n = diffDays(today, day);
-  const rel = n === 1 ? 'завтра' : n === -1 ? 'вчера' : n > 0 ? `через ${n} дн.` : `${-n} дн. назад`;
-  const lines: string[] = [`Сводка на ${day}, ${WEEKDAYS[weekday(day)]} (${rel}; сегодня ${today}).`];
+  const rel = n > 1 ? `через ${n} дн.` : n < -1 ? `${-n} дн. назад` : dayWord(day, today);
+  // Без слова «сегодня» в фактах: модель путала, о каком дне речь.
+  const lines: string[] = [`День сводки: ${day}, ${WEEKDAYS[weekday(day)]} (${rel}). Называй его «${dayWord(day, today)}».`];
   const s = readSettings(d, userId);
   const w = s.city && n >= 0 ? await cachedWeather(s).catch(() => null) : null;
   const f = w?.days.find((x) => x.day === day);
@@ -87,13 +115,18 @@ async function otherDayFacts(d: Database.Database, userId: string, day: string, 
 /** Сводка дня 3–5 предложениями — на главной (на любой выбранный день) и утренним push. */
 export async function daySummary(d: Database.Database, userId: string, day: string, today = day): Promise<string> {
   const facts = await dayFacts(d, userId, day, today);
+  const word = dayWord(day, today);
   const raw = await askJson(d, userId, {
     system:
       'Ты — помощник в приложении LifeDashboard. По фактам о дне человека напиши короткую сводку на этот день на русском: 3–5 предложений, ' +
       'по делу, дружелюбно, без приветствий и без выдумок — только то, что есть в фактах. Сначала главное (сроки, просроченное, что нужно взять с собой из-за погоды), ' +
-      'потом остальное. Если дел нет — так и скажи коротко. Ответ строго JSON: {"text":"..."}',
+      `потом остальное. Если дел нет — так и скажи коротко. О дне сводки говори «${word}»` +
+      (word === 'сегодня' ? '.' : word === 'завтра' ? ' — не «сегодня».' : ' — никогда не пиши «сегодня» или «завтра»: это другой день.') +
+      ' Ответ строго JSON: {"text":"..."}',
     user: facts,
     maxTokens: 500,
   });
-  return parseText(raw, 700) ?? (day === today ? 'Сегодня ничего важного — хорошего дня!' : 'В этот день ничего не запланировано.');
+  const text = parseText(raw, 700);
+  if (!text) return day === today ? 'Сегодня ничего важного — хорошего дня!' : `${word.charAt(0).toUpperCase() + word.slice(1)} ничего не запланировано.`;
+  return fixDayWords(text, day, today);
 }

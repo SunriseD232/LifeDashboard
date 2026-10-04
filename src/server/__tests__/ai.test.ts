@@ -11,6 +11,7 @@ const { setAiTransport } = await import('../ai');
 const { ai } = await import('../api/ai');
 const { support } = await import('../api/support');
 const { kitchen } = await import('../api/kitchen');
+const { dayWord, fixDayWords } = await import('../summary');
 import type { Ctx } from '../http';
 
 function setup() {
@@ -63,6 +64,25 @@ describe('ИИ', () => {
     expect(facts).toContain('Дела со сроком в этот день (1): Сдать паспорт');
     // Сегодняшнее — только как «до этого дня ещё сроки», не как дело того дня.
     expect(facts).toContain('До этого дня ещё сроки: Сегодняшнее');
+  });
+
+  it('день в сводке называется правильно, «сегодня» про другой день исправляется', async () => {
+    expect(dayWord('2026-10-04', '2026-10-04')).toBe('сегодня');
+    expect(dayWord('2026-10-05', '2026-10-04')).toBe('завтра');
+    expect(dayWord('2026-10-18', '2026-10-04')).toBe('в воскресенье, 18 октября');
+    expect(fixDayWords('Сегодня две встречи, а сегодня вечером бассейн.', '2026-10-18', '2026-10-04')).toBe(
+      'В воскресенье, 18 октября две встречи, а в воскресенье, 18 октября вечером бассейн.',
+    );
+    expect(fixDayWords('Сегодня отчёт.', '2026-10-05', '2026-10-04')).toBe('Завтра отчёт.');
+    expect(fixDayWords('Сегодня отчёт, завтра врач.', '2026-10-04', '2026-10-04')).toBe('Сегодня отчёт, завтра врач.');
+    // В запросе к модели — как называть день, и нет слова «сегодня» в фактах.
+    const d = setup();
+    replies.push('{"text":"Сегодня две встречи."}');
+    const r = (await call(ai, d, 'me', 'POST', ['summary'], { today: '2026-10-04', day: '2026-10-18' })) as { text: string };
+    expect(r.text).toBe('В воскресенье, 18 октября две встречи.');
+    const req = asked[0] as { system: string; user: string };
+    expect(req.system).toContain('«в воскресенье, 18 октября»');
+    expect(req.user).not.toMatch(/сегодня/i);
   });
 
   it('пустой разбор — понятная ошибка, а не пустой экран', async () => {
