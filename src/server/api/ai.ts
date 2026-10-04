@@ -136,8 +136,12 @@ export async function ai({ d, userId, method, body, id }: Ctx): Promise<unknown>
     }
 
     // ---- сводка дня ----
-    case 'summary':
-      return { text: await daySummary(d, userId, today(body.today)) };
+    case 'summary': {
+      // day — день, выбранный в календаре на Главной; без него — сегодня.
+      const now = today(body.today);
+      const day = typeof body.day === 'string' && DAY_RE.test(body.day) ? body.day : now;
+      return { text: await daySummary(d, userId, day, now) };
+    }
 
     // ---- совет по упражнению ----
     case 'workout-advice': {

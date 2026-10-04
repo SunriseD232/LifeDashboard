@@ -2435,3 +2435,10 @@ mark {
 .week-strip .cal-day {
   min-height: 48px;
 }
+/* календарь на Главной (компьютер) */
+.home-cal .week-strip {
+  margin-bottom: 4px;
+}
+.home-cal .phone-list .group-title {
+  padding-top: 4px;
+}

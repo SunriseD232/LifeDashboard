@@ -251,8 +251,21 @@ function AddOnDay({ day, today, onClose }: { day: string; today: string; onClose
  * Лента недели для Главной на телефоне: 7 дней с точками, ‹ › — соседние
  * недели, стрелка вниз — весь месяц. Нажали день — onPick.
  */
-export function WeekStrip({ sel, today, onPick, dots }: { sel: string; today: string; onPick: (day: string) => void; dots: (day: string) => AgendaItem[] }) {
-  const [month, setMonth] = useState<string | null>(null);
+export function WeekStrip({
+  sel,
+  today,
+  onPick,
+  dots,
+  alwaysMonth = false,
+}: {
+  sel: string;
+  today: string;
+  onPick: (day: string) => void;
+  dots: (day: string) => AgendaItem[];
+  /** Сразу месяц, без сворачивания в неделю (на компьютере места хватает). */
+  alwaysMonth?: boolean;
+}) {
+  const [month, setMonth] = useState<string | null>(alwaysMonth ? firstOfMonth(sel) : null);
   const start = mondayOf(sel);
   const rows = month ? monthGrid(month) : [Array.from({ length: 7 }, (_, i) => addDays(start, i))];
   const shift = (n: number) => (month ? setMonth(shiftMonth(month, n)) : onPick(addDays(sel, n * 7)));
@@ -266,9 +279,11 @@ export function WeekStrip({ sel, today, onPick, dots }: { sel: string; today: st
         <button className="icon-btn bare" type="button" aria-label={month ? 'Следующий месяц' : 'Следующая неделя'} onClick={() => shift(1)} style={{ transform: 'scaleX(-1)' }}>
           <Icon name="back" size={16} />
         </button>
-        <button className="icon-btn bare" type="button" aria-expanded={!!month} aria-label={month ? 'Свернуть до недели' : 'Показать месяц'} onClick={() => setMonth(month ? null : firstOfMonth(sel))}>
-          <Icon name={month ? 'up' : 'down'} size={16} />
-        </button>
+        {!alwaysMonth && (
+          <button className="icon-btn bare" type="button" aria-expanded={!!month} aria-label={month ? 'Свернуть до недели' : 'Показать месяц'} onClick={() => setMonth(month ? null : firstOfMonth(sel))}>
+            <Icon name={month ? 'up' : 'down'} size={16} />
+          </button>
+        )}
       </div>
       <div className="cal-grid" role="grid">
         {WEEK.map((w) => (
@@ -290,7 +305,7 @@ export function WeekStrip({ sel, today, onPick, dots }: { sel: string; today: st
               aria-label={`${dayHead(day, today)}${items.length ? `, дел: ${items.length}` : ''}`}
               onClick={() => {
                 onPick(day);
-                setMonth(null);
+                setMonth(alwaysMonth ? firstOfMonth(day) : null);
               }}
             >
               <span className="cal-num">{Number(day.slice(8))}</span>

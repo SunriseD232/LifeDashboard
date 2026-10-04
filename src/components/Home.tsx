@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
-import { shortDate, sortUrgent } from '@/lib/tasks';
+import { shortDate } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 import { duration, plannedFor, setLabel } from '@/lib/workouts';
 import { useApp } from './AppShell';
@@ -14,7 +14,7 @@ import { Icon } from './icons';
 import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
 import { AddTask, TaskRow } from './Tasks';
-import { QuickAdd, SummaryCard } from './Ai';
+import { QuickAdd } from './Ai';
 import { WeatherCard, WeatherLine } from './Weather';
 import { useIsPhone } from './Phone';
 import Swipe from './Swipe';
@@ -29,11 +29,14 @@ import { useGym } from './Workouts';
  * ближайшие сроки, погода, чек-листы. Карточки кухни, тренировок и заметок
  * появятся вместе с разделами.
  */
+const asShort = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+
 export default function Home() {
   const { data, mutate, now, setOpenList, toast } = useApp();
   const router = useRouter();
   const phone = useIsPhone();
-  const [summary, setSummary] = useState<string | null>(null);
+  // Сводка — на выбранный в календаре день; сменили день — показываем свою.
+  const [summary, setSummary] = useState<{ day: string; text: string } | null>(null);
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [pickedDay, setPickedDay] = useState<string | null>(null);
 
@@ -48,8 +51,6 @@ export default function Home() {
   const greeting = hour < 5 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
   const today = localDay(now);
   const todays = occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed);
-  // Дела на сегодня: просроченные, со сроком сегодня и без срока.
-  const urgent = sortUrgent(data.tasks.filter((t) => !t.done_at && (t.due_date === null || t.due_date <= today)));
   const upcoming = data.tasks
     .filter((t) => !t.done_at && t.due_date !== null && t.due_date > today)
     .sort((a, b) => a.due_date!.localeCompare(b.due_date!))
@@ -71,63 +72,6 @@ export default function Home() {
     setOpenList(id);
     router.push('/lists');
   };
-
-  const urgentCard = (
-    <section className="card" aria-labelledby="home-urgent">
-      <div className="card-head">
-        <h2 className="card-title display" id="home-urgent">
-          <Icon name="tasks" />
-          Дела на сегодня
-        </h2>
-        <Link className="card-link" href="/tasks">
-          Все дела <Icon name="arrow" size={16} />
-        </Link>
-      </div>
-      {urgent.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня дел нет.</p>
-      ) : (
-        <div>
-          {urgent.slice(0, 6).map((t) => (
-            <TaskRow key={t.id} task={t} />
-          ))}
-          {urgent.length > 6 && (
-            <Link className="card-link" href="/tasks" style={{ marginLeft: 0, marginTop: 8 }}>
-              Ещё {urgent.length - 6} <Icon name="arrow" size={16} />
-            </Link>
-          )}
-        </div>
-      )}
-    </section>
-  );
-
-  const todayCard = (
-    <section className="card" aria-labelledby="home-today">
-      <div className="card-head">
-        <h2 className="card-title display" id="home-today">
-          <Icon name="bell" />
-          Сегодня
-        </h2>
-        <Link className="card-link" href="/tasks">
-          Напоминания <Icon name="arrow" size={16} />
-        </Link>
-      </div>
-      {todays.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)' }}>Напоминаний на сегодня нет.</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {todays.map((o) => (
-            <label key={o.key} className={`check${o.done ? ' done' : ''}`}>
-              <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
-              <span className="mono" style={{ fontWeight: 500, width: 48, flex: 'none' }}>
-                {o.snoozedTo ?? o.slot}
-              </span>
-              <span className="check-text">{o.reminder.title}</span>
-            </label>
-          ))}
-        </div>
-      )}
-    </section>
-  );
 
   const deadlinesCard = (
     <section className="card" aria-labelledby="home-deadlines">
@@ -307,30 +251,90 @@ export default function Home() {
     </section>
   );
 
+  // ---------------------------------------------------------------- календарь
+  // Лента недели (на компьютере — месяц); под ней — дела выбранного дня.
+  // Сегодня — с галочками (просроченное, напоминания по времени, дела);
+  // другой день — что на него запланировано. Сводка — на выбранный день.
+const day = pickedDay ?? today;
+const doneSet = new Set(data.done);
+const dots = (d: string) => agendaFor(d, data.tasks, data.reminders, today, doneSet);
+const groups = timeline(data.tasks, data.reminders, today, doneSet, data.snoozed);
+const todayRows = groups.filter((g) => g.id === 'overdue' || g.id === 'today').flatMap((g) => g.rows);
+const undated = groups.find((g) => g.id === 'none')?.rows.length ?? 0;
+const remRow = (o: (typeof todays)[number]) => (
+  <Swipe key={o.key} onRight={o.done ? undefined : () => toggle(o.reminder, o.slot, true)}>
+  <label className={`check round${o.done ? ' done' : ''}`}>
+    <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
+    <span className="check-text" style={{ flex: 1 }}>{o.reminder.title}</span>
+    <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', flex: 'none' }}>
+      {o.snoozedTo ?? o.slot}
+    </span>
+  </label>
+  </Swipe>
+);
+const otherDay = day === today ? [] : dots(day);
+
+  const makeSummary = async () => {
+    setSummaryBusy(true);
+    try {
+      const r = await api<{ text: string }>('ai/summary', 'POST', { today, day });
+      setSummary({ day, text: r.text });
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setSummaryBusy(false);
+    }
+  };
+  const summaryFor = summary?.day === day ? summary.text : null;
+  const dayList = (
+    <section aria-labelledby="home-day" className="phone-list">
+      <h2 className="group-title" id="home-day">
+        {dayHead(day, today)}
+      </h2>
+      {day === today ? (
+        todayRows.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня ничего — можно выдохнуть.</p>
+        ) : (
+          todayRows.map((r) => (r.kind === 'rem' ? remRow(r.occ) : <TaskRow key={r.key} task={r.task} hideDue={r.task.due_date === today} />))
+        )
+      ) : otherDay.length === 0 ? (
+        <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>
+      ) : (
+        otherDay.map((i) => (
+          <Link key={i.key} href={i.kind === 'task' ? `/tasks?open=${i.id}` : `/tasks?edit=${i.id}`} className="cal-item">
+            <Icon name={i.kind === 'task' ? 'tasks' : 'bell'} size={16} />
+            <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.title}</span>
+            <span className="mono cal-time" style={{ textAlign: 'right' }}>
+              {i.time ?? ''}
+            </span>
+          </Link>
+        ))
+      )}
+      {day === today && undated > 0 && (
+        <Link className="card-link" href="/tasks" style={{ marginLeft: 0, padding: '10px 0' }}>
+          Без срока: {undated} <Icon name="arrow" size={16} />
+        </Link>
+      )}
+    </section>
+  );
+  const summaryBlock =
+    data.ai &&
+    (summaryFor ? (
+      <div className="phone-summary">
+        <p style={{ margin: 0, lineHeight: 1.55 }}>{summaryFor}</p>
+      </div>
+    ) : (
+      <AiButton busy={summaryBusy} onClick={makeSummary} style={{ marginTop: 16, alignSelf: 'flex-start' }}>
+        {day === today ? 'Сводка дня' : `Сводка на ${asShort(day)}`}
+      </AiButton>
+    ));
+  const pick = (d: string) => setPickedDay(d === today ? null : d);
+
   if (phone) {
     // ---------------------------------------------------------------- телефон
     // Лента недели сверху; под ней — дела выбранного дня. Сегодня — с
     // галочками (просроченное, напоминания по времени, дела); другой день —
     // что на него запланировано. Остальное — плитками, если есть что показать.
-    const day = pickedDay ?? today;
-    const doneSet = new Set(data.done);
-    const dots = (d: string) => agendaFor(d, data.tasks, data.reminders, today, doneSet);
-    const groups = timeline(data.tasks, data.reminders, today, doneSet, data.snoozed);
-    const todayRows = groups.filter((g) => g.id === 'overdue' || g.id === 'today').flatMap((g) => g.rows);
-    const undated = groups.find((g) => g.id === 'none')?.rows.length ?? 0;
-    const remRow = (o: (typeof todays)[number]) => (
-      <Swipe key={o.key} onRight={o.done ? undefined : () => toggle(o.reminder, o.slot, true)}>
-      <label className={`check round${o.done ? ' done' : ''}`}>
-        <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
-        <span className="check-text" style={{ flex: 1 }}>{o.reminder.title}</span>
-        <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', flex: 'none' }}>
-          {o.snoozedTo ?? o.slot}
-        </span>
-      </label>
-      </Swipe>
-    );
-    const otherDay = day === today ? [] : dots(day);
-
     const inProgress = data.checklists
       .filter((c) => c.kind !== 'shopping')
       .map((c) => {
@@ -340,17 +344,6 @@ export default function Home() {
       .find((x) => x.got > 0 && x.got < x.total);
     const next = upcoming[0];
 
-    const makeSummary = async () => {
-      setSummaryBusy(true);
-      try {
-        setSummary((await api<{ text: string }>('ai/summary', 'POST', { today })).text);
-      } catch (e) {
-        toast((e as Error).message);
-      } finally {
-        setSummaryBusy(false);
-      }
-    };
-
     return (
       <>
         <div className="phone-hello">
@@ -359,37 +352,9 @@ export default function Home() {
         </div>
         {data.ai ? <QuickAdd plain /> : <AddTask />}
 
-        <WeekStrip sel={day} today={today} onPick={(d) => setPickedDay(d === today ? null : d)} dots={dots} />
+        <WeekStrip key="week" sel={day} today={today} onPick={pick} dots={dots} />
 
-        <section aria-labelledby="ph-day" className="phone-list">
-          <h2 className="group-title" id="ph-day">
-            {dayHead(day, today)}
-          </h2>
-          {day === today ? (
-            todayRows.length === 0 ? (
-              <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня ничего — можно выдохнуть.</p>
-            ) : (
-              todayRows.map((r) => (r.kind === 'rem' ? remRow(r.occ) : <TaskRow key={r.key} task={r.task} hideDue={r.task.due_date === today} />))
-            )
-          ) : otherDay.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>
-          ) : (
-            otherDay.map((i) => (
-              <Link key={i.key} href={i.kind === 'task' ? `/tasks?open=${i.id}` : `/tasks?edit=${i.id}`} className="cal-item">
-                <Icon name={i.kind === 'task' ? 'tasks' : 'bell'} size={16} />
-                <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.title}</span>
-                <span className="mono cal-time" style={{ textAlign: 'right' }}>
-                  {i.time ?? ''}
-                </span>
-              </Link>
-            ))
-          )}
-          {day === today && undated > 0 && (
-            <Link className="card-link" href="/tasks" style={{ marginLeft: 0, padding: '10px 0' }}>
-              Без срока: {undated} <Icon name="arrow" size={16} />
-            </Link>
-          )}
-        </section>
+        {dayList}
 
         <div className="tiles">
           {next && (
@@ -433,16 +398,7 @@ export default function Home() {
           )}
         </div>
 
-        {data.ai &&
-          (summary ? (
-            <div className="phone-summary">
-              <p style={{ margin: 0, lineHeight: 1.55 }}>{summary}</p>
-            </div>
-          ) : (
-            <AiButton busy={summaryBusy} onClick={makeSummary} style={{ marginTop: 16 }}>
-              Сводка дня
-            </AiButton>
-          ))}
+        {summaryBlock}
       </>
     );
   }
@@ -458,8 +414,11 @@ export default function Home() {
       {data.ai ? <QuickAdd plain /> : <AddTask />}
       <div className="home-cols">
         <div className="home-col">
-          {urgentCard}
-          {todayCard}
+          <section className="card home-cal" aria-label="Календарь">
+            <WeekStrip key="month" sel={day} today={today} onPick={pick} dots={dots} alwaysMonth />
+            {dayList}
+            {summaryBlock}
+          </section>
         </div>
         <div className="home-col">
           {deadlinesCard}
@@ -468,7 +427,6 @@ export default function Home() {
           {pinnedCard}
         </div>
         <div className="home-col">
-          <SummaryCard />
           <WeatherCard />
           {kitchenCard}
         </div>

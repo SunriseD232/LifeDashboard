@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { occurrencesOn } from '@/lib/occurrences';
-import { addDays, weekday } from '@/lib/recur';
+import { addDays, diffDays, weekday } from '@/lib/recur';
 import { bucket } from '@/lib/tasks';
 import { plannedFor } from '@/lib/workouts';
 import { readChecklists, readItems } from './checklistStore';
@@ -14,8 +14,14 @@ import { cachedWeather } from './api/weather';
 
 const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 
-/** Что сегодня — фактами, без ИИ: из этого модель пишет сводку. */
-export async function dayFacts(d: Database.Database, userId: string, day: string): Promise<string> {
+const ICON_WORD: Record<string, string> = { sun: 'ясно', partly: 'переменная облачность', cloud: 'облачно', rain: 'дождь', snow: 'снег', storm: 'гроза', fog: 'туман' };
+
+/**
+ * Что в этот день — фактами, без ИИ: из этого модель пишет сводку. day —
+ * выбранный день (на Главной можно выбрать в календаре), today — сегодня.
+ */
+export async function dayFacts(d: Database.Database, userId: string, day: string, today = day): Promise<string> {
+  if (day !== today) return otherDayFacts(d, userId, day, today);
   const lines: string[] = [`Сегодня ${day}, ${WEEKDAYS[weekday(day)]}.`];
   const s = readSettings(d, userId);
   const w = s.city ? await cachedWeather(s).catch(() => null) : null;
@@ -53,16 +59,41 @@ export async function dayFacts(d: Database.Database, userId: string, day: string
   return lines.join('\n');
 }
 
-/** Сводка дня 3–5 предложениями — на главной и утренним push. */
-export async function daySummary(d: Database.Database, userId: string, day: string): Promise<string> {
-  const facts = await dayFacts(d, userId, day);
+/** Другой день (вчера, завтра, через неделю): его сроки, напоминания и прогноз. */
+async function otherDayFacts(d: Database.Database, userId: string, day: string, today: string): Promise<string> {
+  const n = diffDays(today, day);
+  const rel = n === 1 ? 'завтра' : n === -1 ? 'вчера' : n > 0 ? `через ${n} дн.` : `${-n} дн. назад`;
+  const lines: string[] = [`Сводка на ${day}, ${WEEKDAYS[weekday(day)]} (${rel}; сегодня ${today}).`];
+  const s = readSettings(d, userId);
+  const w = s.city && n >= 0 ? await cachedWeather(s).catch(() => null) : null;
+  const f = w?.days.find((x) => x.day === day);
+  if (f) lines.push(`Прогноз (${w!.city}): от ${f.min}° до ${f.max}°, ${ICON_WORD[f.icon] ?? 'без осадков'}.`);
+
+  const { tasks } = readTasks(d, userId, today);
+  const due = tasks.filter((t) => !t.done_at && t.due_date === day);
+  if (due.length) lines.push(`Дела со сроком в этот день (${due.length}): ${due.slice(0, 8).map((t) => t.title).join('; ')}.`);
+  if (n > 0) {
+    const before = tasks.filter((t) => !t.done_at && t.due_date && t.due_date >= today && t.due_date < day);
+    if (before.length) lines.push(`До этого дня ещё сроки: ${before.slice(0, 5).map((t) => `${t.title} — ${t.due_date}`).join('; ')}.`);
+  }
+  const occ = occurrencesOn(readReminders(d, userId), day);
+  if (occ.length) lines.push(`Напоминания в этот день: ${occ.map((o) => `${o.slot} ${o.reminder.title}`).join('; ')}.`);
+  const plan = plannedFor(readTemplates(d, userId), day);
+  if (plan) lines.push(`По плану тренировка: ${plan.title}.`);
+  if (lines.length === 1) lines.push('Ничего не запланировано.');
+  return lines.join('\n');
+}
+
+/** Сводка дня 3–5 предложениями — на главной (на любой выбранный день) и утренним push. */
+export async function daySummary(d: Database.Database, userId: string, day: string, today = day): Promise<string> {
+  const facts = await dayFacts(d, userId, day, today);
   const raw = await askJson(d, userId, {
     system:
-      'Ты — помощник в приложении LifeDashboard. По фактам о дне человека напиши короткую утреннюю сводку на русском: 3–5 предложений, ' +
+      'Ты — помощник в приложении LifeDashboard. По фактам о дне человека напиши короткую сводку на этот день на русском: 3–5 предложений, ' +
       'по делу, дружелюбно, без приветствий и без выдумок — только то, что есть в фактах. Сначала главное (сроки, просроченное, что нужно взять с собой из-за погоды), ' +
       'потом остальное. Если дел нет — так и скажи коротко. Ответ строго JSON: {"text":"..."}',
     user: facts,
     maxTokens: 500,
   });
-  return parseText(raw, 700) ?? 'Сегодня ничего важного — хорошего дня!';
+  return parseText(raw, 700) ?? (day === today ? 'Сегодня ничего важного — хорошего дня!' : 'В этот день ничего не запланировано.');
 }
