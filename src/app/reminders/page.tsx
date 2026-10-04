@@ -1,23 +1,18 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useApp } from '@/components/AppShell';
-import Reminders from '@/components/Reminders';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
 
+/**
+ * «Напоминания» теперь внутри «Дел». Старые адреса (в том числе из уже
+ * присланных push: ?focus=…, из поиска: ?edit=…) ведут туда же.
+ */
 export default function RemindersPage() {
-  const { data, mutate, reload, now, setOpenList, toast } = useApp();
   const router = useRouter();
-  return (
-    <Reminders
-      data={data}
-      mutate={mutate}
-      reload={reload}
-      now={now}
-      toast={toast}
-      onOpenChecklist={(id) => {
-        setOpenList(id);
-        router.push('/lists');
-      }}
-    />
-  );
+  const params = useSearchParams();
+  useEffect(() => {
+    const q = params.toString();
+    router.replace(q ? `/tasks?${q}` : '/tasks');
+  }, [router, params]);
+  return null;
 }

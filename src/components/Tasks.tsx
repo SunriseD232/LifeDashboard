@@ -1,16 +1,21 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { localDay, plural } from '@/lib/dates';
-import { addDays, describe, type Rule } from '@/lib/recur';
-import { bucket, dueLabel, firstDue, groupLater, nextDue, shortDate, sortUrgent, type Task } from '@/lib/tasks';
+import { localDay } from '@/lib/dates';
+import { addDays, describe, dueDay, type Rule } from '@/lib/recur';
+import { dueLabel, firstDue, nextDue, shortDate, type Task } from '@/lib/tasks';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
-import { PhoneForm } from './Phone';
+import { Fab, Sheet, useIsPhone } from './Phone';
+import Empty from './Empty';
+import Reminders from './Reminders';
+import { useReminderActions } from './reminderActions';
+import { timeline, type Row } from '@/lib/timeline';
 import Swipe from './Swipe';
 
 // ---------------------------------------------------------------- действия
@@ -68,7 +73,7 @@ export function useTaskActions() {
 
 const TONE: Record<string, string> = { danger: 'chip-danger', warm: 'chip-warm', muted: '' };
 
-export function TaskRow({ task, onOpen, showDate = false }: { task: Task; onOpen?: (t: Task) => void; showDate?: boolean }) {
+export function TaskRow({ task, onOpen, showDate = false, hideDue = false }: { task: Task; onOpen?: (t: Task) => void; showDate?: boolean; hideDue?: boolean }) {
   const { complete, undo, tomorrow, remove, today } = useTaskActions();
   const done = !!task.done_at;
   const due = dueLabel(task.due_date, today);
@@ -107,7 +112,7 @@ export function TaskRow({ task, onOpen, showDate = false }: { task: Task; onOpen
               <Icon name="users" size={12} /> {task.author ?? 'общее'}
             </span>
           )}
-          {!showDate && due && !done && <span className={`chip ${TONE[due.tone]}`}>{due.text}</span>}
+          {!showDate && !hideDue && due && !done && <span className={`chip ${TONE[due.tone]}`}>{due.text}</span>}
         </span>
       </label>
       {onOpen && (
@@ -171,6 +176,9 @@ interface Draft {
   tag: string;
   shared: boolean;
   note: string;
+  /** Напомнить в это время (push) — тогда сохраняется напоминание, а не дело. */
+  remind: boolean;
+  time: string;
 }
 
 function draftOf(t: Task | null, today: string): Draft {
@@ -184,6 +192,9 @@ function draftOf(t: Task | null, today: string): Draft {
     tag: t?.tag ?? '',
     shared: !!t?.household_id,
     note: t?.note ?? '',
+    remind: false,
+    // Ближайший целый час — чтобы напоминание не оказалось в прошлом.
+    time: `${String(Math.min(23, new Date().getHours() + 1)).padStart(2, '0')}:00`,
   };
 }
 
@@ -194,7 +205,7 @@ function bodyOf(d: Draft, today: string) {
   return { title: d.title.trim(), due_date: due, rule, tag: d.tag.trim() || null, shared: d.shared, note: d.note.trim() || null };
 }
 
-function Fields({ d, set, tags, canShare, today, compact }: { d: Draft; set: (d: Draft) => void; tags: string[]; canShare: boolean; today: string; compact?: boolean }) {
+function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Draft; set: (d: Draft) => void; tags: string[]; canShare: boolean; today: string; compact?: boolean; allowRemind?: boolean }) {
   return (
     <div className="task-fields" data-compact={compact ? 'true' : undefined}>
       {d.dated && (
@@ -205,12 +216,21 @@ function Fields({ d, set, tags, canShare, today, compact }: { d: Draft; set: (d:
             </label>
             <input id="t-due" className="field" type="date" min={today} value={d.due} onChange={(e) => e.target.value && set({ ...d, due: e.target.value })} />
           </div>
+          {allowRemind && (
+            <div className="fld">
+              <label className="check" style={{ padding: 0, minHeight: 24 }}>
+                <input type="checkbox" checked={d.remind} onChange={(e) => set({ ...d, remind: e.target.checked, repeat: d.repeat === 'after' ? 'none' : d.repeat })} />
+                <span className="check-text label">Напомнить в</span>
+              </label>
+              <input className="field mono" type="time" aria-label="Время напоминания" disabled={!d.remind} value={d.time} onChange={(e) => e.target.value && set({ ...d, time: e.target.value })} />
+            </div>
+          )}
           <div className="fld">
             <label className="label" htmlFor="t-rep">
               Повтор
             </label>
             <select id="t-rep" className="field" value={d.repeat} onChange={(e) => set({ ...d, repeat: e.target.value as RepeatId })}>
-              {REPEATS.map((r) => (
+              {REPEATS.filter((r) => !(d.remind && r.id === 'after')).map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.label}
                 </option>
@@ -227,6 +247,7 @@ function Fields({ d, set, tags, canShare, today, compact }: { d: Draft; set: (d:
           )}
         </>
       )}
+      {!d.remind && (
       <div className="fld">
         <label className="label" htmlFor="t-tag">
           Метка
@@ -238,7 +259,8 @@ function Fields({ d, set, tags, canShare, today, compact }: { d: Draft; set: (d:
           ))}
         </datalist>
       </div>
-      {canShare && (
+      )}
+      {canShare && !d.remind && (
         <label className="check" style={{ alignSelf: 'flex-end' }}>
           <input type="checkbox" checked={d.shared} onChange={(e) => set({ ...d, shared: e.target.checked })} />
           <span className="check-text">Общее для семьи</span>
@@ -252,8 +274,7 @@ function WhenSeg({ dated, set }: { dated: boolean; set: (v: boolean) => void }) 
   return (
     <div className="tabs-row" role="group" aria-label="Когда">
       <button type="button" aria-pressed={!dated} onClick={() => set(false)}>
-        <Icon name="flame" size={16} />
-        Срочно
+        Без срока
       </button>
       <button type="button" aria-pressed={dated} onClick={() => set(true)}>
         <Icon name="calendar" size={16} />К дате
@@ -275,10 +296,14 @@ export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; on
     if (!d.title.trim()) return;
     setBusy(true);
     try {
-      await api('tasks', 'POST', bodyOf(d, today));
+      if (d.dated && d.remind) {
+        // Со временем — это напоминание: придёт push.
+        const rule = ruleOf(d.repeat, d.n, d.due < today ? today : d.due) ?? { kind: 'once', date: d.due < today ? today : d.due };
+        await api('reminders', 'POST', { title: d.title.trim(), times: [d.time], rule, checklist_id: null });
+      } else await api('tasks', 'POST', bodyOf(d, today));
       await reload();
       setD({ ...draftOf(null, today), dated: d.dated, due: d.due });
-      toast('Дело добавлено');
+      toast(d.dated && d.remind ? `Напомню в ${d.time}` : 'Дело добавлено');
       onDone?.();
     } catch (err) {
       toast((err as Error).message);
@@ -309,7 +334,16 @@ export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; on
           <span className="btn-text">Добавить</span>
         </button>
       </div>
-      {(d.dated || d.title) && <Fields d={d} set={setD} tags={tags} canShare={!!data.household} today={today} compact />}
+      {(d.dated || d.title) && <Fields d={d} set={setD} tags={tags} canShare={!!data.household} today={today} compact allowRemind />}
+      {d.dated && d.remind && (
+        <Link
+          className="add-line"
+          style={{ padding: 0 }}
+          href={`/tasks?new=1&title=${encodeURIComponent(d.title)}&date=${d.due}&time=${d.time}`}
+        >
+          Больше настроек: несколько времён, чек-лист, повтор, если не отметили
+        </Link>
+      )}
     </form>
   );
 }
@@ -405,15 +439,22 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
 // ---------------------------------------------------------------- экран
 
 /**
- * Дела: «Срочно» (без даты, а также сегодня, завтра и просроченное) и «С
- * датами — позже», по группам сроков. На телефоне колонки — вкладками.
+ * «Дела» — дела и напоминания одним списком по дням: просрочено, сегодня,
+ * завтра, позже, без срока (src/lib/timeline.ts). Срок у дела — по желанию;
+ * указали время — придёт push. «Быт по кругу» и все повторы — фильтрами
+ * сверху; их списки, форма напоминания и окно по нажатию на push — из
+ * src/components/Reminders.tsx во встроенном режиме.
  */
 export default function Tasks() {
-  const { data, now } = useApp();
+  const { data, now, setOpenList, mutate, reload, toast } = useApp();
   const { undo } = useTaskActions();
+  const rem = useReminderActions();
+  const router = useRouter();
+  const phone = useIsPhone();
   const today = localDay(now);
   const [open, setOpen] = useState<Task | null>(null);
-  const [col, setCol] = useState<'urgent' | 'later'>('urgent');
+  const [adding, setAdding] = useState(false);
+  const [view, setView] = useState<'all' | 'chores' | 'repeat'>('all');
   const [tag, setTag] = useState<string | null>(null);
   const params = useSearchParams();
 
@@ -425,13 +466,63 @@ export default function Tasks() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
-  const all = data.tasks.filter((t) => !tag || t.tag === tag);
-  const urgent = sortUrgent(all.filter((t) => bucket(t, today) === 'urgent'));
-  const later = groupLater(all.filter((t) => bucket(t, today) === 'later'), today);
-  const laterCount = later.reduce((n, g) => n + g.tasks.length, 0);
-  const doneToday = all.filter((t) => data.tasksDoneToday.includes(t.id) && bucket(t, today) === 'done');
-  const repeatedToday = all.filter((t) => data.tasksDoneToday.includes(t.id) && bucket(t, today) !== 'done');
+  const tasks = data.tasks.filter((t) => !tag || t.tag === tag);
+  const groups = timeline(tasks, tag ? [] : data.reminders, today, new Set(data.done), data.snoozed);
+  const doneToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && t.done_at);
+  const repeatedToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && !t.done_at);
   const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])].sort();
+  const editReminder = (id: string) => router.replace(`/tasks?edit=${encodeURIComponent(id)}`);
+  const show = (v: 'all' | 'chores' | 'repeat', t: string | null = null) => {
+    setView(v);
+    setTag(t);
+  };
+
+  const remRow = (row: Extract<Row, { kind: 'rem' }>, group: string) => {
+    const o = row.occ;
+    const r = o.reminder;
+    const isToday = group === 'today';
+    const overdue = isToday && r.rule.kind === 'after' && !o.done && today > dueDay(r.rule, r.last_done);
+    return (
+      <Swipe
+        key={row.key}
+        onRight={isToday && !o.done ? () => rem.done(r, o.slot, true) : undefined}
+        actions={[
+          ...(isToday && !o.done ? [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => rem.snooze(o, 60) }] : []),
+          { label: 'Изменить', icon: 'edit', onClick: () => editReminder(r.id) },
+        ]}
+      >
+        <div className="task-row">
+          {isToday ? (
+            <label className={`check round${o.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+              <input type="checkbox" checked={o.done} onChange={(e) => rem.done(r, o.slot, e.target.checked)} aria-label={r.title} />
+              <span className="check-text">
+                {r.title}
+                {overdue && (
+                  <span className="chip chip-danger" style={{ marginLeft: 6 }}>
+                    давно пора
+                  </span>
+                )}
+              </span>
+            </label>
+          ) : (
+            <button type="button" className="check future" style={{ flex: 1, minWidth: 0 }} onClick={() => editReminder(r.id)}>
+              <span className="future-dot" aria-hidden="true">
+                <Icon name="bell" size={14} />
+              </span>
+              <span className="check-text">{r.title}</span>
+            </button>
+          )}
+          <span className="row-meta">
+            {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
+            {group === 'later' && <span>{shortDate(row.date, today)} ·</span>}
+            <span className="mono">{row.time}</span>
+          </span>
+        </div>
+      </Swipe>
+    );
+  };
+
+  const totalOpen = groups.reduce((n, g) => n + g.rows.length, 0);
 
   return (
     <>
@@ -439,61 +530,52 @@ export default function Tasks() {
         <h1 className="h1 display" style={{ flex: 1 }}>
           Дела
         </h1>
-        {tags.length > 0 && (
-          <div role="group" aria-label="Метки" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <button className="chip" type="button" aria-pressed={!tag} onClick={() => setTag(null)}>
-              Все
-            </button>
-            {tags.map((t) => (
-              <button key={t} className="chip" type="button" aria-pressed={tag === t} onClick={() => setTag(tag === t ? null : t)}>
-                {t}
-              </button>
-            ))}
-          </div>
+        {!phone && (
+          <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={18} />
+            Новое дело
+          </button>
         )}
       </div>
 
-      <PhoneForm title="Новое дело" fab="Новое дело" render={(done, inSheet) => <AddTask autoFocus={inSheet} onDone={inSheet ? done : undefined} />} />
-
-      <div className="tabs-row only-mobile-flex" role="group" aria-label="Список" style={{ marginTop: 16 }}>
-        <button type="button" aria-pressed={col === 'urgent'} onClick={() => setCol('urgent')}>
-          <Icon name="flame" size={16} />
-          Срочно · {urgent.length}
+      <div className="chip-scroll" role="group" aria-label="Что показать" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+        <button className="chip" type="button" aria-pressed={view === 'all' && !tag} onClick={() => show('all')}>
+          Всё
         </button>
-        <button type="button" aria-pressed={col === 'later'} onClick={() => setCol('later')}>
-          <Icon name="calendar" size={16} />
-          Позже · {laterCount}
+        <button className="chip" type="button" aria-pressed={view === 'chores'} onClick={() => show('chores')}>
+          Быт по кругу
         </button>
+        <button className="chip" type="button" aria-pressed={view === 'repeat'} onClick={() => show('repeat')}>
+          Повторы
+        </button>
+        {tags.map((t) => (
+          <button key={t} className="chip" type="button" aria-pressed={view === 'all' && tag === t} onClick={() => show('all', tag === t ? null : t)}>
+            #{t}
+          </button>
+        ))}
       </div>
 
-      <div className="tasks-grid" data-col={col}>
-        <section className="card urgent-col" aria-labelledby="urgent-title" style={{ borderColor: 'var(--danger-line)' }}>
-          <div className="card-head hide-phone">
-            <h2 className="card-title display" id="urgent-title" style={{ color: 'var(--danger)' }}>
-              <Icon name="flame" />
-              Срочно
-            </h2>
-            <span className="card-link" style={{ color: 'var(--muted)', fontWeight: 500 }}>
-              {plural(urgent.length, 'дело', 'дела', 'дел')}
-            </span>
-          </div>
-          <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Без даты — сделать как можно скорее. Сюда же переезжают дела за день до срока.
-          </p>
-          {urgent.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>Срочного нет — можно выдохнуть.</p>
-          ) : (
-            <div>
-              {urgent.map((t) => (
-                <TaskRow key={t.id} task={t} onOpen={setOpen} />
-              ))}
-            </div>
-          )}
+      {view === 'all' && (
+        <div className="day-groups">
+          {totalOpen === 0 && doneToday.length === 0 && <Empty icon="tasks" title="Дел нет — можно выдохнуть" action="Добавить дело" onAction={() => setAdding(true)} />}
+          {groups.map((g) => (
+            <section key={g.id} aria-labelledby={`g-${g.id}`}>
+              <h2 className="group-title day-title" id={`g-${g.id}`} data-tone={g.id === 'overdue' ? 'danger' : undefined}>
+                {g.title}
+                <span className="day-count">{g.rows.length}</span>
+              </h2>
+              {g.rows.map((row) =>
+                row.kind === 'task' ? (
+                  <TaskRow key={row.key} task={row.task} onOpen={setOpen} showDate={g.id === 'later'} hideDue={g.id === 'today' || g.id === 'tomorrow'} />
+                ) : (
+                  remRow(row, g.id)
+                ),
+              )}
+            </section>
+          ))}
           {doneToday.length + repeatedToday.length > 0 && (
             <details>
-              <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>
-                Сделано сегодня · {doneToday.length + repeatedToday.length}
-              </summary>
+              <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length + repeatedToday.length}</summary>
               {doneToday.map((t) => (
                 <TaskRow key={t.id} task={t} />
               ))}
@@ -510,37 +592,30 @@ export default function Tasks() {
               ))}
             </details>
           )}
-        </section>
+        </div>
+      )}
 
-        <section className="card later-col" aria-labelledby="later-title">
-          <div className="card-head hide-phone">
-            <h2 className="card-title display" id="later-title">
-              <Icon name="calendar" />С датами — позже
-            </h2>
-            <span className="card-link" style={{ color: 'var(--muted)', fontWeight: 500 }}>
-              {plural(laterCount, 'дело', 'дела', 'дел')}
-            </span>
-          </div>
-          <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            За день до срока дело само переедет в «Срочно» и пришлёт напоминание в {data.settings.deadline_time}.
-          </p>
-          {later.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>
-          ) : (
-            later.map((g) => (
-              <div key={g.title}>
-                <h3 className="group-title" style={{ padding: '10px 0 4px' }}>
-                  {g.title}
-                </h3>
-                {g.tasks.map((t) => (
-                  <TaskRow key={t.id} task={t} onOpen={setOpen} showDate />
-                ))}
-              </div>
-            ))
-          )}
-        </section>
-      </div>
+      {/* Списки «Быт по кругу» / «Повторы» и окна напоминаний (правка, push, удаление). */}
+      <Reminders
+        data={data}
+        mutate={mutate}
+        reload={reload}
+        now={now}
+        toast={toast}
+        embedded={view === 'chores' ? 'chores' : view === 'repeat' ? 'all' : 'sheets'}
+        base="/tasks"
+        onOpenChecklist={(id) => {
+          setOpenList(id);
+          router.push('/lists');
+        }}
+      />
 
+      {phone && <Fab label="Новое дело" onClick={() => setAdding(true)} />}
+      {adding && (
+        <Sheet title="Новое дело" onClose={() => setAdding(false)}>
+          <AddTask autoFocus onDone={() => setAdding(false)} />
+        </Sheet>
+      )}
       {open && <EditDialog task={open} onClose={() => setOpen(null)} />}
     </>
   );

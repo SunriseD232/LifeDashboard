@@ -184,7 +184,7 @@ async function tick(): Promise<void> {
           tag: `${r.id}:${lp.day}:${o.slot}`,
           // Нажатие откроет это напоминание крупно — с кнопкой «Сделано»
           // (на iPhone кнопок в самом уведомлении нет).
-          url: `/task/reminders?focus=${encodeURIComponent(r.id)}&slot=${encodeURIComponent(o.slot)}`,
+          url: `/task/tasks?focus=${encodeURIComponent(r.id)}&slot=${encodeURIComponent(o.slot)}`,
           reminderId: r.id,
           day: lp.day,
           slot: o.slot,
@@ -204,7 +204,7 @@ async function tick(): Promise<void> {
           title: missed.length === 1 ? missed[0].reminder.title : `Не отмечено: ${plural(missed.length, 'напоминание', 'напоминания', 'напоминаний')}`,
           body: missed.length === 1 ? `${missed[0].slot} — было в тихие часы` : missed.map((o) => o.reminder.title).slice(0, 5).join(', '),
           tag: `quiet:${lp.day}`,
-          url: '/task/reminders',
+          url: '/task/tasks',
         });
       }
     }

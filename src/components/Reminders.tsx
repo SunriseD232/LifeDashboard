@@ -16,6 +16,7 @@ import { Icon } from './icons';
 import Empty from './Empty';
 import { Fab, Sheet, useIsPhone } from './Phone';
 import Swipe from './Swipe';
+import { useReminderActions } from './reminderActions';
 
 interface Props {
   data: AppData;
@@ -24,6 +25,14 @@ interface Props {
   now: Date;
   onOpenChecklist: (id: string) => void;
   toast: (m: string) => void;
+  /**
+   * Внутри раздела «Дела» (src/components/Tasks.tsx): без своего заголовка и
+   * вкладок — только выбранный список («Быт по кругу» или «Повторы») и окна:
+   * форма, напоминание по push, удаление. Форма — всегда в окне.
+   */
+  embedded?: 'chores' | 'all' | 'sheets';
+  /** Куда вернуться, закрыв окно (адрес раздела). */
+  base?: string;
 }
 
 type View = 'today' | 'chores' | 'all';
@@ -71,13 +80,14 @@ function whenLabel(day: string, today: string): string {
  * выполнения» с отсчётом до следующего раза, «Все» — полный список с
  * правилами. Справа (на телефоне — ниже) форма с редактором повтора.
  */
-export default function Reminders({ data, mutate, reload, now, onOpenChecklist, toast }: Props) {
+export default function Reminders({ data, mutate, reload, now, onOpenChecklist, toast, embedded, base = '/reminders' }: Props) {
   const [view, setView] = useState<View>('today');
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(now));
   const [formKey, setFormKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const phone = useIsPhone();
   const [sheet, setSheet] = useState(false);
+  const sheetMode = phone || !!embedded;
   const [confirm, setConfirm] = useState<Reminder | null>(null);
   const [chorePick, setChorePick] = useState<string[]>([]);
   const [addingChores, setAddingChores] = useState(false);
@@ -121,49 +131,13 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now]);
 
-  const setDone = (r: Reminder, slot: string, value: boolean) => {
-    const key = occurrenceKey(r.id, slot);
-    const after = r.rule.kind === 'after';
-    mutate(
-      (d) => ({
-        ...d,
-        done: value ? [...d.done.filter((x) => x !== key), key] : d.done.filter((x) => x !== key),
-        snoozed: value ? d.snoozed.filter((s) => !(s.reminder_id === r.id && s.slot === slot)) : d.snoozed,
-        reminders: after && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
-      }),
-      async () => {
-        await api(`reminders/${r.id}/done`, 'PUT', { day: today, slot, done: value });
-        // Сняли отметку у «после выполнения» — прошлую дату знает сервер.
-        if (after && !value) await reload();
-      },
-    );
-  };
-
-  const snooze = (o: Occurrence, minutes: number | null) => {
-    const at = minutes === null ? null : nowMin + minutes;
-    if (at !== null && at >= 24 * 60) {
-      toast('Сегодня уже не успеть — отложить можно только в пределах дня.');
-      return;
-    }
-    const atText = at === null ? null : hm(at);
-    mutate(
-      (d) => ({
-        ...d,
-        snoozed: [
-          ...d.snoozed.filter((s) => !(s.reminder_id === o.reminder.id && s.slot === o.slot)),
-          ...(atText ? [{ reminder_id: o.reminder.id, slot: o.slot, at: atText }] : []),
-        ],
-      }),
-      () => api(`reminders/${o.reminder.id}/snooze`, 'POST', { day: today, slot: o.slot, at: atText }),
-    );
-    if (atText) toast(`Напомним в ${atText}`);
-  };
+  const { done: setDone, snooze } = useReminderActions();
 
   const openForm = (d: Draft) => {
     setDraft(d);
     setFormKey((k) => k + 1);
     // На телефоне форма — в окне снизу (фокус ставит само окно).
-    if (phone) return setSheet(true);
+    if (sheetMode) return setSheet(true);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => titleRef.current?.focus(), 250);
   };
@@ -190,7 +164,19 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   const focusSlot = params.get('slot');
   const focus = focusId ? todays.find((o) => o.reminder.id === focusId && (!focusSlot || o.slot === focusSlot)) ?? todays.find((o) => o.reminder.id === focusId) : undefined;
   const focusReminder = focusId ? data.reminders.find((r) => r.id === focusId) : undefined;
-  const closeFocus = () => router.replace('/reminders');
+  const closeFocus = () => router.replace(base);
+
+  // «Больше настроек» из быстрой формы: ?new=1[&date=…&time=…&title=…] —
+  // открываем полную форму напоминания с тем, что уже ввели.
+  useEffect(() => {
+    if (!params.get('new')) return;
+    const date = params.get('date');
+    const time = params.get('time');
+    const d = emptyDraft(now, date && date >= today ? { kind: 'once', date } : undefined);
+    openForm({ ...d, title: params.get('title') ?? '', times: time ? [time] : d.times });
+    router.replace(base);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,6 +191,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       setDraft(emptyDraft(now));
       setFormKey((k) => k + 1);
       setSheet(false);
+      if (params.get('edit')) router.replace(base);
     } catch (err) {
       toast((err as Error).message);
     } finally {
@@ -555,8 +542,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   );
 
   const form = (
-    <form ref={formRef} className={phone ? undefined : 'panel'} style={{ padding: phone ? 0 : 24, display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={submit}>
-      {!phone && (
+    <form ref={formRef} className={sheetMode ? undefined : 'panel'} style={{ padding: sheetMode ? 0 : 24, display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={submit}>
+      {!sheetMode && (
         <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
           {draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
         </h2>
@@ -576,7 +563,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         />
       </div>
       <RuleEditor key={formKey} rule={draft.rule} times={draft.times} today={today} onChange={(rule, times) => setDraft({ ...draft, rule, times })} />
-      {phone ? (
+      {sheetMode ? (
         <details className="more-opts">
           <summary>Ещё: чек-лист, повтор, если не отметили</summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>{extras}</div>
@@ -604,6 +591,109 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
       </div>
     </form>
   );
+
+  // Окна: напоминание по push, форма (в окне), подтверждение удаления.
+  const overlays = (
+    <>
+        {focusId && (
+          <Sheet title="Напоминание" onClose={closeFocus}>
+            {!focusReminder ? (
+              <p style={{ margin: 0, color: 'var(--muted)' }}>Этого напоминания уже нет.</p>
+            ) : !focus ? (
+              <p style={{ margin: 0, color: 'var(--muted)' }}>«{focusReminder.title}» сегодня уже не по плану.</p>
+            ) : (
+              <div className="focus-card">
+                <span className="mono" style={{ fontSize: 15, color: 'var(--muted)' }}>
+                  {focus.snoozedTo ?? focus.slot}
+                </span>
+                <p className="display focus-title">{focusReminder.title}</p>
+                {checklistChip(focusReminder)}
+                {focus.done ? (
+                  <p style={{ margin: 0, color: 'var(--accent-ink)', fontWeight: 600 }}>Уже отмечено — сделано.</p>
+                ) : (
+                  <>
+                    <button
+                      className="btn btn-primary focus-done"
+                      type="button"
+                      onClick={() => {
+                        setDone(focusReminder, focus.slot, true);
+                        toast('Сделано');
+                        closeFocus();
+                      }}
+                    >
+                      <Icon name="check" size={22} />
+                      Сделано
+                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[15, 60].map((m) => (
+                        <button
+                          key={m}
+                          className="btn btn-ghost"
+                          type="button"
+                          style={{ flex: 1 }}
+                          onClick={() => {
+                            snooze(focus, m);
+                            closeFocus();
+                          }}
+                        >
+                          <Icon name="clock" size={18} />
+                          {m < 60 ? `Через ${m} мин` : 'Через час'}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </Sheet>
+        )}
+
+        {sheetMode && sheet && (
+          <Sheet
+            title={draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
+            onClose={() => {
+              setSheet(false);
+              if (draft.id) setDraft(emptyDraft(now));
+              if (params.get('edit')) router.replace(base);
+            }}
+          >
+            {form}
+          </Sheet>
+        )}
+
+        {confirm && (
+          <Confirm
+            title={`Удалить «${confirm.title}»?`}
+            text={confirm.rule.kind === 'once' ? 'Напоминание удалится.' : `Повтор «${describe(confirm.rule)}» удалится целиком, со всеми отметками.`}
+            action="Удалить"
+            onCancel={() => setConfirm(null)}
+            onConfirm={() => {
+              const r = confirm;
+              setConfirm(null);
+              mutate(
+                (d) => ({
+                  ...d,
+                  reminders: d.reminders.filter((x) => x.id !== r.id),
+                  done: d.done.filter((x) => !x.startsWith(`${r.id}@`)),
+                  snoozed: d.snoozed.filter((s) => s.reminder_id !== r.id),
+                }),
+                () => api(`reminders/${r.id}`, 'DELETE'),
+              );
+            }}
+          />
+        )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {embedded === 'chores' && choresView}
+        {embedded === 'all' && allView}
+        {overlays}
+      </>
+    );
+  }
 
   const views: { id: View; label: string; count?: number }[] = [
     { id: 'today', label: 'Сегодня', count: todays.length - doneCount },
@@ -669,93 +759,8 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         </section>
       </aside>
 
-      {focusId && (
-        <Sheet title="Напоминание" onClose={closeFocus}>
-          {!focusReminder ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>Этого напоминания уже нет.</p>
-          ) : !focus ? (
-            <p style={{ margin: 0, color: 'var(--muted)' }}>«{focusReminder.title}» сегодня уже не по плану.</p>
-          ) : (
-            <div className="focus-card">
-              <span className="mono" style={{ fontSize: 15, color: 'var(--muted)' }}>
-                {focus.snoozedTo ?? focus.slot}
-              </span>
-              <p className="display focus-title">{focusReminder.title}</p>
-              {checklistChip(focusReminder)}
-              {focus.done ? (
-                <p style={{ margin: 0, color: 'var(--accent-ink)', fontWeight: 600 }}>Уже отмечено — сделано.</p>
-              ) : (
-                <>
-                  <button
-                    className="btn btn-primary focus-done"
-                    type="button"
-                    onClick={() => {
-                      setDone(focusReminder, focus.slot, true);
-                      toast('Сделано');
-                      closeFocus();
-                    }}
-                  >
-                    <Icon name="check" size={22} />
-                    Сделано
-                  </button>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {[15, 60].map((m) => (
-                      <button
-                        key={m}
-                        className="btn btn-ghost"
-                        type="button"
-                        style={{ flex: 1 }}
-                        onClick={() => {
-                          snooze(focus, m);
-                          closeFocus();
-                        }}
-                      >
-                        <Icon name="clock" size={18} />
-                        {m < 60 ? `Через ${m} мин` : 'Через час'}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </Sheet>
-      )}
-
       {phone && <Fab label="Новое напоминание" onClick={() => openForm(emptyDraft(now))} />}
-      {phone && sheet && (
-        <Sheet
-          title={draft.id ? 'Изменить напоминание' : 'Новое напоминание'}
-          onClose={() => {
-            setSheet(false);
-            if (draft.id) setDraft(emptyDraft(now));
-          }}
-        >
-          {form}
-        </Sheet>
-      )}
-
-      {confirm && (
-        <Confirm
-          title={`Удалить «${confirm.title}»?`}
-          text={confirm.rule.kind === 'once' ? 'Напоминание удалится.' : `Повтор «${describe(confirm.rule)}» удалится целиком, со всеми отметками.`}
-          action="Удалить"
-          onCancel={() => setConfirm(null)}
-          onConfirm={() => {
-            const r = confirm;
-            setConfirm(null);
-            mutate(
-              (d) => ({
-                ...d,
-                reminders: d.reminders.filter((x) => x.id !== r.id),
-                done: d.done.filter((x) => !x.startsWith(`${r.id}@`)),
-                snoozed: d.snoozed.filter((s) => s.reminder_id !== r.id),
-              }),
-              () => api(`reminders/${r.id}`, 'DELETE'),
-            );
-          }}
-        />
-      )}
+      {overlays}
     </div>
   );
 }

@@ -180,7 +180,7 @@ function DayList({ day, today, items, compact, onAdd }: { day: string; today: st
         <ul className="cal-items">
           {items.map((i) => (
             <li key={i.key}>
-              <Link href={i.kind === 'task' ? `/tasks?open=${i.id}` : `/reminders?edit=${i.id}`} className="cal-item" data-done={i.done || undefined}>
+              <Link href={i.kind === 'task' ? `/tasks?open=${i.id}` : `/tasks?edit=${i.id}`} className="cal-item" data-done={i.done || undefined}>
                 <span className="mono cal-time">{i.time ?? ''}</span>
                 <Icon name={i.kind === 'task' ? 'tasks' : 'bell'} size={16} />
                 <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.title}</span>
@@ -246,3 +246,65 @@ function AddOnDay({ day, today, onClose }: { day: string; today: string; onClose
     </Sheet>
   );
 }
+
+/**
+ * Лента недели для Главной на телефоне: 7 дней с точками, ‹ › — соседние
+ * недели, стрелка вниз — весь месяц. Нажали день — onPick.
+ */
+export function WeekStrip({ sel, today, onPick, dots }: { sel: string; today: string; onPick: (day: string) => void; dots: (day: string) => AgendaItem[] }) {
+  const [month, setMonth] = useState<string | null>(null);
+  const start = mondayOf(sel);
+  const rows = month ? monthGrid(month) : [Array.from({ length: 7 }, (_, i) => addDays(start, i))];
+  const shift = (n: number) => (month ? setMonth(shiftMonth(month, n)) : onPick(addDays(sel, n * 7)));
+  return (
+    <section className="week-strip" aria-label="Календарь">
+      <div className="cal-nav">
+        <button className="icon-btn bare" type="button" aria-label={month ? 'Предыдущий месяц' : 'Предыдущая неделя'} onClick={() => shift(-1)}>
+          <Icon name="back" size={16} />
+        </button>
+        <span style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{monthTitle(month ?? firstOfMonth(sel))}</span>
+        <button className="icon-btn bare" type="button" aria-label={month ? 'Следующий месяц' : 'Следующая неделя'} onClick={() => shift(1)} style={{ transform: 'scaleX(-1)' }}>
+          <Icon name="back" size={16} />
+        </button>
+        <button className="icon-btn bare" type="button" aria-expanded={!!month} aria-label={month ? 'Свернуть до недели' : 'Показать месяц'} onClick={() => setMonth(month ? null : firstOfMonth(sel))}>
+          <Icon name={month ? 'up' : 'down'} size={16} />
+        </button>
+      </div>
+      <div className="cal-grid" role="grid">
+        {WEEK.map((w) => (
+          <span key={w} className="cal-wd" role="columnheader">
+            {w}
+          </span>
+        ))}
+        {rows.flat().map((day) => {
+          const items = dots(day);
+          return (
+            <button
+              key={day}
+              type="button"
+              role="gridcell"
+              className="cal-day"
+              data-out={(month && firstOfMonth(day) !== month) || undefined}
+              data-today={day === today || undefined}
+              aria-selected={day === sel}
+              aria-label={`${dayHead(day, today)}${items.length ? `, дел: ${items.length}` : ''}`}
+              onClick={() => {
+                onPick(day);
+                setMonth(null);
+              }}
+            >
+              <span className="cal-num">{Number(day.slice(8))}</span>
+              <span className="cal-dots" aria-hidden="true">
+                {items.slice(0, 3).map((i) => (
+                  <i key={i.key} data-kind={i.kind} data-done={i.done || undefined} />
+                ))}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export { dayHead };

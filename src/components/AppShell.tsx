@@ -8,10 +8,10 @@ import { guessDept } from '@/lib/kitchenSeed';
 import { registerOffline } from '@/lib/pushClient';
 import { clearOffline, flush, loadState, onOutboxChange, outbox, saveState, type Queued } from '@/lib/offline';
 import { dayTitle, localDay } from '@/lib/dates';
-import { occurrencesOn } from '@/lib/occurrences';
 import type { Product, Recipe } from '@/lib/kitchen';
 import { arrange, HELP, HOME, type NavPref } from '@/lib/nav';
-import { bucket, type Task } from '@/lib/tasks';
+import type { Task } from '@/lib/tasks';
+import { leftToday, timeline } from '@/lib/timeline';
 import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
 import { Icon } from './icons';
@@ -298,14 +298,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const leftToday = occurrencesOn(data.reminders, localDay(now), new Set(data.done)).filter((o) => !o.done).length;
+  // «Дела»: сколько осталось на сегодня — просроченное, дела и напоминания дня.
+  const left = leftToday(timeline(data.tasks, data.reminders, localDay(now), new Set(data.done), data.snoozed));
   const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
-  const urgent = data.tasks.filter((t) => bucket(t, localDay(now)) === 'urgent').length;
   const counts: Record<string, [number, string]> = {
-    '/reminders': [leftToday, 'на сегодня'],
-    '/tasks': [urgent, 'срочных'],
+    '/tasks': [left, 'на сегодня'],
   };
+
   const badge = (href: string) => {
     const [n, what] = counts[href] ?? [0, ''];
     return n > 0 ? (

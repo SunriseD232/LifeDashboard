@@ -86,7 +86,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
     onClose();
     if (h.kind === 'note') router.push(`/notes?open=${h.id}`);
     else if (h.kind === 'task') router.push(`/tasks?open=${h.id}`);
-    else if (h.kind === 'reminder') router.push(`/reminders?edit=${h.id}`);
+    else if (h.kind === 'reminder') router.push(`/tasks?edit=${h.id}`);
     else if (h.kind === 'recipe') router.push(`/kitchen/${h.id}`);
     else {
       setOpenList(h.kind === 'item' ? h.parent?.id ?? null : h.id);

@@ -54,7 +54,7 @@ export async function push({ d, userId, method, body, id }: Ctx): Promise<unknow
       title: 'LifeDashboard',
       body: 'Уведомления работают — напомним о делах вовремя.',
       tag: 'test',
-      url: '/task/reminders',
+      url: '/task/tasks',
     });
     if (!delivered) throw new HttpError(409, 'Не удалось отправить: включите уведомления на этом устройстве ещё раз.');
     return { delivered };

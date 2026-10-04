@@ -106,7 +106,7 @@ self.addEventListener('push', (event) => {
     badge: '/task/badge-96.png',
     lang: 'ru',
     renotify: !!data.tag,
-    data: { url: data.url || '/task/reminders', reminderId: data.reminderId, day: data.day, slot: data.slot },
+    data: { url: data.url || '/task/tasks', reminderId: data.reminderId, day: data.day, slot: data.slot },
     actions: data.reminderId
       ? [{ action: 'done', title: 'Сделано' }].concat(snoozeAt() ? [{ action: 'snooze', title: 'Через час' }] : [])
       : [],
@@ -151,10 +151,10 @@ self.addEventListener('notificationclick', (event) => {
       const open = all.find((c) => new URL(c.url).pathname.startsWith('/task'));
       if (open) {
         await open.focus();
-        if ('navigate' in open) await open.navigate(url || '/task/reminders');
+        if ('navigate' in open) await open.navigate(url || '/task/tasks');
         return;
       }
-      await self.clients.openWindow(url || '/task/reminders');
+      await self.clients.openWindow(url || '/task/tasks');
     })(),
   );
 });

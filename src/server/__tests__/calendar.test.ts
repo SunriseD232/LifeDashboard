@@ -53,7 +53,7 @@ describe('разделы меню', () => {
   it('свой порядок, скрытые, неизвестные отброшены, новые в конце', () => {
     const a = arrange([{ href: '/notes' }, { href: '/tasks', hidden: true }, { href: '/evil' }, { href: '/notes' }]);
     expect(a.all[0].href).toBe('/notes');
-    expect(a.all).toHaveLength(7);
+    expect(a.all).toHaveLength(6);
     expect(a.visible.some((s) => s.href === '/tasks')).toBe(false);
     expect(a.phone).toHaveLength(3);
     expect(parseNav('мусор')).toBeNull();

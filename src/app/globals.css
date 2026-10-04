@@ -2377,3 +2377,61 @@ mark {
     top: calc(56px + env(safe-area-inset-top));
   }
 }
+
+/* «Дела» по дням */
+.day-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 760px;
+}
+.day-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 !important;
+}
+.day-title[data-tone='danger'] {
+  color: var(--danger);
+}
+.day-count {
+  font-weight: 600;
+  color: var(--muted);
+}
+.day-groups .task-row {
+  border-bottom: 1px solid var(--line);
+}
+.row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding-right: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.check.future {
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.future-dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+}
+.week-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.week-strip .cal-day {
+  min-height: 48px;
+}
