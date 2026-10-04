@@ -117,7 +117,7 @@ export default function Calendar() {
                     >
                       <span className="cal-num">{Number(day.slice(8))}</span>
                       <span className="cal-dots" aria-hidden="true">
-                        {items.slice(0, 3).map((i) => (
+                        {items.filter((i) => !i.daily).slice(0, 3).map((i) => (
                           <i key={i.key} data-kind={i.kind} data-done={i.done || undefined} />
                         ))}
                       </span>
@@ -310,7 +310,7 @@ export function WeekStrip({
             >
               <span className="cal-num">{Number(day.slice(8))}</span>
               <span className="cal-dots" aria-hidden="true">
-                {items.slice(0, 3).map((i) => (
+                {items.filter((i) => !i.daily).slice(0, 3).map((i) => (
                   <i key={i.key} data-kind={i.kind} data-done={i.done || undefined} />
                 ))}
               </span>

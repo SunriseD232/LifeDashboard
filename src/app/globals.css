@@ -419,6 +419,9 @@ a {
   color: #fff;
 }
 .side-date {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 8px 14px;
   font-size: 13px;
   color: var(--muted);
@@ -2441,4 +2444,37 @@ mark {
 }
 .home-cal .phone-list .group-title {
   padding-top: 4px;
+}
+
+/* время напоминания; прошло и не отмечено — оранжевым */
+.row-time {
+  flex: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+.row-time.late {
+  color: var(--warm);
+  font-weight: 600;
+}
+/* текст строки — кнопка «открыть»: выглядит как текст, отметка — только кружком */
+.task-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.task-open:hover > span:first-child {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong, var(--line));
+  text-underline-offset: 3px;
 }

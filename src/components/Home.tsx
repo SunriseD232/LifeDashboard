@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
 import { shortDate } from '@/lib/tasks';
+import { minutesOf } from '@/lib/dates';
 import type { Reminder } from '@/lib/types';
 import { duration, plannedFor, setLabel } from '@/lib/workouts';
 import { useApp } from './AppShell';
@@ -113,11 +114,11 @@ export default function Home() {
           Все <Icon name="arrow" size={16} />
         </Link>
       </div>
-      {data.checklists.length === 0 ? (
+      {data.checklists.filter((c) => c.kind !== 'shopping').length === 0 ? (
         <p style={{ margin: 0, color: 'var(--muted)' }}>Чек-листов пока нет.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {data.checklists.map((c) => {
+          {data.checklists.filter((c) => c.kind !== 'shopping').map((c) => {
             const items = data.items.filter((i) => i.checklist_id === c.id);
             const got = items.filter((i) => i.done).length;
             return (
@@ -265,8 +266,18 @@ const remRow = (o: (typeof todays)[number]) => (
   <Swipe key={o.key} onRight={o.done ? undefined : () => toggle(o.reminder, o.slot, true)}>
   <label className={`check round${o.done ? ' done' : ''}`}>
     <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
-    <span className="check-text" style={{ flex: 1 }}>{o.reminder.title}</span>
-    <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', flex: 'none' }}>
+    <button
+      type="button"
+      className="check-text task-open"
+      onClick={(e) => {
+        e.preventDefault();
+        router.push(`/tasks?edit=${o.reminder.id}`);
+      }}
+    >
+      {o.reminder.title}
+    </button>
+    {/* Время прошло, а не отмечено — оранжевым: видно, что пропущено. */}
+    <span className={`mono row-time${!o.done && minutesOf(o.snoozedTo ?? o.slot) < now.getHours() * 60 + now.getMinutes() ? ' late' : ''}`}>
       {o.snoozedTo ?? o.slot}
     </span>
   </label>
@@ -295,7 +306,7 @@ const otherDay = day === today ? [] : dots(day);
         todayRows.length === 0 ? (
           <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня ничего — можно выдохнуть.</p>
         ) : (
-          todayRows.map((r) => (r.kind === 'rem' ? remRow(r.occ) : <TaskRow key={r.key} task={r.task} hideDue={r.task.due_date === today} />))
+          todayRows.map((r) => (r.kind === 'rem' ? remRow(r.occ) : <TaskRow key={r.key} task={r.task} hideDue={r.task.due_date === today} onOpen={(t) => router.push(`/tasks?open=${t.id}`)} />))
         )
       ) : otherDay.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>

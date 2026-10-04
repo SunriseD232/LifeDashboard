@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
-import { localDay } from '@/lib/dates';
+import { localDay, minutesOf } from '@/lib/dates';
 import { addDays, describe, dueDay, type Rule } from '@/lib/recur';
 import { dueLabel, firstDue, nextDue, shortDate, type Task } from '@/lib/tasks';
 import { useApp } from './AppShell';
@@ -79,6 +79,23 @@ export function TaskRow({ task, onOpen, showDate = false, hideDue = false }: { t
   const due = dueLabel(task.due_date, today);
   // Чужое общее дело удалить нельзя (сервер не даст) — и свайп не предлагает.
   const canDelete = !task.household_id || !task.author;
+  const body = (
+    <>
+      <span>{task.title}</span>
+      {task.tag && <span className="tag">{task.tag}</span>}
+      {task.rule && (
+        <span className="tag" title={describe(task.rule)}>
+          <Icon name="repeat" size={12} /> {describe(task.rule)}
+        </span>
+      )}
+      {task.household_id && (
+        <span className="tag" title={task.author ? `Общее, завёл(а) ${task.author}` : 'Общее дело семьи'}>
+          <Icon name="users" size={12} /> {task.author ?? 'общее'}
+        </span>
+      )}
+      {!showDate && !hideDue && due && !done && <span className={`chip ${TONE[due.tone]}`}>{due.text}</span>}
+    </>
+  );
   return (
     <Swipe
       onRight={done ? undefined : () => complete(task)}
@@ -94,32 +111,23 @@ export function TaskRow({ task, onOpen, showDate = false, hideDue = false }: { t
     <div className="task-row">
       <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
         <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
-        {showDate && task.due_date && (
-          <span className="mono" style={{ fontSize: 13, color: 'var(--muted)', width: 60, flex: 'none' }}>
-            {shortDate(task.due_date, today)}
-          </span>
+        {/* Кружок — отметить; текст — открыть дело (кнопка внутри label галочку не ставит). */}
+        {onOpen ? (
+          <button
+            type="button"
+            className="check-text task-open"
+            onClick={(e) => {
+              e.preventDefault();
+              onOpen(task);
+            }}
+          >
+            {body}
+          </button>
+        ) : (
+          <span className="check-text task-open">{body}</span>
         )}
-        <span className="check-text" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-          <span>{task.title}</span>
-          {task.tag && <span className="tag">{task.tag}</span>}
-          {task.rule && (
-            <span className="tag" title={describe(task.rule)}>
-              <Icon name="repeat" size={12} /> {describe(task.rule)}
-            </span>
-          )}
-          {task.household_id && (
-            <span className="tag" title={task.author ? `Общее, завёл(а) ${task.author}` : 'Общее дело семьи'}>
-              <Icon name="users" size={12} /> {task.author ?? 'общее'}
-            </span>
-          )}
-          {!showDate && !hideDue && due && !done && <span className={`chip ${TONE[due.tone]}`}>{due.text}</span>}
-        </span>
       </label>
-      {onOpen && (
-        <button className="icon-btn bare" type="button" aria-label={`Изменить «${task.title}»`} onClick={() => onOpen(task)}>
-          <Icon name="edit" size={18} />
-        </button>
-      )}
+      {showDate && task.due_date && <span className="mono row-time" style={{ paddingRight: 8 }}>{shortDate(task.due_date, today)}</span>}
     </div>
     </Swipe>
   );
@@ -495,14 +503,21 @@ export default function Tasks() {
           {isToday ? (
             <label className={`check round${o.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
               <input type="checkbox" checked={o.done} onChange={(e) => rem.done(r, o.slot, e.target.checked)} aria-label={r.title} />
-              <span className="check-text">
+              <button
+                type="button"
+                className="check-text task-open"
+                onClick={(e) => {
+                  e.preventDefault();
+                  editReminder(r.id);
+                }}
+              >
                 {r.title}
                 {overdue && (
                   <span className="chip chip-danger" style={{ marginLeft: 6 }}>
                     давно пора
                   </span>
                 )}
-              </span>
+              </button>
             </label>
           ) : (
             <button type="button" className="check future" style={{ flex: 1, minWidth: 0 }} onClick={() => editReminder(r.id)}>
@@ -515,7 +530,7 @@ export default function Tasks() {
           <span className="row-meta">
             {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
             {group === 'later' && <span>{shortDate(row.date, today)} ·</span>}
-            <span className="mono">{row.time}</span>
+            <span className={`mono row-time${group === 'today' && !o.done && minutesOf(row.time) < now.getHours() * 60 + now.getMinutes() ? ' late' : ''}`}>{row.time}</span>
           </span>
         </div>
       </Swipe>

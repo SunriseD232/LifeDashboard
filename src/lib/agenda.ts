@@ -18,6 +18,8 @@ export interface AgendaItem {
   time: string | null;
   /** Отмечено (знаем только про сегодня). */
   done: boolean;
+  /** Каждый день — в точках календаря не показываем: они были бы на всех днях. */
+  daily: boolean;
   key: string;
 }
 
@@ -29,7 +31,7 @@ export function agendaFor(day: string, tasks: Task[], reminders: Reminder[], tod
       t.due_date === day ||
       // Будущие разы повторяющегося дела — по его правилу от ближайшего срока.
       (t.rule?.kind === 'repeat' && day > t.due_date && occursOn({ ...t.rule, start: t.due_date }, day));
-    if (onDay) out.push({ kind: 'task', id: t.id, title: t.title, time: null, done: false, key: `t:${t.id}:${day}` });
+    if (onDay) out.push({ kind: 'task', id: t.id, title: t.title, time: null, done: false, daily: false, key: `t:${t.id}:${day}` });
   }
   for (const r of reminders) {
     let on: boolean;
@@ -40,7 +42,8 @@ export function agendaFor(day: string, tasks: Task[], reminders: Reminder[], tod
     if (!on) continue;
     for (const slot of r.times) {
       const key = occurrenceKey(r.id, slot);
-      out.push({ kind: 'reminder', id: r.id, title: r.title, time: slot, done: day === today && doneToday.has(key), key: `${key}:${day}` });
+      const daily = r.rule.kind === 'repeat' && r.rule.unit === 'day' && r.rule.every === 1;
+      out.push({ kind: 'reminder', id: r.id, title: r.title, time: slot, done: day === today && doneToday.has(key), daily, key: `${key}:${day}` });
     }
   }
   return out.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));

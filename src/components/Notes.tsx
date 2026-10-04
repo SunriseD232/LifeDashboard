@@ -9,6 +9,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import Empty from './Empty';
+import { Fab, useIsPhone } from './Phone';
 import { AiButton, useAiReady } from './Ai';
 import { localDay } from '@/lib/dates';
 import { shortDate } from '@/lib/tasks';
@@ -326,6 +327,7 @@ export default function Notes() {
   );
   const tags = [...new Set(data.notes.flatMap((n) => n.tags))].sort();
   const open = data.notes.find((n) => n.id === sel) ?? null;
+  const phone = useIsPhone();
 
   return (
     <>
@@ -333,11 +335,13 @@ export default function Notes() {
         <h1 className="h1 display" style={{ flex: 1 }}>
           Заметки
         </h1>
-        <button className="btn btn-primary" type="button" onClick={create}>
+        <button className="btn btn-primary hide-phone" type="button" onClick={create}>
           <Icon name="plus" size={18} />
           Новая заметка
         </button>
       </div>
+      {/* На телефоне «создать» — всегда круглая «+» внизу справа. */}
+      {phone && !open && <Fab label="Новая заметка" onClick={create} />}
       <div className="notes-layout" data-detail={open ? 'true' : 'false'}>
         <aside className="notes-aside">
           <div style={{ position: 'relative' }}>

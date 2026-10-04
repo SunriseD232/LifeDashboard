@@ -24,6 +24,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import Empty from './Empty';
+import { Fab, useIsPhone } from './Phone';
 
 const WEEK = [1, 2, 3, 4, 5, 6, 0];
 const fmtW = (n: number) => String(n).replace('.', ',');
@@ -570,6 +571,7 @@ export default function Workouts() {
   };
   const open = gym.workouts.find((w) => w.id === sel) ?? null;
   const planned = plannedFor(gym.templates, today);
+  const phone = useIsPhone();
 
   return (
     <>
@@ -593,7 +595,7 @@ export default function Workouts() {
               </button>
             )}
             {gym.workouts.length > 0 && (
-              <button className={`btn ${planned ? 'btn-ghost' : 'btn-primary'}`} type="button" onClick={async () => {
+              <button className={`btn hide-phone ${planned ? 'btn-ghost' : 'btn-primary'}`} type="button" onClick={async () => {
                 const id = await start();
                 if (id) select(id);
               }}>
@@ -604,6 +606,16 @@ export default function Workouts() {
           </>
         )}
       </div>
+      {/* На телефоне новая тренировка — круглой «+», как и всё «создать». */}
+      {phone && !open && !active && gym.workouts.length > 0 && (
+        <Fab
+          label="Новая тренировка"
+          onClick={async () => {
+            const id = await start();
+            if (id) select(id);
+          }}
+        />
+      )}
       <div className="gym-layout" data-detail={open ? 'true' : 'false'}>
         <aside className="gym-log">
           <h2 className="group-title" style={{ padding: '0 4px 4px' }}>

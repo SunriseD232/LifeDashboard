@@ -116,6 +116,12 @@ function withQueued(d: AppData, q: Queued): AppData {
  * идём на сервер) — галочка не должна ждать сети. Сервер отказал — говорим об
  * этом и перечитываем всё с сервера, чтобы экран не врал.
  */
+/** «Вс, 4 октября» — помещается в боковую панель одной строкой. */
+function shortDay(d: Date): string {
+  const s = d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [status, setStatus] = useState<Status>('loading');
@@ -327,7 +333,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             LifeDashboard
           </Link>
           <div className="side-date">
-            {dayTitle(now)} · <span className="mono">{time}</span>
+            <span>{shortDay(now)}</span>
+            <span className="mono">{time}</span>
           </div>
           <button className="searchbtn" type="button" onClick={() => setSearching(true)}>
             <Icon name="search" size={18} />
