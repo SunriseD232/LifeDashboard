@@ -59,14 +59,14 @@ export function CityPicker({ onPicked }: { onPicked?: () => void }) {
           {busy ? 'Ищем…' : 'Найти'}
         </button>
       </form>
-      {results && results.length === 0 && <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Ничего не нашлось — проверьте название.</p>}
+      {results && results.length === 0 && <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Ничего не нашлось — проверьте название.</p>}
       {results && results.length > 0 && (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {results.map((p) => (
             <li key={`${p.lat},${p.lon}`}>
               <button className="list-card" type="button" style={{ padding: '10px 14px', gap: 0 }} onClick={() => pick(p)}>
                 <span style={{ fontWeight: 600 }}>{p.name}</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{p.region}</span>
+                <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{p.region}</span>
               </button>
             </li>
           ))}
@@ -107,7 +107,7 @@ function WeatherDetails({ w }: { w: Weather }) {
       <div className="weather-hours">
         {w.hours.map((h) => (
           <div key={h.time}>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+            <span className="mono" style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>
               {h.time}
             </span>
             <Icon name={h.icon} />
@@ -154,7 +154,7 @@ export function WeatherLine() {
     <div className="weather-line-box">
       <button type="button" className="weather-line" aria-expanded={open} onClick={() => setOpen(!open)}>
         <Icon name={w.now.icon} size={22} />
-        <b className="mono" style={{ fontSize: 17 }}>
+        <b className="mono" style={{ fontSize: 'calc(17px * var(--fs))' }}>
           {temp(w.now.temp)}
         </b>
         <span style={{ flex: 1, minWidth: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.now.label}</span>
@@ -194,7 +194,7 @@ export function WeatherCard() {
       </div>
       {!city ? (
         <>
-          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Где вы? Укажите город — покажу погоду и подскажу про зонт.</p>
+          <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>Где вы? Укажите город — покажу погоду и подскажу про зонт.</p>
           <CityPicker />
         </>
       ) : error ? (
@@ -206,12 +206,12 @@ export function WeatherCard() {
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span className="display" style={{ fontSize: 52, fontWeight: 700, lineHeight: 1 }}>
+            <span className="display" style={{ fontSize: 'calc(52px * var(--fs))', fontWeight: 700, lineHeight: 1 }}>
               {temp(w.now.temp)}
             </span>
             <div>
               <div style={{ fontWeight: 600 }}>{w.now.label}</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <div style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 Ощущается как {temp(w.now.feels)} · ветер {w.now.wind} м/с
               </div>
             </div>
@@ -223,7 +223,7 @@ export function WeatherCard() {
             </div>
           )}
           <WeatherDetails w={w} />
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+          <p style={{ margin: 0, fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>
             Прогноз:{' '}
             <a href="https://www.met.no/en" target="_blank" rel="noreferrer">
               MET Norway

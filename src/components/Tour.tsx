@@ -149,12 +149,12 @@ function TourCard({
             <Icon name="x" size={18} />
           </button>
         </div>
-        <h2 id="tour-title" className="display" style={{ margin: 0, fontSize: 18 }}>
+        <h2 id="tour-title" className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))' }}>
           {cur.title}
         </h2>
         <p style={{ margin: 0, lineHeight: 1.5 }}>{cur.text}</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className="add-line" type="button" style={{ padding: 0, fontSize: 13 }} onClick={() => remember(['*'])}>
+          <button className="add-line" type="button" style={{ padding: 0, fontSize: 'calc(13px * var(--fs))' }} onClick={() => remember(['*'])}>
             Больше не показывать
           </button>
           <span style={{ flex: 1 }} />

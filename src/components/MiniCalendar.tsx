@@ -64,7 +64,7 @@ export function WeekStrip({
         <button className="icon-btn bare" type="button" aria-label={month ? 'Предыдущий месяц' : 'Предыдущая неделя'} onClick={() => shift(-1)}>
           <Icon name="back" size={16} />
         </button>
-        <span style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{monthTitle(month ?? firstOfMonth(sel))}</span>
+        <span style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: 'calc(14px * var(--fs))' }}>{monthTitle(month ?? firstOfMonth(sel))}</span>
         <button className="icon-btn bare" type="button" aria-label={month ? 'Следующий месяц' : 'Следующая неделя'} onClick={() => shift(1)} style={{ transform: 'scaleX(-1)' }}>
           <Icon name="back" size={16} />
         </button>

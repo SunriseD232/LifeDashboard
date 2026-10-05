@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import AppShell from '@/components/AppShell';
-import { THEME_COOKIE, THEMES, type Theme } from '@/lib/theme';
+import { ACCENT_COOKIE, isAccent, isSize, SIZE_COOKIE, THEME_COOKIE, THEMES, type Theme } from '@/lib/theme';
 // Шрифты — те же, что на макете в Claude Design, из пакетов @fontsource:
 // файлы лежат в сборке и отдаются с нашего сервера, без внешних запросов.
 // Каждый пакет подключает и латиницу, и кириллицу (unicode-range — браузер
@@ -45,8 +45,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // Тема из куки — сразу в разметку, чтобы тёмная не мигала светлой.
   const saved = cookies().get(THEME_COOKIE)?.value as Theme | undefined;
   const theme = saved && THEMES.includes(saved) ? saved : 'system';
+  // Акцент и размер текста — тоже из кук, по умолчанию атрибутов нет.
+  const accent = cookies().get(ACCENT_COOKIE)?.value;
+  const size = cookies().get(SIZE_COOKIE)?.value;
   return (
-    <html lang="ru" data-theme={theme}>
+    <html lang="ru" data-theme={theme} data-accent={isAccent(accent) && accent !== 'teal' ? accent : undefined} data-size={isSize(size) && size !== 'md' ? size : undefined}>
       <body>
         <AppShell>{children}</AppShell>
       </body>

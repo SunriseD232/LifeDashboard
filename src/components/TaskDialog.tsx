@@ -346,7 +346,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
                     {l.kind}
                   </span>
                   <b style={{ fontWeight: 600 }}>{l.text}</b>
-                  {l.meta && <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)' }}>{l.meta}</span>}
+                  {l.meta && <span style={{ display: 'block', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{l.meta}</span>}
                 </span>
               </label>
             );
@@ -431,7 +431,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         </details>
       )}
 
-      {foreign && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Общая задача, завёл(а) {(target as { task: Task }).task.author}.</p>}
+      {foreign && <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Общая задача, завёл(а) {(target as { task: Task }).task.author}.</p>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {editing && !foreign && (
@@ -466,7 +466,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
     <div className="overlay" onClick={onClose}>
       <form ref={formRef} className="dialog task-dialog" role="dialog" aria-modal="true" aria-labelledby="td-head" style={{ width: 'min(560px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h2 id="td-head" className="display" style={{ margin: 0, fontSize: 20, flex: 1 }}>
+          <h2 id="td-head" className="display" style={{ margin: 0, fontSize: 'calc(20px * var(--fs))', flex: 1 }}>
             {title}
           </h2>
           <FieldsMenu />

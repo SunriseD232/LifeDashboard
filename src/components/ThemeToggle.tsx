@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { THEMES as ORDER, THEME_COOKIE, type Theme } from '@/lib/theme';
+import { ACCENT_COOKIE, ACCENTS, isAccent, isSize, saveCookie, SIZE_COOKIE, SIZES, THEMES as ORDER, THEME_COOKIE, type Accent, type Size, type Theme } from '@/lib/theme';
 import { Icon } from './icons';
 
 const LABEL: Record<Theme, string> = { system: 'как в системе', light: 'светлая', dark: 'тёмная' };
@@ -25,7 +25,7 @@ export default function ThemeToggle() {
     const t = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
     setTheme(t);
     document.documentElement.dataset.theme = t;
-    document.cookie = `${THEME_COOKIE}=${t}; path=/task; max-age=31536000; samesite=lax`;
+    saveCookie(THEME_COOKIE, t);
   };
 
   const label = `Тема: ${LABEL[theme]}. Сменить`;
@@ -46,7 +46,7 @@ export function ThemePicker() {
   const pick = (t: Theme) => {
     setTheme(t);
     document.documentElement.dataset.theme = t;
-    document.cookie = `${THEME_COOKIE}=${t}; path=/task; max-age=31536000; samesite=lax`;
+    saveCookie(THEME_COOKIE, t);
   };
   return (
     <div role="radiogroup" aria-label="Тема" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -56,6 +56,74 @@ export function ThemePicker() {
           {LABEL[t].charAt(0).toUpperCase() + LABEL[t].slice(1)}
         </button>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Оформление в Настройках: тема, акцентный цвет и размер текста. Всё — на
+ * этом устройстве (куки), применяется сразу.
+ */
+export function AppearancePicker() {
+  const [accent, setAccent] = useState<Accent>('teal');
+  const [size, setSize] = useState<Size>('md');
+  useEffect(() => {
+    const a = document.documentElement.dataset.accent;
+    const s = document.documentElement.dataset.size;
+    setAccent(isAccent(a) ? a : 'teal');
+    setSize(isSize(s) ? s : 'md');
+  }, []);
+  const pickAccent = (a: Accent) => {
+    setAccent(a);
+    if (a === 'teal') delete document.documentElement.dataset.accent;
+    else document.documentElement.dataset.accent = a;
+    saveCookie(ACCENT_COOKIE, a);
+  };
+  const pickSize = (s: Size) => {
+    setSize(s);
+    if (s === 'md') delete document.documentElement.dataset.size;
+    else document.documentElement.dataset.size = s;
+    saveCookie(SIZE_COOKIE, s);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="fld">
+        <span className="label">Тема</span>
+        <ThemePicker />
+      </div>
+      <div className="fld">
+        <span className="label" id="accent-label">
+          Цвет акцента
+        </span>
+        <div className="swatches" role="radiogroup" aria-labelledby="accent-label">
+          {ACCENTS.map((a) => (
+            <button key={a.id} type="button" className="swatch" role="radio" aria-checked={accent === a.id} aria-label={a.label} title={a.label} style={{ background: a.color }} onClick={() => pickAccent(a.id)}>
+              {accent === a.id && <Icon name="check" size={18} strokeWidth={2.4} />}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="fld">
+        <span className="label" id="size-label">
+          Размер текста
+        </span>
+        <div className="seg seg-4" role="radiogroup" aria-labelledby="size-label">
+          {SIZES.map((s) => (
+            <button key={s.id} type="button" role="radio" aria-checked={size === s.id} aria-pressed={size === s.id} onClick={() => pickSize(s.id)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="appearance-preview" aria-hidden="true">
+        <span className="check round done" style={{ padding: 0, minHeight: 0 }}>
+          <input type="checkbox" checked readOnly tabIndex={-1} />
+          <span className="check-text">Так выглядит отмеченная задача</span>
+        </span>
+        <button className="btn btn-primary" type="button" tabIndex={-1}>
+          Кнопка
+        </button>
+      </div>
     </div>
   );
 }

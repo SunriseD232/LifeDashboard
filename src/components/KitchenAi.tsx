@@ -80,7 +80,7 @@ export function MenuPlanner() {
           <Icon name="x" size={18} />
         </button>
       </div>
-      <p style={{ margin: '-8px 0 0', fontSize: 14, color: 'var(--muted)' }}>Из ваших рецептов — так, чтобы чаще готовить из того, что уже есть дома.</p>
+      <p style={{ margin: '-8px 0 0', fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Из ваших рецептов — так, чтобы чаще готовить из того, что уже есть дома.</p>
       <div className="task-fields">
         <div className="fld">
           <label className="label" htmlFor="menu-days">
@@ -114,7 +114,7 @@ export function MenuPlanner() {
                 </h3>
                 {d.meals.map((m, i) => (
                   <Link key={i} href={`/kitchen/${m.recipe_id}`} className="menu-meal">
-                    <span style={{ color: 'var(--muted)', fontSize: 13, minWidth: 64 }}>{m.meal}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: 'calc(13px * var(--fs))', minWidth: 64 }}>{m.meal}</span>
                     <span>{title(m.recipe_id)}</span>
                   </Link>
                 ))}
@@ -122,11 +122,11 @@ export function MenuPlanner() {
             ))}
           </div>
           {plan.missing.length > 0 ? (
-            <p style={{ margin: 0, fontSize: 14 }}>
+            <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))' }}>
               Не хватает: <span style={{ color: 'var(--muted)' }}>{plan.missing.map(name).join(', ')}</span>
             </p>
           ) : (
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--accent-ink)' }}>Всё для этого меню есть дома.</p>
+            <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--accent-ink)' }}>Всё для этого меню есть дома.</p>
           )}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {plan.missing.length > 0 && (
@@ -255,10 +255,10 @@ export function StoreMode({ items, onToggle, onClose }: { items: ChecklistItem[]
     <div className="store" role="dialog" aria-modal="true" aria-label="Режим магазина">
       <div className="store-head">
         <div style={{ flex: 1 }}>
-          <div className="display" style={{ fontSize: 22, fontWeight: 700 }}>
+          <div className="display" style={{ fontSize: 'calc(22px * var(--fs))', fontWeight: 700 }}>
             В магазине
           </div>
-          <div style={{ color: 'var(--muted)', fontSize: 14 }}>{open.length ? `Осталось ${open.length} из ${items.length}` : 'Всё куплено'}</div>
+          <div style={{ color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>{open.length ? `Осталось ${open.length} из ${items.length}` : 'Всё куплено'}</div>
         </div>
         <button className="btn btn-primary" type="button" onClick={onClose}>
           Готово

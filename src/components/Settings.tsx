@@ -9,7 +9,7 @@ import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
-import { ThemePicker } from './ThemeToggle';
+import { AppearancePicker } from './ThemeToggle';
 import { CalendarCard, NavEditor, QuietCard } from './SettingsExtra';
 
 type Tab = 'main' | 'menu' | 'family' | 'account';
@@ -96,9 +96,12 @@ export default function Settings() {
         <section className="card" aria-labelledby="set-deadline">
           <h2 className="card-title display" id="set-deadline">
             <Icon name="bell" />
-            Время напоминания
+            Время напоминания по умолчанию
           </h2>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Во сколько напомнить, если у задачи указан день, а время — нет (например, когда задачу добавляет ИИ).</p>
+          <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
+            Подставляется, когда день у задачи есть, а время не указано: свайп «Завтра» у задачи без даты, фраза для ИИ без времени («завтра купить хлеб»), задачи,
+            найденные в заметке.
+          </p>
           <div className="fld" style={{ maxWidth: 160 }}>
             <label className="label" htmlFor="set-time">
               Во сколько
@@ -123,7 +126,7 @@ export default function Settings() {
               <Icon name="sparkles" />
               Сводка дня
             </h2>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Каждое утро — push от ИИ: сроки, напоминания, погода, что взять с собой.</p>
+            <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Каждое утро — push от ИИ: сроки, напоминания, погода, что взять с собой.</p>
             <label className="check" style={{ padding: 0 }}>
               <input
                 type="checkbox"
@@ -152,9 +155,10 @@ export default function Settings() {
         <section className="card" aria-labelledby="set-theme">
           <h2 className="card-title display" id="set-theme">
             <Icon name="moon" />
-            Тема
+            Оформление
           </h2>
-          <ThemePicker />
+          <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Только на этом устройстве: на телефоне и компьютере можно по-разному.</p>
+          <AppearancePicker />
         </section>
       </div>
       )}
@@ -175,7 +179,7 @@ export default function Settings() {
           </h2>
           {!hh ? (
             <>
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
+              <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
                 Общие дела, чек-листы, рецепты и покупки с близкими. Создайте семью и добавьте человека по его логину — он должен быть зарегистрирован.
               </p>
               <form

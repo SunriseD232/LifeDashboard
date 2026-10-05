@@ -120,7 +120,7 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font-body), system-ui, sans-serif;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   /* iPhone при повороте сам увеличивает шрифт — не надо. */
@@ -183,7 +183,7 @@ a {
   border-radius: 12px;
   border: 1px solid transparent;
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   cursor: pointer;
   text-decoration: none;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -265,7 +265,7 @@ a {
   box-shadow: 0 0 0 3px rgb(14 124 123 / 0.15);
 }
 .label {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 600;
 }
 
@@ -279,7 +279,7 @@ a {
   border: 1px solid var(--line);
   background: var(--soft);
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -295,7 +295,7 @@ a {
 
 .badge {
   white-space: nowrap;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   padding: 1px 8px;
   border-radius: 99px;
@@ -371,7 +371,7 @@ a {
 .group-title {
   margin: 0 0 4px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -403,7 +403,7 @@ a {
   align-items: center;
   gap: 10px;
   padding: 0 8px;
-  font-size: 20px;
+  font-size: calc(20px * var(--fs));
   font-weight: 800;
   text-decoration: none;
   color: var(--ink);
@@ -423,7 +423,7 @@ a {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 8px 14px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 .nav {
@@ -447,7 +447,7 @@ a {
 }
 .nav-sep {
   padding: 14px 12px 4px;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -467,7 +467,7 @@ a {
 .side-foot .who {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -490,7 +490,7 @@ a {
 }
 .h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: calc(34px * var(--fs));
   line-height: 1.1;
   font-weight: 800;
 }
@@ -514,7 +514,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 17px;
+  font-size: calc(17px * var(--fs));
   font-weight: 700;
 }
 .card-link {
@@ -523,7 +523,7 @@ a {
   align-items: center;
   min-height: 32px;
   gap: 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 600;
   text-decoration: none;
 }
@@ -627,7 +627,7 @@ a {
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   cursor: pointer;
 }
 .seg button[aria-pressed='true'] {
@@ -646,7 +646,7 @@ a {
   border: 1px solid var(--line);
   background: var(--soft);
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -726,7 +726,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   input,
   select,
   textarea {
-    font-size: 16px !important;
+    font-size: max(16px, calc(16px * var(--fs))) !important;
   }
 }
 
@@ -763,7 +763,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   background: var(--blue-bg);
   color: var(--blue);
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .weather-hours {
   display: flex;
@@ -784,7 +784,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   gap: 6px;
   padding-top: 12px;
   border-top: 1px solid var(--line);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .weather-days > div {
   display: flex;
@@ -825,7 +825,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   background: var(--sel);
 }
 .note-preview {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -846,7 +846,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   outline: none;
   background: transparent;
   color: var(--ink);
-  font-size: 30px;
+  font-size: calc(30px * var(--fs));
   font-weight: 800;
   line-height: 1.2;
   padding: 0;
@@ -860,7 +860,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 16px;
+  font-size: calc(16px * var(--fs));
   line-height: 1.65;
   padding: 0;
   overflow: hidden;
@@ -890,7 +890,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   -webkit-box-orient: vertical;
   overflow: hidden;
   white-space: pre-line;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   color: var(--muted);
 }
 
@@ -906,7 +906,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   border-color: transparent;
   color: var(--blue);
   cursor: default;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   padding: 1px 8px;
 }
 .chip-x {
@@ -958,7 +958,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   background: var(--sel);
   color: var(--sel-ink);
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .steps {
   list-style: none;
@@ -983,7 +983,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   border-radius: 99px;
   border: 1px solid var(--line);
   background: var(--soft);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .ing-row {
   display: grid;
@@ -1029,7 +1029,7 @@ input[type='time'].field::-webkit-date-and-time-value {
 .set.head {
   min-height: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1076,7 +1076,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   justify-content: flex-end;
   gap: 4px;
   min-width: 0;
-  font-size: 10px;
+  font-size: calc(10px * var(--fs));
   color: var(--muted);
 }
 .bar-col i {
@@ -1175,7 +1175,7 @@ input[type='time'].field::-webkit-date-and-time-value {
 kbd,
 .kbd-btn {
   font-family: var(--font-mono), monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   padding: 1px 6px;
   border-radius: 6px;
   border: 1px solid var(--line);
@@ -1223,7 +1223,7 @@ mark {
   outline: none;
   background: transparent;
   color: var(--ink);
-  font-size: 18px;
+  font-size: calc(18px * var(--fs));
 }
 .search-kinds {
   display: flex;
@@ -1258,7 +1258,7 @@ mark {
 }
 .search-snippet {
   display: block;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1270,7 +1270,7 @@ mark {
   padding: 8px 16px;
   border-top: 1px solid var(--line);
   background: var(--soft);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
 }
 
@@ -1296,7 +1296,7 @@ mark {
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1376,7 +1376,7 @@ mark {
   border-radius: 14px;
   background: var(--toast-bg);
   color: var(--toast-ink);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.5);
 }
 
@@ -1427,7 +1427,7 @@ mark {
     gap: 2px;
     min-height: 48px;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs));
     font-weight: 600;
     color: var(--muted);
     text-decoration: none;
@@ -1440,13 +1440,13 @@ mark {
     top: 2px;
     left: calc(50% + 6px);
     padding: 0 6px;
-    font-size: 11px;
+    font-size: calc(11px * var(--fs));
   }
   .page {
     padding: 16px 16px 120px;
   }
   .h1 {
-    font-size: 28px;
+    font-size: calc(28px * var(--fs));
   }
   .page-head {
     margin-bottom: 16px;
@@ -1535,7 +1535,7 @@ mark {
     padding: 14px 16px 18px;
   }
   .note-title {
-    font-size: 24px;
+    font-size: calc(24px * var(--fs));
   }
   .note-body {
     min-height: 180px;
@@ -1623,7 +1623,7 @@ mark {
   padding: 10px 12px;
   border-radius: 12px;
   background: var(--soft);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 @media (max-width: 860px) {
   .support-grid {
@@ -1660,13 +1660,13 @@ mark {
   border: 1px solid var(--line);
   border-radius: 6px;
   font-family: var(--font-mono, ui-monospace), monospace;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .guide-tip {
   padding: 10px 12px;
   border-radius: 12px;
   background: var(--soft);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 
 /* ---------------------------------------------------------------- телефон: простой вид */
@@ -1758,7 +1758,7 @@ mark {
     gap: 12px;
   }
   .card-title {
-    font-size: 17px;
+    font-size: calc(17px * var(--fs));
   }
   .card-title > svg {
     display: none;
@@ -1831,7 +1831,7 @@ mark {
   color: var(--accent-ink);
 }
 .tile-label {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1840,7 +1840,7 @@ mark {
 .tile-value {
   grid-column: 1 / -1;
   margin-top: 4px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1882,7 +1882,7 @@ mark {
   min-height: 40px;
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
@@ -1903,7 +1903,7 @@ mark {
   .rem-row .rem-time {
     order: 2;
     width: auto !important;
-    font-size: 14px;
+    font-size: calc(14px * var(--fs));
   }
   .rem-row .rem-actions {
     order: 3;
@@ -1929,7 +1929,7 @@ mark {
     padding: 12px 14px;
   }
   .recipe-card .rc-title {
-    font-size: 16px !important;
+    font-size: calc(16px * var(--fs)) !important;
   }
   .recipe-card .rc-bar {
     display: none !important;
@@ -2022,7 +2022,7 @@ mark {
 .empty-title {
   margin: 0;
   max-width: 320px;
-  font-size: 17px;
+  font-size: calc(17px * var(--fs));
   font-weight: 600;
   text-wrap: balance;
 }
@@ -2123,7 +2123,7 @@ mark {
   background: var(--warm);
   color: #fff;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   cursor: pointer;
 }
@@ -2145,13 +2145,13 @@ mark {
 }
 .focus-title {
   margin: 0;
-  font-size: 26px;
+  font-size: calc(26px * var(--fs));
   font-weight: 700;
   line-height: 1.2;
 }
 .focus-done {
   min-height: 60px;
-  font-size: 18px;
+  font-size: calc(18px * var(--fs));
 }
 
 /* итог дня */
@@ -2173,7 +2173,7 @@ mark {
 }
 .review-meta {
   display: block;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 
@@ -2197,7 +2197,7 @@ mark {
 .cal-wd {
   padding: 4px 0;
   text-align: center;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   color: var(--muted);
 }
@@ -2278,7 +2278,7 @@ mark {
 .cal-time {
   width: 44px;
   flex: none;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 .cal-week-day {
@@ -2345,7 +2345,7 @@ mark {
   background: none;
   color: inherit;
   font: inherit;
-  font-size: 20px;
+  font-size: calc(20px * var(--fs));
   text-align: left;
   cursor: pointer;
 }
@@ -2368,7 +2368,7 @@ mark {
   color: #fff;
 }
 .store-qty {
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
   color: var(--muted);
 }
 
@@ -2384,7 +2384,7 @@ mark {
   padding: 6px 12px;
   background: var(--warm-bg);
   color: var(--ink);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 600;
   border-bottom: 1px solid var(--warm-line);
 }
@@ -2423,7 +2423,7 @@ mark {
   gap: 5px;
   flex: none;
   padding-right: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 .check.future {
@@ -2462,7 +2462,7 @@ mark {
 /* время напоминания; прошло и не отмечено — оранжевым */
 .row-time {
   flex: none;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 .row-time.late {
@@ -2524,7 +2524,7 @@ button.task-open:hover > span:first-child {
 }
 .quick-dates .chip {
   min-height: 32px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 
 /* задачи: список + календарь сбоку */
@@ -2559,7 +2559,7 @@ button.task-open:hover > span:first-child {
 .tasks-side .cal-num {
   width: 28px;
   height: 28px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .task-filters {
   display: flex;
@@ -2579,7 +2579,7 @@ button.task-open:hover > span:first-child {
   min-height: 36px;
   padding-top: 4px;
   padding-bottom: 4px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .prio-select[data-on] {
   border-color: var(--accent);
@@ -2657,7 +2657,7 @@ button.task-open:hover > span:first-child {
   min-height: 36px;
   padding-top: 4px;
   padding-bottom: 4px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .ai-fill {
   display: flex;
@@ -2722,7 +2722,7 @@ button.task-open:hover > span:first-child {
     flex: none;
   }
   .seg.seg-4 button {
-    font-size: 12px;
+    font-size: calc(12px * var(--fs));
     padding: 0 2px;
   }
 }
@@ -2757,7 +2757,7 @@ button.task-open:hover > span:first-child {
   box-shadow: 0 12px 32px var(--shadow);
 }
 .tour-step {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -2771,7 +2771,184 @@ button.task-open:hover > span:first-child {
 }
 .menu-head {
   padding: 6px 10px 2px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   color: var(--muted);
+}
+
+/* Оформление на устройстве (src/lib/theme.ts): акцентный цвет — <html data-accent>,
+   размер текста — <html data-size>, множитель --fs у всех font-size. */
+:root {
+  --fs: 1;
+}
+:root[data-size='sm'] {
+  --fs: 0.93;
+}
+:root[data-size='lg'] {
+  --fs: 1.12;
+}
+:root[data-size='xl'] {
+  --fs: 1.25;
+}
+:root[data-accent='blue'] {
+  --accent: #2557c7;
+  --accent-hover: #1d47a6;
+  --accent-ink: #1d47a6;
+  --sel: #e6edfb;
+  --sel-ink: #163a85;
+}
+:root[data-theme='dark'][data-accent='blue'] {
+  --accent-hover: #3b6fe0;
+  --accent-ink: #8fb0ff;
+  --sel: #18233d;
+  --sel-ink: #b9ccff;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='blue'] {
+    --accent-hover: #3b6fe0;
+    --accent-ink: #8fb0ff;
+    --sel: #18233d;
+    --sel-ink: #b9ccff;
+  }
+}
+:root[data-accent='violet'] {
+  --accent: #6d43c9;
+  --accent-hover: #5a35ab;
+  --accent-ink: #5a35ab;
+  --sel: #efe9fb;
+  --sel-ink: #45288a;
+}
+:root[data-theme='dark'][data-accent='violet'] {
+  --accent-hover: #8259de;
+  --accent-ink: #bca4ff;
+  --sel: #261d3d;
+  --sel-ink: #d7c9ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='violet'] {
+    --accent-hover: #8259de;
+    --accent-ink: #bca4ff;
+    --sel: #261d3d;
+    --sel-ink: #d7c9ff;
+  }
+}
+:root[data-accent='rose'] {
+  --accent: #c0306a;
+  --accent-hover: #a32659;
+  --accent-ink: #a32659;
+  --sel: #fbe8ef;
+  --sel-ink: #82204a;
+}
+:root[data-theme='dark'][data-accent='rose'] {
+  --accent-hover: #d64a82;
+  --accent-ink: #ff9fc4;
+  --sel: #3a1826;
+  --sel-ink: #ffc6dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='rose'] {
+    --accent-hover: #d64a82;
+    --accent-ink: #ff9fc4;
+    --sel: #3a1826;
+    --sel-ink: #ffc6dc;
+  }
+}
+:root[data-accent='orange'] {
+  --accent: #b4530a;
+  --accent-hover: #964406;
+  --accent-ink: #964406;
+  --sel: #fcecdf;
+  --sel-ink: #7a3805;
+}
+:root[data-theme='dark'][data-accent='orange'] {
+  --accent-hover: #cc6516;
+  --accent-ink: #ffb37a;
+  --sel: #36220f;
+  --sel-ink: #ffd2ad;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='orange'] {
+    --accent-hover: #cc6516;
+    --accent-ink: #ffb37a;
+    --sel: #36220f;
+    --sel-ink: #ffd2ad;
+  }
+}
+:root[data-accent='green'] {
+  --accent: #2f7d32;
+  --accent-hover: #256628;
+  --accent-ink: #256628;
+  --sel: #e6f3e7;
+  --sel-ink: #1d5220;
+}
+:root[data-theme='dark'][data-accent='green'] {
+  --accent-hover: #3c9a40;
+  --accent-ink: #8fd893;
+  --sel: #172d18;
+  --sel-ink: #bdeabf;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='green'] {
+    --accent-hover: #3c9a40;
+    --accent-ink: #8fd893;
+    --sel: #172d18;
+    --sel-ink: #bdeabf;
+  }
+}
+:root[data-accent='graphite'] {
+  --accent: #3f4a56;
+  --accent-hover: #2f3842;
+  --accent-ink: #2f3842;
+  --sel: #e9edf1;
+  --sel-ink: #252c34;
+}
+:root[data-theme='dark'][data-accent='graphite'] {
+  --accent-hover: #5b6a79;
+  --accent-ink: #c3ccd6;
+  --sel: #1f262d;
+  --sel-ink: #dde3ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-accent='graphite'] {
+    --accent-hover: #5b6a79;
+    --accent-ink: #c3ccd6;
+    --sel: #1f262d;
+    --sel-ink: #dde3ea;
+  }
+}
+
+/* оформление в настройках */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.swatch {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+.swatch[aria-checked='true'] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.swatch:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.appearance-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--soft);
 }

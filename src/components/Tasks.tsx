@@ -426,7 +426,7 @@ function PushFocus({ onClose }: { onClose: () => void }) {
         <p style={{ margin: 0, color: 'var(--muted)' }}>«{reminder.title}» сегодня уже не по плану.</p>
       ) : (
         <div className="focus-card">
-          <span className="mono" style={{ fontSize: 15, color: 'var(--muted)' }}>
+          <span className="mono" style={{ fontSize: 'calc(15px * var(--fs))', color: 'var(--muted)' }}>
             {focus.snoozedTo ?? focus.slot}
           </span>
           <p className="display focus-title">{reminder.title}</p>
@@ -667,7 +667,7 @@ export default function Tasks() {
       ))}
       {doneToday.length > 0 && (
         <details>
-          <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length}</summary>
+          <summary style={{ cursor: 'pointer', fontSize: 'calc(14px * var(--fs))', fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length}</summary>
           {sortTasks(doneToday).map((t) => (
             <TaskRow key={t.id} task={t} />
           ))}
@@ -702,7 +702,7 @@ export default function Tasks() {
           <aside className="tasks-side">
             <section className="card" aria-label="Календарь задач">
               <WeekStrip key="month" sel={day ?? today} today={today} onPick={pickDay} dots={dots} alwaysMonth />
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+              <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 {day ? (
                   <button className="add-line" type="button" style={{ padding: 0 }} onClick={() => setDay(null)}>
                     Показать все задачи

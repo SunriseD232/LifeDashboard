@@ -49,7 +49,7 @@ export default function PushPanel({ toast }: { toast: (m: string) => void }) {
       <span style={{ color: state === 'on' ? 'var(--accent-ink)' : 'var(--muted)', paddingTop: 2 }}>
         <Icon name="bell" />
       </span>
-      <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 14 }}>
+      <div style={{ flex: '1 1 220px', minWidth: 0, fontSize: 'calc(14px * var(--fs))' }}>
         {state === 'on' && (
           <>
             <strong>Уведомления включены {where}.</strong>

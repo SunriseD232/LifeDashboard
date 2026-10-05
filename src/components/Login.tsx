@@ -85,13 +85,13 @@ export default function Login({ onDone }: { onDone: () => void }) {
         <span className="brand-mark" style={{ width: 48, height: 48, borderRadius: 14 }}>
           <Icon name="bag" size={26} strokeWidth={2} />
         </span>
-        <h1 className="display" style={{ margin: 0, fontSize: 28 }}>
+        <h1 className="display" style={{ margin: 0, fontSize: 'calc(28px * var(--fs))' }}>
           LifeDashboard
         </h1>
         <p style={{ margin: 0, color: 'var(--muted)' }}>Дела, чек-листы, напоминания, кухня и тренировки — в одном месте.</p>
 
         {mode === 'reset' ? (
-          <h2 className="display" style={{ margin: 0, fontSize: 20 }}>
+          <h2 className="display" style={{ margin: 0, fontSize: 'calc(20px * var(--fs))' }}>
             Новый пароль
           </h2>
         ) : (
@@ -127,7 +127,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
         {mode !== 'login' && step === 'code' && (
           <>
             {info && (
-              <p role="status" style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
+              <p role="status" style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
                 {info}
               </p>
             )}
@@ -168,7 +168,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
               aria-describedby={mode === 'login' ? undefined : 'auth-pw-hint'}
             />
             {mode !== 'login' && (
-              <span id="auth-pw-hint" style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <span id="auth-pw-hint" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 Не короче 8 символов.
               </span>
             )}
@@ -185,7 +185,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
           {busy ? 'Минутку…' : action}
         </button>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', fontSize: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', fontSize: 'calc(14px * var(--fs))' }}>
           {mode === 'login' && (
             <button type="button" className="link-btn" onClick={() => switchTo('reset')}>
               Забыли пароль?

@@ -86,7 +86,7 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
     <>
         {!pick ? (
           <>
-            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Возьмите готовый и поправьте под себя.</p>
+            <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Возьмите готовый и поправьте под себя.</p>
             <div className="tpl-grid">
               {aiReady && (
                 <button type="button" className="list-card ai-card" onClick={() => choose(AI_TRIP)}>
@@ -96,7 +96,7 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
                     </span>
                     <span style={{ fontWeight: 600 }}>{AI_TRIP.title}</span>
                   </span>
-                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{AI_TRIP.description}</span>
+                  <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{AI_TRIP.description}</span>
                 </button>
               )}
               {CHECKLIST_TEMPLATES.map((t) => (
@@ -107,7 +107,7 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
                     </span>
                     <span style={{ fontWeight: 600 }}>{t.title}</span>
                   </span>
-                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                     {t.description} · {plural(t.items.length, 'пункт', 'пункта', 'пунктов')}
                   </span>
                 </button>
@@ -172,8 +172,8 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
             )}
             {pick.items.length > 0 && (
               <details open={pick.id === AI_TRIP.id}>
-                <summary style={{ cursor: 'pointer', fontSize: 14, color: 'var(--muted)', minHeight: 28 }}>Что внутри · {pick.items.length}</summary>
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>{pick.items.map((i) => i.title).join(', ')}</p>
+                <summary style={{ cursor: 'pointer', fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', minHeight: 28 }}>Что внутри · {pick.items.length}</summary>
+                <p style={{ margin: '6px 0 0', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{pick.items.map((i) => i.title).join(', ')}</p>
               </details>
             )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -200,7 +200,7 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
   return (
     <div className="overlay" onClick={onClose}>
       <div ref={boxRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="tpl-dlg" style={{ width: 'min(560px, 100%)', maxHeight: '90dvh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-        <h2 id="tpl-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
+        <h2 id="tpl-dlg" className="display" style={{ margin: 0, fontSize: 'calc(20px * var(--fs))' }}>
           {pick ? pick.title : 'Чек-лист из шаблона'}
         </h2>
         {content}

@@ -314,7 +314,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <main className="page" style={{ display: 'grid', placeItems: 'center', minHeight: '80vh', margin: '0 auto' }}>
         <div className="panel" style={{ maxWidth: 420, padding: 28, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <h1 className="display" style={{ margin: 0, fontSize: 28 }}>
+          <h1 className="display" style={{ margin: 0, fontSize: 'calc(28px * var(--fs))' }}>
             Не удалось загрузить
           </h1>
           <p style={{ margin: 0, color: 'var(--muted)' }}>Сервер не ответил. Проверьте интернет и попробуйте ещё раз.</p>
@@ -390,7 +390,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <header className="mtop">
-          <Link href="/" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 15, color: 'inherit', textDecoration: 'none' }}>
+          <Link href="/" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 'calc(15px * var(--fs))', color: 'inherit', textDecoration: 'none' }}>
             {dayTitle(now)}
           </Link>
           <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">

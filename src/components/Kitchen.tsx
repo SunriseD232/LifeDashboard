@@ -81,20 +81,20 @@ export function RecipeCard({ r, m, byId }: { r: Recipe; m: Match; byId: Map<stri
           </span>
         )}
         {minutesLabel(r.minutes) && (
-          <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+          <span style={{ marginLeft: 'auto', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
             <Icon name="timer" size={16} />
             {minutesLabel(r.minutes)}
           </span>
         )}
       </span>
-      <span className="display rc-title" style={{ fontWeight: 700, fontSize: 18, lineHeight: 1.25 }}>
+      <span className="display rc-title" style={{ fontWeight: 700, fontSize: 'calc(18px * var(--fs))', lineHeight: 1.25 }}>
         {r.title}
       </span>
       <span className="rc-bar" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className="bar" style={{ flex: 1 }} aria-hidden="true">
           <i style={{ width: `${pct}%` }} />
         </span>
-        <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+        <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
           {m.have} из {m.total}
         </span>
       </span>
@@ -127,7 +127,7 @@ function Pantry() {
       <h2 className="card-title display" id="pantry-title">
         Что есть дома
       </h2>
-      <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+      <p className="hide-phone" style={{ margin: '-8px 0 0', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
         Подберу, что приготовить. Купленное в «Покупках» попадает сюда само. Соль, перец, вода и масло считаются всегда.
       </p>
       <form
@@ -148,7 +148,7 @@ function Pantry() {
         </button>
       </form>
       {have.length === 0 ? (
-        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока пусто. Напишите, что есть: «яйца», «молоко».</p>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>Пока пусто. Напишите, что есть: «яйца», «молоко».</p>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {have.map((p) => (
@@ -350,7 +350,7 @@ export function Shopping() {
         <span className="check-text" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'baseline' }}>
           <span>{i.title}</span>
           {i.qty !== null && i.qty !== undefined && (
-            <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+            <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
               {i.note?.split(' · ')[0]}
             </span>
           )}
@@ -404,7 +404,7 @@ export function Shopping() {
       ))}
       {bought.length > 0 && (
         <details>
-          <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Куплено · {bought.length}</summary>
+          <summary style={{ cursor: 'pointer', fontSize: 'calc(14px * var(--fs))', fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Куплено · {bought.length}</summary>
           {bought.map(row)}
           <button className="btn btn-ghost" type="button" style={{ marginTop: 8 }} onClick={clear}>
             Убрать купленное

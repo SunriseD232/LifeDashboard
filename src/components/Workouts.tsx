@@ -109,13 +109,13 @@ function ExerciseCard({ w, e, onLogged }: { w: Workout; e: WorkoutExercise; onLo
   return (
     <section className="ex-card" aria-label={name}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <h3 style={{ margin: 0, fontSize: 16, flex: 1, minWidth: 0 }}>{name}</h3>
+        <h3 style={{ margin: 0, fontSize: 'calc(16px * var(--fs))', flex: 1, minWidth: 0 }}>{name}</h3>
         <button className="icon-btn bare" type="button" style={{ width: 32, height: 32 }} aria-label={`Убрать «${name}»`} onClick={() => (e.sets.length ? setConfirm(true) : removeExercise())}>
           <Icon name="x" size={16} />
         </button>
       </div>
       {(plan || last) && (
-        <span style={{ fontSize: 13, color: 'var(--muted)', marginTop: -6 }}>
+        <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)', marginTop: -6 }}>
           {plan && `план ${plan.sets} × ${plan.reps}${plan.weight ? ` по ${fmtW(plan.weight)} кг` : ''}`}
           {plan && last && ' · '}
           {last && `прошлый раз ${setLabel(last.best)}`}
@@ -264,10 +264,10 @@ function WorkoutView({ w, onBack, onDeleted }: { w: Workout; onBack: () => void;
           <Icon name="back" />
         </button>
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-          <h2 className="display" style={{ margin: 0, fontSize: 26 }}>
+          <h2 className="display" style={{ margin: 0, fontSize: 'calc(26px * var(--fs))' }}>
             {w.title}
           </h2>
-          <div style={{ fontSize: 14, color: 'var(--muted)' }}>
+          <div style={{ fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
             {dayShort(w.day)} · {w.finished_at ? duration(w.started_at, w.finished_at) : `идёт ${duration(w.started_at, null, now)}`}
             {tonnage(w) > 0 && ` · тоннаж ${tonnage(w).toLocaleString('ru-RU')} кг`}
             {sets > 0 && ` · ${plural(sets, 'подход', 'подхода', 'подходов')}`}
@@ -454,15 +454,15 @@ function Progress() {
       </select>
       <div style={{ display: 'flex', gap: 10 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>Рекорд</div>
-          <div className="display" style={{ fontSize: 24, fontWeight: 700 }}>
+          <div style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>Рекорд</div>
+          <div className="display" style={{ fontSize: 'calc(24px * var(--fs))', fontWeight: 700 }}>
             {pb ? setLabel(pb) : '—'}
           </div>
         </div>
         {delta !== null && (
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>За 10 недель</div>
-            <div className="display" style={{ fontSize: 24, fontWeight: 700, color: delta > 0 ? 'var(--accent-ink)' : undefined }}>
+            <div style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>За 10 недель</div>
+            <div className="display" style={{ fontSize: 'calc(24px * var(--fs))', fontWeight: 700, color: delta > 0 ? 'var(--accent-ink)' : undefined }}>
               {delta > 0 ? '+' : ''}
               {fmtW(delta)} кг
             </div>
@@ -482,7 +482,7 @@ function Progress() {
           );
         })}
       </div>
-      <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Лучший вес за неделю. Подписи — понедельник недели.</p>
+      <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Лучший вес за неделю. Подписи — понедельник недели.</p>
       <Advice key={id} exerciseId={id} />
     </section>
   );
@@ -521,7 +521,7 @@ function Templates({ onStarted }: { onStarted: (id: string) => void }) {
               <Icon name="trash" size={16} />
             </button>
           </div>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{t.plan.map((p) => names.get(p.exercise_id)).filter(Boolean).join(', ')}</span>
+          <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{t.plan.map((p) => names.get(p.exercise_id)).filter(Boolean).join(', ')}</span>
           <div role="group" aria-label={`Дни шаблона «${t.title}»`} style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             {WEEK.map((d) => {
               const on = t.weekdays.includes(d);
@@ -636,11 +636,11 @@ export default function Workouts() {
             <button key={w.id} type="button" className="note-card" aria-current={w.id === sel ? 'true' : undefined} onClick={() => select(w.id)}>
               <span style={{ display: 'flex', gap: 8 }}>
                 <span style={{ fontWeight: 600, flex: 1 }}>{w.title}</span>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                <span className="mono" style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>
                   {dayShort(w.day)}
                 </span>
               </span>
-              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 {w.finished_at ? duration(w.started_at, w.finished_at) : 'идёт'} · {plural(w.exercises.length, 'упражнение', 'упражнения', 'упражнений')}
               </span>
             </button>

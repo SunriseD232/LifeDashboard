@@ -34,7 +34,8 @@ interface Row {
  * Поддержка: /api/support[/:id].
  *  GET           — мои обращения; админу — ещё и все (inbox);
  *  POST          { kind, text, page } — новое обращение (админам — письмо);
- *  PATCH :id     { status, reply } — только админ; автору — письмо об ответе.
+ *  PATCH :id     { status, reply } — только админ; автору — письмо об ответе;
+ *  DELETE :id    — удалить: своё обращение — автор, любое — админ.
  */
 export async function support({ d, userId, method, body, id }: Ctx): Promise<unknown> {
   const me = userLogin(userId);
@@ -85,6 +86,14 @@ export async function support({ d, userId, method, body, id }: Ctx): Promise<unk
         console.error('[lifedashboard support] письмо автору:', (e as Error).message),
       );
     }
+    return { ok: true };
+  }
+
+  if (method === 'DELETE' && id) {
+    const row = d.prepare('select user_id from feedback where id = ?').get(id) as { user_id: string } | undefined;
+    // Чужое для не-админа — «не найдено»: не подсказываем, что такое есть.
+    if (!row || (row.user_id !== userId && !admin)) throw new HttpError(404, 'Обращение не найдено.');
+    d.prepare('delete from feedback where id = ?').run(id);
     return { ok: true };
   }
 

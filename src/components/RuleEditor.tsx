@@ -189,7 +189,7 @@ export default function RuleEditor({ rule, times, today, onChange }: Props) {
         </div>
       </Field>
 
-      <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
         <Icon name="repeat" size={16} />
         <span>
           {cap(describe(rule))}

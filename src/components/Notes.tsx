@@ -91,7 +91,7 @@ function NoteTasks({ noteId }: { noteId: string }) {
               <input type="checkbox" checked={pick[i]} onChange={(e) => setPick(pick.map((p, j) => (j === i ? e.target.checked : p)))} />
               <span className="check-text">
                 {t.title}
-                {t.due_date && <span style={{ color: 'var(--muted)', fontSize: 13 }}> · напомню {shortDate(t.due_date, localDay(now))} в {data.settings.deadline_time}</span>}
+                {t.due_date && <span style={{ color: 'var(--muted)', fontSize: 'calc(13px * var(--fs))' }}> · напомню {shortDate(t.due_date, localDay(now))} в {data.settings.deadline_time}</span>}
               </span>
             </label>
           ))}
@@ -196,7 +196,7 @@ function Editor({ note, onBack, onDeleted }: { note: Note; onBack: () => void; o
         <button className="icon-btn bare only-mobile" type="button" aria-label="Назад к заметкам" onClick={onBack}>
           <Icon name="back" />
         </button>
-        <span style={{ fontSize: 13, color: 'var(--muted)', flex: 1, minWidth: 0 }} aria-live="polite">
+        <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)', flex: 1, minWidth: 0 }} aria-live="polite">
           {status === 'saved' ? `Сохранено · ${editedLabel(note.updated_at, now)}` : status === 'saving' ? 'Сохраняем…' : 'Есть несохранённое'}
           {note.author && ` · пишет ${note.author}`}
         </span>
@@ -382,7 +382,7 @@ export default function Notes() {
                 <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   {n.pinned && <Icon name="pin" size={14} />}
                   <span style={{ fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{noteTitle(n)}</span>
-                  <span style={{ fontSize: 12, color: 'var(--muted)', flex: 'none' }}>{editedLabel(n.updated_at, now)}</span>
+                  <span style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)', flex: 'none' }}>{editedLabel(n.updated_at, now)}</span>
                 </span>
                 <span className="note-preview">{(n.title.trim() ? n.body : n.body.split('\n').slice(1).join(' ')).trim() || ' '}</span>
                 {(n.tags.length > 0 || n.household_id) && (

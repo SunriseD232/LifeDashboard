@@ -43,10 +43,10 @@ export default function Confirm({
         aria-describedby="confirm-text"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="confirm-title" className="display" style={{ margin: 0, fontSize: 19 }}>
+        <h2 id="confirm-title" className="display" style={{ margin: 0, fontSize: 'calc(19px * var(--fs))' }}>
           {title}
         </h2>
-        <p id="confirm-text" style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>
+        <p id="confirm-text" style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>
           {text}
         </p>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>

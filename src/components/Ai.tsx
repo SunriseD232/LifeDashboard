@@ -74,7 +74,7 @@ export function SummaryCard() {
           Сводка дня
         </h2>
       </div>
-      {text ? <p style={{ margin: 0, lineHeight: 1.6 }}>{text}</p> : <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Коротко о главном: сроки, напоминания, погода, что взять с собой.</p>}
+      {text ? <p style={{ margin: 0, lineHeight: 1.6 }}>{text}</p> : <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>Коротко о главном: сроки, напоминания, погода, что взять с собой.</p>}
       <AiButton busy={busy} onClick={make} style={{ alignSelf: 'flex-start' }}>
         {text ? 'Обновить' : 'Составить'}
       </AiButton>

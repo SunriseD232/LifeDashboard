@@ -270,7 +270,7 @@ export default function Guide() {
               {p.title}
             </h2>
             {p.href && (
-              <Link href={p.href} style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600 }}>
+              <Link href={p.href} style={{ marginLeft: 'auto', fontSize: 'calc(14px * var(--fs))', fontWeight: 600 }}>
                 Открыть
               </Link>
             )}

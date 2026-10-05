@@ -89,7 +89,7 @@ export default function Review() {
           })}
         </ul>
       )}
-      <p style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+      <p style={{ margin: '16px 0 0', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
         Время итога и тихие часы — в <Link href="/settings">Настройках</Link>.
       </p>
     </div>

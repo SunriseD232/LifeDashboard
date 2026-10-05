@@ -31,7 +31,7 @@ export default function More() {
             <Icon name="settings" />
           </span>
           <span style={{ flex: 1, fontWeight: 600 }}>Настройки</span>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{data.login}</span>
+          <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{data.login}</span>
         </Link>
       </nav>
     </>

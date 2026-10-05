@@ -40,7 +40,7 @@ export function NavEditor() {
         <Icon name="list" />
         Разделы меню
       </h2>
-      <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Переставьте и скройте ненужное. На телефоне внизу — Главная и первые {PHONE_SLOTS} раздела, остальные — в «Ещё».</p>
+      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Переставьте и скройте ненужное. На телефоне внизу — Главная и первые {PHONE_SLOTS} раздела, остальные — в «Ещё».</p>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.map((s, i) => {
           const onPhone = nav.phone.some((x) => x.href === s.href);
@@ -50,7 +50,7 @@ export function NavEditor() {
               <span style={{ flex: 1, minWidth: 0 }}>
                 {s.label}
                 {onPhone && <span className="tag" style={{ marginLeft: 8 }}>внизу</span>}
-                {s.hidden && <span style={{ marginLeft: 8, fontSize: 13, color: 'var(--muted)' }}>скрыт</span>}
+                {s.hidden && <span style={{ marginLeft: 8, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>скрыт</span>}
               </span>
               <button className="icon-btn bare" type="button" aria-label={`${s.label} выше`} disabled={i === 0} onClick={() => move(i, -1)}>
                 <Icon name="up" size={18} />
@@ -58,7 +58,7 @@ export function NavEditor() {
               <button className="icon-btn bare" type="button" aria-label={`${s.label} ниже`} disabled={i === items.length - 1} onClick={() => move(i, 1)}>
                 <Icon name="down" size={18} />
               </button>
-              <button className="btn btn-ghost" type="button" style={{ minHeight: 36, padding: '4px 10px', fontSize: 13 }} aria-pressed={!s.hidden} onClick={() => toggle(i)}>
+              <button className="btn btn-ghost" type="button" style={{ minHeight: 36, padding: '4px 10px', fontSize: 'calc(13px * var(--fs))' }} aria-pressed={!s.hidden} onClick={() => toggle(i)}>
                 {s.hidden ? 'Показать' : 'Скрыть'}
               </button>
             </li>
@@ -109,7 +109,7 @@ export function CalendarCard() {
         <Icon name="calendar" />
         Календарь
       </h2>
-      <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
+      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
         Дела со сроком и напоминания появятся в Календаре iPhone, Google или Outlook и будут обновляться сами. Правки — здесь, в LifeDashboard.
       </p>
       {!token ? (
@@ -129,8 +129,8 @@ export function CalendarCard() {
             </button>
           </div>
           <details>
-            <summary style={{ cursor: 'pointer', fontSize: 14, color: 'var(--muted)', minHeight: 28 }}>Google Календарь и другое</summary>
-            <p style={{ margin: '6px 0 0', fontSize: 14, lineHeight: 1.5 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', minHeight: 28 }}>Google Календарь и другое</summary>
+            <p style={{ margin: '6px 0 0', fontSize: 'calc(14px * var(--fs))', lineHeight: 1.5 }}>
               Google: calendar.google.com → «Другие календари» → «+» → «Добавить по URL» → вставьте ссылку. Google обновляет такие календари раз в несколько часов.
               <br />
               Ссылка — как пароль к расписанию: не пересылайте её. Если утекла — перевыпустите.
@@ -188,7 +188,7 @@ export function QuietCard() {
             {timeField('q-from', 'С', s.quiet_from, (v) => save({ quiet_from: v, quiet_to: s.quiet_to }, 'Сохранено'))}
             {timeField('q-to', 'До', s.quiet_to, (v) => save({ quiet_from: s.quiet_from, quiet_to: v }, 'Сохранено'))}
           </div>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Что пришлось на это время и не отмечено — придёт одним сообщением утром.</p>
+          <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Что пришлось на это время и не отмечено — придёт одним сообщением утром.</p>
         </>
       )}
       <label className="check" style={{ padding: 0 }}>

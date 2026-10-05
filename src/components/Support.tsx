@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from './AppShell';
+import Confirm from './Confirm';
 import { Icon } from './icons';
 
 type Kind = 'idea' | 'bug' | 'question' | 'other';
@@ -88,7 +89,7 @@ export default function Support() {
             <Icon name="chat" />
             Написать нам
           </h2>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>
+          <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
             Читаем всё. Нашли ошибку, не хватает функции или непонятно, как что-то сделать — расскажите. Сначала можно заглянуть в <Link href="/guide">«Как пользоваться»</Link>.
           </p>
           <div role="radiogroup" aria-label="О чём" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -115,9 +116,9 @@ export default function Support() {
           {!list ? (
             <p style={{ margin: 0, color: 'var(--muted)' }}>Загружаем…</p>
           ) : list.mine.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Пока ничего. Ответы на обращения появятся здесь.</p>
+            <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>Пока ничего. Ответы на обращения появятся здесь.</p>
           ) : (
-            list.mine.map((f) => <Item key={f.id} f={f} />)
+            list.mine.map((f) => <Item key={f.id} f={f} onDeleted={load} />)
           )}
         </section>
       </div>
@@ -127,16 +128,48 @@ export default function Support() {
   );
 }
 
-function Item({ f }: { f: Feedback }) {
+/** Удалить обращение — с подтверждением. */
+function DeleteButton({ f, onDeleted }: { f: Feedback; onDeleted: () => Promise<void> }) {
+  const { toast } = useApp();
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <>
+      <button className="icon-btn bare" type="button" aria-label="Удалить обращение" title="Удалить обращение" onClick={() => setConfirm(true)} style={{ marginLeft: 'auto' }}>
+        <Icon name="trash" size={16} />
+      </button>
+      {confirm && (
+        <Confirm
+          title="Удалить обращение?"
+          text={f.reply ? 'Удалится вместе с ответом поддержки.' : 'Сообщение удалится насовсем.'}
+          action="Удалить"
+          onCancel={() => setConfirm(false)}
+          onConfirm={async () => {
+            setConfirm(false);
+            try {
+              await api(`support/${f.id}`, 'DELETE');
+              toast('Обращение удалено');
+              await onDeleted();
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function Item({ f, onDeleted }: { f: Feedback; onDeleted?: () => Promise<void> }) {
   return (
     <article className="sup-item">
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 'calc(13px * var(--fs))' }}>
         <span className="tag">{KIND_LABEL[f.kind]}</span>
         <span className="sup-status" data-status={f.status}>
           {STATUS_LABEL[f.status]}
         </span>
         <span style={{ color: 'var(--muted)' }}>{when(f.created_at)}</span>
         {f.login && <span style={{ color: 'var(--muted)' }}>· {f.login}</span>}
+        {onDeleted && <DeleteButton f={f} onDeleted={onDeleted} />}
       </div>
       <p style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{f.text}</p>
       {f.reply && (
@@ -167,7 +200,7 @@ function Inbox({ items, onChanged }: { items: Feedback[]; onChanged: () => Promi
           Все · {items.length}
         </button>
       </div>
-      {shown.length === 0 && <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14 }}>Здесь пусто.</p>}
+      {shown.length === 0 && <p style={{ margin: 0, color: 'var(--muted)', fontSize: 'calc(14px * var(--fs))' }}>Здесь пусто.</p>}
       {shown.map((f) => (
         <AdminItem key={f.id} f={f} onChanged={onChanged} />
       ))}
@@ -193,8 +226,8 @@ function AdminItem({ f, onChanged }: { f: Feedback; onChanged: () => Promise<voi
   };
   return (
     <div className="sup-item">
-      <Item f={{ ...f, reply: null }} />
-      {f.page && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{f.page}</span>}
+      <Item f={{ ...f, reply: null }} onDeleted={onChanged} />
+      {f.page && <span style={{ fontSize: 'calc(12px * var(--fs))', color: 'var(--muted)' }}>{f.page}</span>}
       <label className="sr-only" htmlFor={`rep-${f.id}`}>
         Ответ
       </label>

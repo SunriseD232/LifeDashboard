@@ -85,7 +85,7 @@ export default function RecipeView({ id }: { id: string }) {
 
   return (
     <>
-      <Link href="/kitchen" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 14, textDecoration: 'none', minHeight: 32 }}>
+      <Link href="/kitchen" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 'calc(14px * var(--fs))', textDecoration: 'none', minHeight: 32 }}>
         <Icon name="back" size={18} />
         Кухня
       </Link>
@@ -94,7 +94,7 @@ export default function RecipeView({ id }: { id: string }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
             <span className="tag">{CATEGORY_LABELS[recipe.category]}</span>
             {minutesLabel(recipe.minutes) && (
-              <span style={{ fontSize: 14, color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                 <Icon name="timer" size={16} />
                 {minutesLabel(recipe.minutes)}
               </span>
@@ -156,7 +156,7 @@ export default function RecipeView({ id }: { id: string }) {
                     <Icon name={have ? 'check' : 'cart'} size={18} />
                   </button>
                   <span style={{ flex: 1, minWidth: 0 }}>{p.name}</span>
-                  <span className="mono" style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'right' }}>
+                  <span className="mono" style={{ fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', textAlign: 'right' }}>
                     {formatQty(scaleQty(i.qty, i.unit, factor), i.unit)}
                   </span>
                 </li>

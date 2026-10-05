@@ -130,10 +130,10 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
     <div className="lists-layout" data-detail={openId && selected ? 'true' : 'false'}>
       <aside className="lists-aside" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <h1 className="display" style={{ margin: 0, fontSize: 22 }}>
+          <h1 className="display" style={{ margin: 0, fontSize: 'calc(22px * var(--fs))' }}>
             Мои чек-листы
           </h1>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>{plural(lists.length, 'список', 'списка', 'списков')}</span>
+          <span style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{plural(lists.length, 'список', 'списка', 'списков')}</span>
         </div>
         {lists.map((l) => {
           const items = data.items.filter((i) => i.checklist_id === l.id);
@@ -158,7 +158,7 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
                 </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontWeight: 600, overflowWrap: 'anywhere' }}>{l.title}</span>
-                  <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)' }}>
+                  <span style={{ display: 'block', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                     {plural(items.length, 'вещь', 'вещи', 'вещей')}
                   </span>
                 </span>
@@ -168,12 +168,12 @@ export default function Checklists({ data, mutate, reload, openId, setOpenId, to
                   <i style={{ width: `${items.length ? (done / items.length) * 100 : 0}%` }} />
                 </span>
                 {all ? (
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-ink)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                  <span style={{ fontSize: 'calc(13px * var(--fs))', fontWeight: 600, color: 'var(--accent-ink)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                     <Icon name="check" size={16} />
                     Всё собрано
                   </span>
                 ) : (
-                  <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                     {done} из {items.length}
                   </span>
                 )}
@@ -350,7 +350,7 @@ function ChecklistDetail({
                 className="field display"
                 defaultValue={list.title}
                 maxLength={80}
-                style={{ fontSize: 26, fontWeight: 700 }}
+                style={{ fontSize: 'calc(26px * var(--fs))', fontWeight: 700 }}
                 onBlur={(e) => {
                   const t = e.target.value.trim();
                   if (t && t !== list.title) {
@@ -578,7 +578,7 @@ function ChecklistDetail({
                   <label className={`check${it.done ? ' done' : ''}`}>
                     <input type="checkbox" checked={it.done} onChange={(e) => patchItem(it.id, { done: e.target.checked })} />
                     <span className="check-text">{it.title}</span>
-                    {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 13, color: 'var(--muted)' }}>{it.note}</em>}
+                    {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{it.note}</em>}
                   </label>
                 </Swipe>
               ))}

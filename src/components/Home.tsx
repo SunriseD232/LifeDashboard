@@ -78,7 +78,7 @@ export default function Home() {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {upcoming.map(({ r, date }) => (
             <button key={r.id} type="button" className="task-row home-soon" onClick={() => setDialog({ reminder: r })}>
-              <span className="mono" style={{ width: 60, flex: 'none', fontSize: 13, color: 'var(--muted)' }}>
+              <span className="mono" style={{ width: 60, flex: 'none', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 {shortDate(date, today)}
               </span>
               <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{r.title}</span>
@@ -87,7 +87,7 @@ export default function Home() {
                   #{t}
                 </span>
               ))}
-              <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 {r.times[0]}
               </span>
             </button>
@@ -122,7 +122,7 @@ export default function Home() {
                     <Icon name={c.icon} size={22} />
                   </span>
                   <span style={{ flex: 1, fontWeight: 600 }}>{c.title}</span>
-                  <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                     {got} из {items.length}
                   </span>
                 </span>
@@ -200,7 +200,7 @@ export default function Home() {
         <>
           {planned && <div style={{ fontWeight: 600 }}>Сегодня по плану — {planned.title.toLowerCase()}</div>}
           {lastDone && (
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+            <div style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
               Прошлая: {lastDone.title.toLowerCase()} · {duration(lastDone.started_at, lastDone.finished_at)}
             </div>
           )}

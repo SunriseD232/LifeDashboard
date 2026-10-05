@@ -103,7 +103,7 @@ export default function RecipeEditor({ id }: { id?: string }) {
   return (
     <>
       <ProductsList />
-      <Link href={r ? `/kitchen/${r.id}` : '/kitchen'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 14, textDecoration: 'none', minHeight: 32 }}>
+      <Link href={r ? `/kitchen/${r.id}` : '/kitchen'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 'calc(14px * var(--fs))', textDecoration: 'none', minHeight: 32 }}>
         <Icon name="back" size={18} />
         {r ? r.title : 'Кухня'}
       </Link>

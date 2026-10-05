@@ -51,7 +51,7 @@ export function Sheet({ title, onClose, children, actions }: { title: string; on
     <div className="sheet-scrim" onClick={onClose}>
       <div ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
-          <h2 className="display" style={{ margin: 0, fontSize: 19, flex: 1 }}>
+          <h2 className="display" style={{ margin: 0, fontSize: 'calc(19px * var(--fs))', flex: 1 }}>
             {title}
           </h2>
           {actions}

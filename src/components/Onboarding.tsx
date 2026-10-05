@@ -102,7 +102,7 @@ export default function Onboarding() {
         <span className="empty-icon" aria-hidden="true">
           <Icon name={s.icon} size={26} />
         </span>
-        <h1 id="ob-title" className="display" style={{ margin: 0, fontSize: 26 }}>
+        <h1 id="ob-title" className="display" style={{ margin: 0, fontSize: 'calc(26px * var(--fs))' }}>
           {s.title}
         </h1>
         <p style={{ margin: 0, color: 'var(--muted)' }}>{s.text}</p>
