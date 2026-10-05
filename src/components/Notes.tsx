@@ -38,7 +38,7 @@ type Patch = Partial<Pick<Note, 'title' | 'body' | 'tags' | 'pinned' | 'checklis
 
 /** ИИ: найти в заметке дела со сроками → отметить нужные → в «Дела». */
 function NoteTasks({ noteId }: { noteId: string }) {
-  const { reload, toast, now } = useApp();
+  const { data, reload, toast, now } = useApp();
   const ready = useAiReady();
   const [found, setFound] = useState<{ title: string; due_date: string | null }[] | null>(null);
   const [pick, setPick] = useState<boolean[]>([]);
@@ -49,7 +49,7 @@ function NoteTasks({ noteId }: { noteId: string }) {
     setBusy(true);
     try {
       const r = await api<{ tasks: { title: string; due_date: string | null }[] }>('ai/note-tasks', 'POST', { note_id: noteId, today: localDay(now) });
-      if (!r.tasks.length) toast('Дел в заметке не нашёл');
+      if (!r.tasks.length) toast('Задач в заметке не нашёл');
       setFound(r.tasks.length ? r.tasks : null);
       setPick(r.tasks.map(() => true));
     } catch (e) {
@@ -61,9 +61,14 @@ function NoteTasks({ noteId }: { noteId: string }) {
 
   const add = async () => {
     try {
-      for (const [i, t] of (found ?? []).entries()) if (pick[i]) await api('tasks', 'POST', { title: t.title, due_date: t.due_date });
+      // Со сроком — задача с напоминанием в этот день, без — просто в список.
+      for (const [i, t] of (found ?? []).entries()) {
+        if (!pick[i]) continue;
+        if (t.due_date) await api('reminders', 'POST', { title: t.title.slice(0, 120), times: [data.settings.deadline_time], rule: { kind: 'once', date: t.due_date }, checklist_id: null });
+        else await api('tasks', 'POST', { title: t.title });
+      }
       await reload();
-      toast(`В «Дела»: ${pick.filter(Boolean).length}`);
+      toast(`В «Задачи»: ${pick.filter(Boolean).length}`);
       setFound(null);
     } catch (e) {
       toast((e as Error).message);
@@ -86,13 +91,13 @@ function NoteTasks({ noteId }: { noteId: string }) {
               <input type="checkbox" checked={pick[i]} onChange={(e) => setPick(pick.map((p, j) => (j === i ? e.target.checked : p)))} />
               <span className="check-text">
                 {t.title}
-                {t.due_date && <span style={{ color: 'var(--muted)', fontSize: 13 }}> · до {shortDate(t.due_date, localDay(now))}</span>}
+                {t.due_date && <span style={{ color: 'var(--muted)', fontSize: 13 }}> · напомню {shortDate(t.due_date, localDay(now))} в {data.settings.deadline_time}</span>}
               </span>
             </label>
           ))}
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-primary" type="button" disabled={!pick.some(Boolean)} onClick={add}>
-              В дела ({pick.filter(Boolean).length})
+              В задачи ({pick.filter(Boolean).length})
             </button>
             <button className="btn btn-ghost" type="button" onClick={() => setFound(null)}>
               Отмена
@@ -102,7 +107,7 @@ function NoteTasks({ noteId }: { noteId: string }) {
       )}
       {!found && (
         <AiButton busy={busy} onClick={find} style={{ alignSelf: 'flex-start' }}>
-          Найти дела в заметке
+          Найти задачи в заметке
         </AiButton>
       )}
     </div>

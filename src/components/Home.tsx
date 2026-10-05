@@ -5,21 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { dayTitle, localDay } from '@/lib/dates';
-import { occurrenceKey, occurrencesOn } from '@/lib/occurrences';
 import { shortDate } from '@/lib/tasks';
-import { minutesOf } from '@/lib/dates';
 import type { Reminder } from '@/lib/types';
 import { duration, plannedFor, setLabel } from '@/lib/workouts';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import { RecipeCard, useKitchen } from './Kitchen';
 import { noteTitle } from './Notes';
-import { AddTask, TaskRow } from './Tasks';
-import { QuickAdd } from './Ai';
+import { ReminderRow, TaskRow } from './Tasks';
+import TaskDialog, { type DialogTarget } from './TaskDialog';
 import { WeatherCard, WeatherLine } from './Weather';
 import { useIsPhone } from './Phone';
-import Swipe from './Swipe';
-import { dayHead, WeekStrip } from './Calendar';
+import { dayHead, WeekStrip } from './MiniCalendar';
 import { agendaFor } from '@/lib/agenda';
 import { timeline } from '@/lib/timeline';
 import { AiButton } from './Ai';
@@ -33,13 +30,14 @@ import { useGym } from './Workouts';
 const asShort = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
 
 export default function Home() {
-  const { data, mutate, now, setOpenList, toast } = useApp();
+  const { data, now, setOpenList, toast } = useApp();
   const router = useRouter();
   const phone = useIsPhone();
   // Сводка — на выбранный в календаре день; сменили день — показываем свою.
   const [summary, setSummary] = useState<{ day: string; text: string } | null>(null);
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [pickedDay, setPickedDay] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<DialogTarget>(null);
 
   // Старые ссылки (в том числе из уже присланных push): /task#reminders.
   useEffect(() => {
@@ -51,23 +49,12 @@ export default function Home() {
   const hour = now.getHours();
   const greeting = hour < 5 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
   const today = localDay(now);
-  const todays = occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed);
-  const upcoming = data.tasks
-    .filter((t) => !t.done_at && t.due_date !== null && t.due_date > today)
-    .sort((a, b) => a.due_date!.localeCompare(b.due_date!))
+  // Ближайшие разовые задачи с напоминанием — после сегодняшнего дня.
+  const upcoming = data.reminders
+    .filter((r) => r.rule.kind === 'once' && r.rule.date > today && !r.last_done)
+    .map((r) => ({ r, date: (r.rule as { date: string }).date }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.r.times[0].localeCompare(b.r.times[0]))
     .slice(0, 5);
-
-  const toggle = (r: Reminder, slot: string, value: boolean) => {
-    const key = occurrenceKey(r.id, slot);
-    mutate(
-      (d) => ({
-        ...d,
-        done: value ? [...d.done, key] : d.done.filter((x) => x !== key),
-        reminders: r.rule.kind === 'after' && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
-      }),
-      () => api(`reminders/${r.id}/done`, 'PUT', { day: today, slot, done: value }),
-    );
-  };
 
   const openList = (id: string) => {
     setOpenList(id);
@@ -79,24 +66,31 @@ export default function Home() {
       <div className="card-head">
         <h2 className="card-title display" id="home-deadlines">
           <Icon name="calendar" />
-          Ближайшие сроки
+          Скоро
         </h2>
         <Link className="card-link" href="/tasks">
-          Дела <Icon name="arrow" size={16} />
+          Задачи <Icon name="arrow" size={16} />
         </Link>
       </div>
       {upcoming.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {upcoming.map((t) => (
-            <div key={t.id} className="task-row" style={{ minHeight: 44, gap: 12 }}>
+          {upcoming.map(({ r, date }) => (
+            <button key={r.id} type="button" className="task-row home-soon" onClick={() => setDialog({ reminder: r })}>
               <span className="mono" style={{ width: 60, flex: 'none', fontSize: 13, color: 'var(--muted)' }}>
-                {shortDate(t.due_date!, today)}
+                {shortDate(date, today)}
               </span>
-              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{t.title}</span>
-              {t.tag && <span className="tag">{t.tag}</span>}
-            </div>
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{r.title}</span>
+              {r.tags.slice(0, 2).map((t) => (
+                <span key={t} className="tag">
+                  #{t}
+                </span>
+              ))}
+              <span className="mono" style={{ fontSize: 13, color: 'var(--muted)' }}>
+                {r.times[0]}
+              </span>
+            </button>
           ))}
         </div>
       )}
@@ -258,31 +252,11 @@ export default function Home() {
   // другой день — что на него запланировано. Сводка — на выбранный день.
 const day = pickedDay ?? today;
 const doneSet = new Set(data.done);
-const dots = (d: string) => agendaFor(d, data.tasks, data.reminders, today, doneSet);
+const dots = (d: string) => agendaFor(d, data.reminders, today, doneSet);
 const groups = timeline(data.tasks, data.reminders, today, doneSet, data.snoozed);
-const todayRows = groups.filter((g) => g.id === 'overdue' || g.id === 'today').flatMap((g) => g.rows);
-const undated = groups.find((g) => g.id === 'none')?.rows.length ?? 0;
-const remRow = (o: (typeof todays)[number]) => (
-  <Swipe key={o.key} onRight={o.done ? undefined : () => toggle(o.reminder, o.slot, true)}>
-  <label className={`check round${o.done ? ' done' : ''}`}>
-    <input type="checkbox" checked={o.done} onChange={(e) => toggle(o.reminder, o.slot, e.target.checked)} />
-    <button
-      type="button"
-      className="check-text task-open"
-      onClick={(e) => {
-        e.preventDefault();
-        router.push(`/tasks?edit=${o.reminder.id}`);
-      }}
-    >
-      {o.reminder.title}
-    </button>
-    {/* Время прошло, а не отмечено — оранжевым: видно, что пропущено. */}
-    <span className={`mono row-time${!o.done && minutesOf(o.snoozedTo ?? o.slot) < now.getHours() * 60 + now.getMinutes() ? ' late' : ''}`}>
-      {o.snoozedTo ?? o.slot}
-    </span>
-  </label>
-  </Swipe>
-);
+const todayRows = groups.filter((g) => g.id === 'overdue' || g.id === 'today').flatMap((g) => g.rows.map((r) => ({ r, overdue: g.id === 'overdue' })));
+const undated = groups.find((g) => g.id === 'none')?.rows ?? [];
+const openRem = (r: Reminder) => setDialog({ reminder: r });
 const otherDay = day === today ? [] : dots(day);
 
   const makeSummary = async () => {
@@ -306,14 +280,14 @@ const otherDay = day === today ? [] : dots(day);
         todayRows.length === 0 ? (
           <p style={{ margin: 0, color: 'var(--muted)' }}>На сегодня ничего — можно выдохнуть.</p>
         ) : (
-          todayRows.map((r) => (r.kind === 'rem' ? remRow(r.occ) : <TaskRow key={r.key} task={r.task} hideDue={r.task.due_date === today} onOpen={(t) => router.push(`/tasks?open=${t.id}`)} />))
+          todayRows.map(({ r, overdue }) => (r.kind === 'rem' ? <ReminderRow key={r.key} occ={r.occ} date={r.date} time={r.time} overdue={overdue} onOpen={openRem} /> : null))
         )
       ) : otherDay.length === 0 ? (
         <p style={{ margin: 0, color: 'var(--muted)' }}>Ничего не запланировано.</p>
       ) : (
         otherDay.map((i) => (
-          <Link key={i.key} href={i.kind === 'task' ? `/tasks?open=${i.id}` : `/tasks?edit=${i.id}`} className="cal-item">
-            <Icon name={i.kind === 'task' ? 'tasks' : 'bell'} size={16} />
+          <Link key={i.key} href={`/tasks?edit=${i.id}`} className="cal-item">
+            <Icon name="bell" size={16} />
             <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{i.title}</span>
             <span className="mono cal-time" style={{ textAlign: 'right' }}>
               {i.time ?? ''}
@@ -321,10 +295,18 @@ const otherDay = day === today ? [] : dots(day);
           </Link>
         ))
       )}
-      {day === today && undated > 0 && (
-        <Link className="card-link" href="/tasks" style={{ marginLeft: 0, padding: '10px 0' }}>
-          Без срока: {undated} <Icon name="arrow" size={16} />
-        </Link>
+      {day === today && undated.length > 0 && (
+        <>
+          <h3 className="group-title" style={{ marginTop: 8 }}>
+            Без напоминания
+          </h3>
+          {undated.slice(0, 3).map((r) => (r.kind === 'task' ? <TaskRow key={r.key} task={r.task} onOpen={(t) => setDialog({ task: t })} /> : null))}
+          {undated.length > 3 && (
+            <Link className="card-link" href="/tasks" style={{ marginLeft: 0, padding: '10px 0' }}>
+              Ещё {undated.length - 3} <Icon name="arrow" size={16} />
+            </Link>
+          )}
+        </>
       )}
     </section>
   );
@@ -361,7 +343,11 @@ const otherDay = day === today ? [] : dots(day);
           <h1 className="h1 display">{greeting}</h1>
           <WeatherLine />
         </div>
-        {data.ai ? <QuickAdd plain /> : <AddTask />}
+        <button className="add-task-bar" type="button" onClick={() => setDialog({})}>
+          <Icon name="plus" size={18} />
+          <span style={{ flex: 1 }}>Добавить задачу</span>
+          {data.ai && <Icon name="sparkles" size={18} />}
+        </button>
 
         <WeekStrip key="week" sel={day} today={today} onPick={pick} dots={dots} />
 
@@ -369,13 +355,13 @@ const otherDay = day === today ? [] : dots(day);
 
         <div className="tiles">
           {next && (
-            <Link className="tile" href="/tasks">
+            <button className="tile" type="button" onClick={() => setDialog({ reminder: next.r })}>
               <Icon name="calendar" size={18} />
               <span className="tile-label">Скоро</span>
               <span className="tile-value">
-                {shortDate(next.due_date!, today)} · {next.title}
+                {shortDate(next.date, today)} · {next.r.title}
               </span>
-            </Link>
+            </button>
           )}
           {toBuy.length > 0 && (
             <Link className="tile" href="/kitchen?tab=shopping">
@@ -410,6 +396,7 @@ const otherDay = day === today ? [] : dots(day);
         </div>
 
         {summaryBlock}
+        {dialog && <TaskDialog target={dialog} onClose={() => setDialog(null)} />}
       </>
     );
   }
@@ -422,7 +409,11 @@ const otherDay = day === today ? [] : dots(day);
           <h1 className="h1 display">{greeting}</h1>
         </div>
       </div>
-      {data.ai ? <QuickAdd plain /> : <AddTask />}
+      <button className="add-task-bar" type="button" onClick={() => setDialog({})}>
+          <Icon name="plus" size={18} />
+          <span style={{ flex: 1 }}>Добавить задачу</span>
+          {data.ai && <Icon name="sparkles" size={18} />}
+        </button>
       <div className="home-cols">
         <div className="home-col">
           <section className="card home-cal" aria-label="Календарь">
@@ -442,6 +433,7 @@ const otherDay = day === today ? [] : dots(day);
           {kitchenCard}
         </div>
       </div>
+      {dialog && <TaskDialog target={dialog} onClose={() => setDialog(null)} />}
     </>
   );
 }

@@ -1,6 +1,5 @@
 import { minutesOf } from './dates';
 import type { Occurrence } from './occurrences';
-import type { Task } from './tasks';
 
 /**
  * Тихие часы и вечерний итог — чистые функции для рассылки (src/lib/push.ts)
@@ -47,10 +46,7 @@ export function quietMissed(occ: Occurrence[], q: Quiet | null): Occurrence[] {
   });
 }
 
-/** Итог дня: дела со сроком сегодня и раньше и неотмеченные напоминания дня. */
-export function reviewItems<T extends Pick<Task, 'due_date' | 'done_at'>>(tasks: T[], occ: Occurrence[], today: string): { tasks: T[]; reminders: Occurrence[] } {
-  return {
-    tasks: tasks.filter((t) => !t.done_at && t.due_date !== null && t.due_date <= today),
-    reminders: occ.filter((o) => !o.done),
-  };
+/** Итог дня: неотмеченные напоминания дня. */
+export function reviewItems(occ: Occurrence[]): Occurrence[] {
+  return occ.filter((o) => !o.done);
 }

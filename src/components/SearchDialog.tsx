@@ -9,7 +9,7 @@ import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
 
 const KINDS: { id: SearchKind; label: string; icon: string }[] = [
-  { id: 'task', label: 'Дела', icon: 'tasks' },
+  { id: 'task', label: 'Задачи', icon: 'tasks' },
   { id: 'note', label: 'Заметки', icon: 'note' },
   { id: 'checklist', label: 'Чек-листы', icon: 'list' },
   { id: 'item', label: 'В чек-листах', icon: 'check' },

@@ -1,10 +1,8 @@
 import type Database from 'better-sqlite3';
 import { addDays, dueDay, nextOccurrence, weekday, type Rule } from '@/lib/recur';
-import type { Task } from '@/lib/tasks';
 import type { Reminder } from '@/lib/types';
 import { readReminders } from './reminderStore';
 import { readSettings } from './settings';
-import { readTasks } from './taskStore';
 
 /**
  * Календарь по подписке (iCalendar, RFC 5545): дела со сроком — событиями на
@@ -78,7 +76,7 @@ function stamp(now: Date): string {
   return now.toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 }
 
-export function icsFor(tasks: Task[], reminders: Reminder[], today: string, now = new Date()): string {
+export function icsFor(reminders: Reminder[], today: string, now = new Date()): string {
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//LifeDashboard//RU', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:LifeDashboard', 'X-PUBLISHED-TTL:PT1H', 'REFRESH-INTERVAL;VALUE=DURATION:PT1H'];
   const st = stamp(now);
   let count = 0;
@@ -86,20 +84,6 @@ export function icsFor(tasks: Task[], reminders: Reminder[], today: string, now 
     if (count++ >= MAX_EVENTS) return;
     lines.push('BEGIN:VEVENT', `UID:${uid}@lifedashboard`, `DTSTAMP:${st}`, ...props, 'END:VEVENT');
   };
-
-  for (const t of tasks) {
-    if (t.done_at || !t.due_date) continue;
-    // Повторяющееся дело — с ближайшего срока по своему правилу.
-    const rep = t.rule?.kind === 'repeat' ? { ...t.rule, start: t.due_date } : null;
-    event(`task-${t.id}`, [
-      `DTSTART;VALUE=DATE:${ymd(t.due_date)}`,
-      `DTEND;VALUE=DATE:${ymd(addDays(t.due_date, 1))}`,
-      ...(rep ? [rrule(rep, true)] : []),
-      `SUMMARY:${esc(`Срок: ${t.title}`)}`,
-      ...(t.note ? [`DESCRIPTION:${esc(t.note)}`] : []),
-      'TRANSP:TRANSPARENT',
-    ]);
-  }
 
   for (const r of reminders) {
     const hhmm = (hm: string) => hm.replace(':', '');
@@ -145,6 +129,5 @@ export function calendarFeed(d: Database.Database, token: string, now = new Date
   const row = d.prepare('select user_id from user_settings where calendar_token = ?').get(token) as { user_id: string } | undefined;
   if (!row) return null;
   const today = todayFor(d, row.user_id, now);
-  const { tasks } = readTasks(d, row.user_id, today);
-  return icsFor(tasks, readReminders(d, row.user_id), today, now);
+  return icsFor(readReminders(d, row.user_id), today, now);
 }

@@ -1,11 +1,11 @@
 import type Database from 'better-sqlite3';
-import type { Rule } from '@/lib/recur';
 import type { Task } from '@/lib/tasks';
+import type { Priority } from '@/lib/types';
 import { visibleWhere } from './household';
 
 /**
- * Дела из базы: личные и общие дела семьи. Каждый доступ — через visible():
- * чужое дело не найти даже по известному id.
+ * Задачи без напоминания из базы: личные и общие задачи семьи. Каждый
+ * доступ — через visible(): чужую задачу не найти даже по известному id.
  */
 
 interface Row {
@@ -14,9 +14,9 @@ interface Row {
   household_id: string | null;
   title: string;
   note: string | null;
-  tag: string | null;
-  due_date: string | null;
-  rule: string | null;
+  tags: string;
+  priority: number;
+  checklist_id: string | null;
   done_at: string | null;
   author: string | null;
 }
@@ -28,19 +28,19 @@ function toTask(r: Row, userId: string): Task {
     id: r.id,
     title: r.title,
     note: r.note,
-    tag: r.tag,
-    due_date: r.due_date,
-    rule: r.rule ? (JSON.parse(r.rule) as Rule) : null,
+    tags: JSON.parse(r.tags) as string[],
+    priority: r.priority as Priority,
+    checklist_id: r.checklist_id,
     done_at: r.done_at,
     household_id: r.household_id,
     author: r.user_id === userId ? null : r.author,
   };
 }
 
-const SELECT = `select t.id, t.user_id, t.household_id, t.title, t.note, t.tag, t.due_date, t.rule, t.done_at, u.login as author
+const SELECT = `select t.id, t.user_id, t.household_id, t.title, t.note, t.tags, t.priority, t.checklist_id, t.done_at, u.login as author
   from tasks t left join users u on u.id = t.user_id`;
 
-/** Открытые дела и закрытые сегодня (для «Сделано сегодня»). */
+/** Открытые задачи и закрытые сегодня (для «Сделано сегодня»). */
 export function readTasks(d: Database.Database, userId: string, today: string): { tasks: Task[]; doneToday: string[] } {
   const v = visible(d, userId);
   const rows = d
@@ -54,7 +54,7 @@ export function readTasks(d: Database.Database, userId: string, today: string): 
   return { tasks: rows.map((r) => toTask(r, userId)), doneToday };
 }
 
-/** Одно дело, если оно видно пользователю. */
+/** Одна задача, если она видна пользователю. */
 export function findTask(d: Database.Database, userId: string, id: string | undefined): (Task & { user_id: string }) | null {
   if (!id) return null;
   const v = visible(d, userId);

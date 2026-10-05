@@ -131,12 +131,20 @@ function drop(id: string): void {
   changed();
 }
 
+/**
+ * Формат сохранённой копии. Поменялась форма данных (например, у задач
+ * появились метки списком) — поднимаем номер: старую копию экран не
+ * поймёт, и без сети лучше честно сказать «нет связи», чем упасть.
+ */
+const STATE_FORMAT = 2;
+
 /** Копия последних данных — чтобы открыться без сети. */
 export function saveState(login: string | null | undefined, state: unknown): void {
-  write(STATE, { login: login ?? null, state, at: Date.now() });
+  write(STATE, { login: login ?? null, state, at: Date.now(), v: STATE_FORMAT });
 }
 export function loadState<T>(): { state: T; at: number } | null {
-  return read<{ state: T; at: number } | null>(STATE, null);
+  const s = read<{ state: T; at: number; v?: number } | null>(STATE, null);
+  return s && s.v === STATE_FORMAT ? s : null;
 }
 
 /** Выход из аккаунта — на устройстве не остаётся ни данных, ни очереди. */

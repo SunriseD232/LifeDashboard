@@ -1,5 +1,7 @@
 import { CATEGORY_LABELS, type Category } from './kitchenSeed';
 import { isDay, parseRule, RuleError, type Rule } from './recur';
+import { cleanTags, isPriority } from './tasks';
+import type { Priority } from './types';
 
 /**
  * Разбор ответов ИИ. Модель может ошибиться или выдумать — поэтому всё, что
@@ -31,18 +33,26 @@ const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 // ---------------------------------------------------------------- быстрый ввод фразой
 
 export type QuickItem =
-  | { type: 'task'; title: string; due_date: string | null; tag: string | null }
-  | { type: 'reminder'; title: string; times: string[]; rule: Rule }
+  | { type: 'task'; title: string; tags: string[]; priority: Priority }
+  | { type: 'reminder'; title: string; times: string[]; rule: Rule; tags: string[]; priority: Priority }
   | { type: 'note'; title: string; body: string }
   | { type: 'shopping'; name: string; qty: number | null; unit: string | null };
 
-export function parseQuickAdd(raw: unknown): QuickItem[] {
+/**
+ * defaultTime — во сколько напоминать, если у задачи есть день, но нет
+ * времени: задача с датой у нас всегда с напоминанием.
+ */
+export function parseQuickAdd(raw: unknown, defaultTime = '09:00'): QuickItem[] {
   const out: QuickItem[] = [];
   for (const x of arr((raw as { items?: unknown })?.items).slice(0, 20)) {
     const it = x as Record<string, unknown>;
+    const tags = cleanTags(Array.isArray(it.tags) ? it.tags : typeof it.tag === 'string' ? [it.tag] : []);
+    const priority: Priority = isPriority(it.priority) ? it.priority : 0;
     if (it.type === 'task') {
       const title = str(it.title, 200);
-      if (title) out.push({ type: 'task', title, due_date: isDay(it.due_date) ? it.due_date : null, tag: str(it.tag, 30) });
+      if (!title) continue;
+      if (isDay(it.due_date)) out.push({ type: 'reminder', title: title.slice(0, 120), times: [defaultTime], rule: { kind: 'once', date: it.due_date }, tags, priority });
+      else out.push({ type: 'task', title, tags, priority });
     } else if (it.type === 'reminder') {
       const title = str(it.title, 120);
       const times = [...new Set(arr(it.times).filter((t): t is string => typeof t === 'string' && TIME_RE.test(t)))].sort().slice(0, 8);
@@ -52,7 +62,7 @@ export function parseQuickAdd(raw: unknown): QuickItem[] {
       } catch (e) {
         if (!(e instanceof RuleError)) throw e;
       }
-      if (title && times.length && rule) out.push({ type: 'reminder', title, times: rule.kind === 'after' ? times.slice(0, 1) : times, rule });
+      if (title && rule) out.push({ type: 'reminder', title, times: times.length ? (rule.kind === 'after' ? times.slice(0, 1) : times) : [defaultTime], rule, tags, priority });
     } else if (it.type === 'note') {
       const title = str(it.title, 200) ?? '';
       const body = typeof it.body === 'string' ? it.body.trim().slice(0, 5000) : '';

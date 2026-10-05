@@ -10,6 +10,8 @@ import { findNote } from '../noteStore';
 import { fetchPageText } from '../pageText';
 import { daySummary } from '../summary';
 import { readExercises, readWorkouts } from '../workoutStore';
+import { readSettings } from '../settings';
+import { readTags } from '../tagStore';
 
 const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 const MAX_IMAGE = 1_400_000;
@@ -47,21 +49,25 @@ export async function ai({ d, userId, method, body, id }: Ctx): Promise<unknown>
     case 'quick-add': {
       const day = today(body.today);
       const phrase = text(body.text, 1000, 'Фраза')!;
+      const own = readTags(d, userId);
+      const at = readSettings(d, userId).deadline_time;
       const raw = await askJson(d, userId, {
         system:
           `Ты разбираешь фразу пользователя приложения LifeDashboard на записи. Сегодня ${day}, ${WEEKDAYS[weekday(day)]}. ` +
-          'Типы записей:\n' +
-          '- task: дело без точного времени: {"type":"task","title":"…","due_date":"ГГГГ-ММ-ДД" или null,"tag":"короткая метка" или null}\n' +
-          '- reminder: есть время суток или повтор: {"type":"reminder","title":"…","times":["ЧЧ:ММ"],"rule":RULE}\n' +
+          'Задачи бывают двух видов: без напоминания (просто список, без даты) и с напоминанием (есть день, время или повтор). Типы записей:\n' +
+          '- task: задача без дня и времени: {"type":"task","title":"…","tags":[метки],"priority":0-3}\n' +
+          `- reminder: есть день, время суток или повтор: {"type":"reminder","title":"…","times":["ЧЧ:ММ"],"rule":RULE,"tags":[метки],"priority":0-3}; день без времени — время ${at}\n` +
           '- note: просто информация на запомнить: {"type":"note","title":"…","body":"…"}\n' +
           '- shopping: что купить: {"type":"shopping","name":"продукт в именительном падеже","qty":число или null,"unit":"г|кг|мл|л|шт.|упак." или null}\n' +
           `${RULE_DOC}\n` +
           'Правила: start — сегодня, если не сказано иное; «завтра», «в пятницу» переводи в даты; время «вечером» — 19:00, «утром» — 09:00. ' +
-          'Названия короткие, как в списке дел. Одна фраза может дать несколько записей (например, напоминание и покупки). ' +
+          'Названия короткие, как в списке задач. Одна фраза может дать несколько записей (например, напоминание и покупки). ' +
+          `Метки (tags): ${own.length ? `у человека есть: ${own.join(', ')} — бери подходящие из них` : 'своих меток пока нет'}; новую — только если человек сам её назвал (например, «#дача» или «по работе»), иначе []. ` +
+          'priority: 3 — «срочно», «очень важно», «обязательно»; 2 — «важно»; 1 — «не к спеху», «когда-нибудь»; иначе 0. ' +
           'Ответ строго JSON: {"items":[…]}',
         user: phrase,
       });
-      const items = parseQuickAdd(raw);
+      const items = parseQuickAdd(raw, at);
       if (!items.length) throw new HttpError(422, 'Не понял, что записать. Скажите иначе, например: «завтра в 9 позвонить врачу».');
       return { items };
     }

@@ -14,16 +14,19 @@ describe('разбор ответов ИИ', () => {
         { type: 'reminder', title: 'Бассейн', times: ['18:30', '25:00'], rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-10-02', weekdays: [2, 4] } },
         { type: 'reminder', title: 'Плохое правило', times: ['10:00'], rule: { kind: 'monthly' } },
         { type: 'task', title: 'Забрать посылку', due_date: '2026-10-03', tag: 'дом' },
-        { type: 'task', title: 'Без даты', due_date: 'завтра' },
+        { type: 'task', title: 'Без даты', due_date: 'завтра', tags: ['Дом', 'дом', 'работа'], priority: 3 },
+        { type: 'reminder', title: 'Без времени', rule: { kind: 'once', date: '2026-10-04' }, priority: 9 },
         { type: 'shopping', name: 'Молоко', qty: 2, unit: 'л' },
         { type: 'note', title: '', body: '' },
         { type: 'чепуха' },
       ],
-    });
+    }, '08:00');
     expect(items).toEqual([
-      { type: 'reminder', title: 'Бассейн', times: ['18:30'], rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-10-02', weekdays: [2, 4] } },
-      { type: 'task', title: 'Забрать посылку', due_date: '2026-10-03', tag: 'дом' },
-      { type: 'task', title: 'Без даты', due_date: null, tag: null },
+      { type: 'reminder', title: 'Бассейн', times: ['18:30'], rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-10-02', weekdays: [2, 4] }, tags: [], priority: 0 },
+      // Задача с датой — у нас всегда с напоминанием, во время по умолчанию.
+      { type: 'reminder', title: 'Забрать посылку', times: ['08:00'], rule: { kind: 'once', date: '2026-10-03' }, tags: ['дом'], priority: 0 },
+      { type: 'task', title: 'Без даты', tags: ['Дом', 'работа'], priority: 3 },
+      { type: 'reminder', title: 'Без времени', times: ['08:00'], rule: { kind: 'once', date: '2026-10-04' }, tags: [], priority: 0 },
       { type: 'shopping', name: 'молоко', qty: 2, unit: 'л' },
     ]);
   });

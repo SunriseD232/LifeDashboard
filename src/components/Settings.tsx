@@ -96,9 +96,9 @@ export default function Settings() {
         <section className="card" aria-labelledby="set-deadline">
           <h2 className="card-title display" id="set-deadline">
             <Icon name="bell" />
-            Сроки дел
+            Время напоминания
           </h2>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>За день до срока и в сам день придёт push в это время.</p>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)' }}>Во сколько напомнить, если у задачи указан день, а время — нет (например, когда задачу добавляет ИИ).</p>
           <div className="fld" style={{ maxWidth: 160 }}>
             <label className="label" htmlFor="set-time">
               Во сколько

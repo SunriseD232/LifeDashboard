@@ -2526,3 +2526,203 @@ button.task-open:hover > span:first-child {
   min-height: 32px;
   font-size: 13px;
 }
+
+/* задачи: список + календарь сбоку */
+.tasks-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 24px;
+  align-items: start;
+}
+.tasks-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-width: 760px;
+}
+.tasks-side {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tasks-side .card {
+  padding: 12px;
+  gap: 8px;
+}
+.tasks-side .cal-day {
+  min-height: 40px;
+  padding: 3px 0;
+}
+.tasks-side .cal-num {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+}
+.task-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.task-filters .chip-scroll {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.prio-select {
+  width: auto;
+  min-height: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 14px;
+}
+.prio-select[data-on] {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.row-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.row-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.prio {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+}
+.prio[data-p='3'] {
+  color: var(--danger);
+}
+.prio[data-p='2'] {
+  color: var(--warm);
+}
+.prio[data-p='1'] {
+  color: var(--blue);
+}
+.prio svg {
+  fill: currentColor;
+  fill-opacity: 0.25;
+}
+.day-title svg {
+  color: var(--muted);
+}
+
+/* окно задачи */
+.task-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.dialog.task-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.seg.seg-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.seg.seg-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.seg button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.seg button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.tag-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.tag-new .field {
+  width: 150px;
+  min-height: 36px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 14px;
+}
+.ai-fill {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+}
+.ai-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Главная: «Добавить задачу» и «Скоро» */
+.add-task-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  margin-bottom: 12px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.add-task-bar:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.add-task-bar svg:first-child {
+  color: var(--accent);
+}
+.home-soon {
+  width: 100%;
+  min-height: 44px;
+  gap: 12px;
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+@media (max-width: 860px) {
+  .tasks-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .task-filters .chip-scroll {
+    flex-wrap: nowrap;
+  }
+  .prio-select {
+    flex: none;
+  }
+  .seg.seg-4 button {
+    font-size: 12px;
+    padding: 0 2px;
+  }
+}

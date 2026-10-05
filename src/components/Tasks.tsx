@@ -1,688 +1,607 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { agendaFor } from '@/lib/agenda';
 import { api } from '@/lib/api';
 import { localDay, minutesOf } from '@/lib/dates';
-import { addDays, describe, dueDay, type Rule } from '@/lib/recur';
-import { dueLabel, firstDue, knownTags, nextDue, shortDate, type Task } from '@/lib/tasks';
+import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
+import { addDays, dueDay } from '@/lib/recur';
+import { knownTags, shortDate, type Task } from '@/lib/tasks';
+import { sortTasks, timeline, type Row } from '@/lib/timeline';
+import type { Priority, Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
-import { Icon } from './icons';
-import { useModalFocus } from './useModalFocus';
-import { Fab, Sheet, useIsPhone } from './Phone';
 import Empty from './Empty';
-import Reminders from './Reminders';
+import { Icon } from './icons';
+import { dayHead, WeekStrip } from './MiniCalendar';
+import { Fab, Sheet, useIsPhone } from './Phone';
 import { useReminderActions } from './reminderActions';
-import { timeline, type Row } from '@/lib/timeline';
 import Swipe from './Swipe';
+import TaskDialog, { PriorityFlag, type DialogTarget } from './TaskDialog';
 
 // ---------------------------------------------------------------- действия
 
-/** Отметить / снять отметку. Повторяющееся дело переезжает на следующий срок. */
+/** Отметить / снять отметку у задачи без напоминания. */
 export function useTaskActions() {
-  const { mutate, reload, now, toast } = useApp();
+  const { mutate, now, toast } = useApp();
   const today = localDay(now);
 
   const complete = (t: Task) => {
-    const next = t.rule ? nextDue(t.rule, t.due_date, today) : null;
     // Короткий отклик пальцу (Android; iPhone вибрацию сайтам не даёт).
     navigator.vibrate?.(12);
     mutate(
-      (d) => ({
-        ...d,
-        tasks: d.tasks.map((x) => (x.id === t.id ? (next ? { ...x, due_date: next } : { ...x, done_at: today }) : x)),
-        tasksDoneToday: [...d.tasksDoneToday.filter((x) => x !== t.id), t.id],
-      }),
+      (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, done_at: today } : x)), tasksDoneToday: [...d.tasksDoneToday.filter((x) => x !== t.id), t.id] }),
       () => api(`tasks/${t.id}/done`, 'POST', { day: today }),
     );
-    toast(next ? `Сделано. Следующий раз — ${dueLabel(next, today)?.text}` : `Сделано: «${t.title}»`, () => undo(t));
+    toast(`Сделано: «${t.title}»`, () => undo(t));
   };
 
   function undo(t: Task) {
     mutate(
       (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, done_at: null } : x)), tasksDoneToday: d.tasksDoneToday.filter((x) => x !== t.id) }),
-      async () => {
-        await api(`tasks/${t.id}/undo`, 'POST', { day: today });
-        // Прежний срок повторяющегося дела знает сервер.
-        await reload();
-      },
+      () => api(`tasks/${t.id}/undo`, 'POST', { day: today }),
     );
   }
-
-  /** На завтра (свайп влево): срок — завтра, дело уйдёт из сегодняшних. */
-  const tomorrow = (t: Task) => {
-    const day = addDays(today, 1);
-    mutate(
-      (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: day } : x)) }),
-      () => api(`tasks/${t.id}`, 'PATCH', { due_date: day }),
-    );
-    const was = t.due_date;
-    toast(`«${t.title}» — на завтра`, () =>
-      mutate(
-        (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: was } : x)) }),
-        () => api(`tasks/${t.id}`, 'PATCH', { due_date: was }),
-      ),
-    );
-  };
 
   const remove = (t: Task) => {
     mutate(
       (d) => ({ ...d, tasks: d.tasks.filter((x) => x.id !== t.id) }),
       () => api(`tasks/${t.id}`, 'DELETE'),
     );
-    // Вернуть — заводим заново с теми же полями (история отметок не вернётся).
-    toast(`Удалено: «${t.title}»`, async () => {
-      try {
-        await api('tasks', 'POST', { title: t.title, due_date: t.due_date, rule: t.rule, tag: t.tag, note: t.note, shared: !!t.household_id });
-        await reload();
-      } catch (e) {
-        toast((e as Error).message);
-      }
-    });
+    toast(`Удалено: «${t.title}»`);
   };
 
-  return { complete, undo, tomorrow, remove, today };
+  return { complete, undo, remove, today };
 }
 
-// ---------------------------------------------------------------- строка дела
+// ---------------------------------------------------------------- строки
 
-const TONE: Record<string, string> = { danger: 'chip-danger', warm: 'chip-warm', muted: '' };
+/** Метки, чек-лист, «общая» — подписи под названием. */
+function Meta({ tags, checklistId, shared, author }: { tags: string[]; checklistId: string | null; shared?: boolean; author?: string | null }) {
+  const { data } = useApp();
+  const list = checklistId ? data.checklists.find((c) => c.id === checklistId) : null;
+  if (!tags.length && !list && !shared) return null;
+  return (
+    <span className="row-tags">
+      {tags.map((t) => (
+        <span key={t} className="tag">
+          #{t}
+        </span>
+      ))}
+      {list && (
+        <span className="tag" title={`Чек-лист «${list.title}»`}>
+          <Icon name="list" size={12} />
+          {list.title}
+        </span>
+      )}
+      {shared && (
+        <span className="tag" title={author ? `Общая, завёл(а) ${author}` : 'Общая задача семьи'}>
+          <Icon name="users" size={12} /> {author ?? 'общая'}
+        </span>
+      )}
+    </span>
+  );
+}
 
-export function TaskRow({ task, onOpen, showDate = false, hideDue = false }: { task: Task; onOpen?: (t: Task) => void; showDate?: boolean; hideDue?: boolean }) {
-  const { complete, undo, tomorrow, remove, today } = useTaskActions();
+export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => void }) {
+  const { complete, undo, remove } = useTaskActions();
   const done = !!task.done_at;
-  const due = dueLabel(task.due_date, today);
-  // Чужое общее дело удалить нельзя (сервер не даст) — и свайп не предлагает.
+  // Чужую общую задачу удалить нельзя (сервер не даст) — и свайп не предлагает.
   const canDelete = !task.household_id || !task.author;
   const body = (
     <>
-      <span>{task.title}</span>
-      {task.tag && <span className="tag">{task.tag}</span>}
-      {task.rule && (
-        <span className="tag" title={describe(task.rule)}>
-          <Icon name="repeat" size={12} /> {describe(task.rule)}
-        </span>
-      )}
-      {task.household_id && (
-        <span className="tag" title={task.author ? `Общее, завёл(а) ${task.author}` : 'Общее дело семьи'}>
-          <Icon name="users" size={12} /> {task.author ?? 'общее'}
-        </span>
-      )}
-      {!showDate && !hideDue && due && !done && <span className={`chip ${TONE[due.tone]}`}>{due.text}</span>}
+      <span className="row-title">
+        <PriorityFlag p={task.priority} />
+        {task.title}
+      </span>
+      <Meta tags={task.tags} checklistId={task.checklist_id} shared={!!task.household_id} author={task.author} />
     </>
   );
   return (
-    <Swipe
-      onRight={done ? undefined : () => complete(task)}
-      actions={
-        done
-          ? []
-          : [
-              ...(task.due_date !== addDays(today, 1) ? [{ label: 'Завтра', icon: 'calendar', tone: 'warm' as const, onClick: () => tomorrow(task) }] : []),
-              ...(canDelete ? [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }] : []),
-            ]
-      }
-    >
-    <div className="task-row">
-      <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
-        <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
-        {/* Кружок — отметить; текст — открыть дело (кнопка внутри label галочку не ставит). */}
-        {onOpen ? (
-          <button
-            type="button"
-            className="check-text task-open"
-            onClick={(e) => {
-              e.preventDefault();
-              onOpen(task);
-            }}
-          >
-            {body}
-          </button>
-        ) : (
-          <span className="check-text task-open">{body}</span>
-        )}
-      </label>
-      {showDate && task.due_date && <span className="mono row-time" style={{ paddingRight: 8 }}>{shortDate(task.due_date, today)}</span>}
-    </div>
+    <Swipe onRight={done ? undefined : () => complete(task)} actions={done || !canDelete ? [] : [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }]}>
+      <div className="task-row">
+        <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+          <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
+          {/* Кружок — отметить; текст — открыть задачу (кнопка внутри label галочку не ставит). */}
+          {onOpen ? (
+            <button
+              type="button"
+              className="check-text task-open"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpen(task);
+              }}
+            >
+              {body}
+            </button>
+          ) : (
+            <span className="check-text task-open">{body}</span>
+          )}
+        </label>
+      </div>
     </Swipe>
   );
 }
 
-// ---------------------------------------------------------------- повтор дела
-
-type RepeatId = 'none' | 'day' | 'week' | 'week2' | 'month' | 'year' | 'after';
-const REPEATS: { id: RepeatId; label: string }[] = [
-  { id: 'none', label: 'Не повторять' },
-  { id: 'day', label: 'Каждый день' },
-  { id: 'week', label: 'Каждую неделю' },
-  { id: 'week2', label: 'Каждые 2 недели' },
-  { id: 'month', label: 'Каждый месяц' },
-  { id: 'year', label: 'Каждый год' },
-  { id: 'after', label: 'Через N дней после выполнения' },
-];
-
-function repeatOf(rule: Rule | null): { id: RepeatId; n: number } {
-  if (!rule || rule.kind === 'once') return { id: 'none', n: 7 };
-  if (rule.kind === 'after') return { id: 'after', n: rule.every };
-  if (rule.unit === 'day') return { id: 'day', n: 7 };
-  if (rule.unit === 'week') return { id: rule.every === 2 ? 'week2' : 'week', n: 7 };
-  return { id: rule.unit === 'month' ? 'month' : 'year', n: 7 };
-}
-
-/** Правило из выбора; первый срок — дата дела. Сложные повторы — в напоминаниях. */
-function ruleOf(id: RepeatId, n: number, start: string): Rule | null {
-  switch (id) {
-    case 'none':
-      return null;
-    case 'day':
-      return { kind: 'repeat', unit: 'day', every: 1, start };
-    case 'week':
-    case 'week2':
-      return { kind: 'repeat', unit: 'week', every: id === 'week2' ? 2 : 1, start };
-    case 'month':
-      return { kind: 'repeat', unit: 'month', every: 1, start };
-    case 'year':
-      return { kind: 'repeat', unit: 'year', every: 1, start };
-    case 'after':
-      return { kind: 'after', unit: 'day', every: Math.max(1, Math.min(365, n)), start };
-  }
-}
-
-// ---------------------------------------------------------------- форма
-
-interface Draft {
-  title: string;
-  dated: boolean;
-  due: string;
-  repeat: RepeatId;
-  n: number;
-  tag: string;
-  shared: boolean;
-  note: string;
-  /** Напомнить в это время (push) — тогда сохраняется напоминание, а не дело. */
-  remind: boolean;
-  time: string;
-}
-
-function draftOf(t: Task | null, today: string): Draft {
-  const r = repeatOf(t?.rule ?? null);
-  return {
-    title: t?.title ?? '',
-    dated: !!t?.due_date,
-    due: t?.due_date ?? today,
-    repeat: r.id,
-    n: r.n,
-    tag: t?.tag ?? '',
-    shared: !!t?.household_id,
-    note: t?.note ?? '',
-    remind: false,
-    // Ближайший целый час — чтобы напоминание не оказалось в прошлом.
-    time: `${String(Math.min(23, new Date().getHours() + 1)).padStart(2, '0')}:00`,
-  };
-}
-
-function bodyOf(d: Draft, today: string) {
-  const rule = d.dated ? ruleOf(d.repeat, d.n, d.due) : null;
-  // У повторяющегося первый срок — ближайший подходящий день не раньше даты.
-  const due = d.dated ? (rule ? firstDue(rule, d.due < today ? today : d.due) ?? d.due : d.due) : null;
-  return { title: d.title.trim(), due_date: due, rule, tag: d.tag.trim() || null, shared: d.shared, note: d.note.trim() || null };
-}
-
-/** «Сегодня», «Завтра», «На выходных» (ближайшая суббота), «Через неделю». */
-function quickDates(today: string): { label: string; day: string }[] {
-  const wd = new Date(`${today}T12:00:00`).getDay();
-  const toSat = (6 - wd + 7) % 7 || 7;
-  return [
-    { label: 'Сегодня', day: today },
-    { label: 'Завтра', day: addDays(today, 1) },
-    { label: 'На выходных', day: wd === 6 || wd === 0 ? today : addDays(today, toSat) },
-    { label: 'Через неделю', day: addDays(today, 7) },
-  ];
-}
-
-function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Draft; set: (d: Draft) => void; tags: string[]; canShare: boolean; today: string; compact?: boolean; allowRemind?: boolean }) {
-  return (
-    <div className="task-fields" data-compact={compact ? 'true' : undefined}>
-      {d.dated && (
-        <>
-          <div className="fld">
-            <label className="label" htmlFor="t-due">
-              Срок
-            </label>
-            <input id="t-due" className="field" type="date" min={today} value={d.due} onChange={(e) => e.target.value && set({ ...d, due: e.target.value })} />
-            <div className="quick-dates" role="group" aria-label="Быстро выбрать срок">
-              {quickDates(today).map((q) => (
-                <button key={q.label} type="button" className="chip" aria-pressed={d.due === q.day} onClick={() => set({ ...d, due: q.day })}>
-                  {q.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {allowRemind && (
-            <div className="fld">
-              <label className="check" style={{ padding: 0, minHeight: 24 }}>
-                <input type="checkbox" checked={d.remind} onChange={(e) => set({ ...d, remind: e.target.checked, repeat: d.repeat === 'after' ? 'none' : d.repeat })} />
-                <span className="check-text label">Напомнить в</span>
-              </label>
-              <input className="field mono" type="time" aria-label="Время напоминания" disabled={!d.remind} value={d.time} onChange={(e) => e.target.value && set({ ...d, time: e.target.value })} />
-            </div>
-          )}
-          <div className="fld">
-            <label className="label" htmlFor="t-rep">
-              Повтор
-            </label>
-            <select id="t-rep" className="field" value={d.repeat} onChange={(e) => set({ ...d, repeat: e.target.value as RepeatId })}>
-              {REPEATS.filter((r) => !(d.remind && r.id === 'after')).map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {d.repeat === 'after' && (
-            <div className="fld" style={{ maxWidth: 120 }}>
-              <label className="label" htmlFor="t-n">
-                Через, дней
-              </label>
-              <input id="t-n" className="field mono" type="number" min={1} max={365} value={d.n} onChange={(e) => set({ ...d, n: Number(e.target.value) || 1 })} />
-            </div>
-          )}
-        </>
-      )}
-      <div className="fld">
-        <label className="label" htmlFor="t-tag">
-          Метка
-        </label>
-        <input id="t-tag" className="field" list="t-tags" maxLength={30} placeholder="дом, работа…" value={d.tag} onChange={(e) => set({ ...d, tag: e.target.value })} />
-        <datalist id="t-tags">
-          {tags.map((t) => (
-            <option key={t} value={t} />
-          ))}
-        </datalist>
-      </div>
-      {canShare && !d.remind && (
-        <label className="check" style={{ alignSelf: 'flex-end' }}>
-          <input type="checkbox" checked={d.shared} onChange={(e) => set({ ...d, shared: e.target.checked })} />
-          <span className="check-text">Общее для семьи</span>
-        </label>
-      )}
-    </div>
-  );
-}
-
-function WhenSeg({ dated, set }: { dated: boolean; set: (v: boolean) => void }) {
-  return (
-    <div className="tabs-row" role="group" aria-label="Когда">
-      <button type="button" aria-pressed={!dated} onClick={() => set(false)}>
-        Без срока
-      </button>
-      <button type="button" aria-pressed={dated} onClick={() => set(true)}>
-        <Icon name="calendar" size={16} />К дате
-      </button>
-    </div>
-  );
-}
-
-/** Быстрое добавление — на экране дел и на главной. */
-export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; onDone?: () => void }) {
-  const { data, reload, now, toast } = useApp();
+/**
+ * Задача с напоминанием в свой день. Отметить можно сегодняшнюю и
+ * просроченную (отметка ляжет на сегодня); будущую — только открыть.
+ */
+export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { occ: Occurrence; date: string; time: string; onOpen: (r: Reminder) => void; overdue?: boolean; hideDate?: boolean }) {
+  const rem = useReminderActions();
+  const { now } = useApp();
   const today = localDay(now);
-  const [d, setD] = useState<Draft>(() => draftOf(null, today));
-  const [busy, setBusy] = useState(false);
-  const tags = knownTags(data.tasks, data.reminders);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!d.title.trim()) return;
-    setBusy(true);
-    try {
-      if (d.dated && d.remind) {
-        // Со временем — это напоминание: придёт push.
-        const rule = ruleOf(d.repeat, d.n, d.due < today ? today : d.due) ?? { kind: 'once', date: d.due < today ? today : d.due };
-        await api('reminders', 'POST', { title: d.title.trim(), times: [d.time], rule, checklist_id: null, tag: d.tag.trim() || null });
-      } else await api('tasks', 'POST', bodyOf(d, today));
-      await reload();
-      setD({ ...draftOf(null, today), dated: d.dated, due: d.due });
-      toast(d.dated && d.remind ? `Напомню в ${d.time}` : 'Дело добавлено');
-      onDone?.();
-    } catch (err) {
-      toast((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="card" onSubmit={submit} style={{ padding: 12, gap: 10 }}>
-      <div className="add-row">
-        <label className="sr-only" htmlFor="new-task">
-          Новое дело
-        </label>
-        <input
-          id="new-task"
-          className="field"
-          style={{ flex: 1 }}
-          maxLength={200}
-          autoFocus={autoFocus}
-          placeholder="Новое дело, например «Отнести куртку в химчистку»"
-          value={d.title}
-          onChange={(e) => setD({ ...d, title: e.target.value })}
-        />
-        <WhenSeg dated={d.dated} set={(v) => setD({ ...d, dated: v })} />
-        <button className="btn btn-primary" type="submit" disabled={busy || !d.title.trim()} aria-label="Добавить дело">
-          <Icon name="plus" size={18} />
-          <span className="btn-text">Добавить</span>
-        </button>
-      </div>
-      {(d.dated || d.title) && <Fields d={d} set={setD} tags={tags} canShare={!!data.household} today={today} compact allowRemind />}
-      {d.dated && d.remind && (
-        <Link
-          className="add-line"
-          style={{ padding: 0 }}
-          href={`/tasks?new=1&title=${encodeURIComponent(d.title)}&date=${d.due}&time=${d.time}&tag=${encodeURIComponent(d.tag)}`}
-        >
-          Больше настроек: несколько времён, чек-лист, повтор, если не отметили
-        </Link>
-      )}
-    </form>
-  );
-}
-
-function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
-  const { data, reload, now, toast } = useApp();
-  const today = localDay(now);
-  const [d, setD] = useState<Draft>(() => draftOf(task, today));
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const titleRef = useRef<HTMLInputElement>(null);
-  const formRef = useRef<HTMLFormElement>(null);
-  const phone = useIsPhone();
-  useModalFocus(formRef);
-  const tags = knownTags(data.tasks, data.reminders);
-
-  useEffect(() => {
-    titleRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!d.title.trim()) return;
-    setBusy(true);
-    try {
-      await api(`tasks/${task.id}`, 'PATCH', bodyOf(d, today));
-      await reload();
-      onClose();
-    } catch (err) {
-      toast((err as Error).message);
-      setBusy(false);
-    }
-  };
-
-  const remove = async () => {
-    try {
-      await api(`tasks/${task.id}`, 'DELETE');
-      await reload();
-      onClose();
-    } catch (err) {
-      toast((err as Error).message);
-    }
-  };
-
-  if (confirm) {
-    return <Confirm title={`Удалить «${task.title}»?`} text="Дело удалится вместе с историей выполнения." action="Удалить" onCancel={() => setConfirm(false)} onConfirm={remove} />;
-  }
-
-  // На телефоне — окном снизу, как «Новое дело»; на компьютере — по центру.
-  const fields = (
+  const r = occ.reminder;
+  const checkable = date === today || !!overdue;
+  const late = date === today && !occ.done && minutesOf(time) < now.getHours() * 60 + now.getMinutes();
+  const chore = date === today && r.rule.kind === 'after' && !occ.done && today > dueDay(r.rule, r.last_done);
+  const body = (
     <>
-        <div className="fld">
-          <label className="label" htmlFor="t-title">
-            Что сделать
-          </label>
-          <input id="t-title" ref={titleRef} className="field" maxLength={200} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} />
-        </div>
-        <WhenSeg dated={d.dated} set={(v) => setD({ ...d, dated: v })} />
-        <Fields d={d} set={setD} tags={tags} canShare={!!data.household} today={today} />
-        <div className="fld">
-          <label className="label" htmlFor="t-note">
-            Заметка
-          </label>
-          <textarea id="t-note" className="field" rows={3} maxLength={2000} value={d.note} onChange={(e) => setD({ ...d, note: e.target.value })} />
-        </div>
-        {task.author && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Общее дело, завёл(а) {task.author}.</p>}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {!task.author && (
-            <button className="btn btn-danger-ghost" type="button" onClick={() => setConfirm(true)}>
-              <Icon name="trash" size={18} />
-              Удалить
-            </button>
-          )}
-          <span style={{ flex: 1 }} />
-          <button className="btn btn-ghost hide-phone" type="button" onClick={onClose}>
-            Отмена
-          </button>
-          <button className="btn btn-primary" type="submit" disabled={busy || !d.title.trim()}>
-            <Icon name="check" size={18} />
-            Сохранить
-          </button>
-        </div>
+      <span className="row-title">
+        <PriorityFlag p={r.priority} />
+        {r.title}
+        {chore && <span className="chip chip-danger">давно пора</span>}
+      </span>
+      <Meta tags={r.tags} checklistId={r.checklist_id} />
     </>
   );
-  if (phone) {
+  return (
+    <Swipe
+      onRight={checkable && !occ.done ? () => rem.done(r, occ.slot, true) : undefined}
+      actions={[
+        ...(date === today && !occ.done ? [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => rem.snooze(occ, 60) }] : []),
+        { label: 'Изменить', icon: 'edit', onClick: () => onOpen(r) },
+      ]}
+    >
+      <div className="task-row">
+        {checkable ? (
+          <label className={`check round${occ.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+            <input type="checkbox" checked={occ.done} onChange={(e) => rem.done(r, occ.slot, e.target.checked)} aria-label={r.title} />
+            <button
+              type="button"
+              className="check-text task-open"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpen(r);
+              }}
+            >
+              {body}
+            </button>
+          </label>
+        ) : (
+          <button type="button" className="check future" style={{ flex: 1, minWidth: 0 }} onClick={() => onOpen(r)}>
+            <span className="future-dot" aria-hidden="true">
+              <Icon name="bell" size={14} />
+            </span>
+            <span className="check-text task-open">{body}</span>
+          </button>
+        )}
+        <span className="row-meta">
+          {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
+          {!hideDate && (overdue || date > addDays(today, 1)) && <span>{shortDate(date, today)} ·</span>}
+          <span className={`mono row-time${late || overdue ? ' late' : ''}`}>{time}</span>
+        </span>
+      </div>
+    </Swipe>
+  );
+}
+
+// ---------------------------------------------------------------- фильтры
+
+interface Filter {
+  tag: string | null;
+  /** Не ниже этой важности; 0 — любая. */
+  prio: Priority;
+}
+const FILTER_KEY = 'lifedashboard:tasks-filter';
+
+function loadFilter(): Filter {
+  try {
+    const f = JSON.parse(localStorage.getItem(FILTER_KEY) || 'null') as Filter | null;
+    if (f && typeof f === 'object') return { tag: typeof f.tag === 'string' ? f.tag : null, prio: [0, 1, 2, 3].includes(f.prio) ? f.prio : 0 };
+  } catch {
+    /* приватный режим */
+  }
+  return { tag: null, prio: 0 };
+}
+
+const PRIO_FILTERS: { v: Priority; label: string }[] = [
+  { v: 0, label: 'Любая важность' },
+  { v: 3, label: 'Только высокая' },
+  { v: 2, label: 'Средняя и выше' },
+  { v: 1, label: 'С любой отметкой' },
+];
+
+/** Свои метки: переименовать, удалить (уберётся и из задач), добавить. */
+function TagManager({ onClose }: { onClose: () => void }) {
+  const { data, reload, toast } = useApp();
+  const [names, setNames] = useState<Record<string, string>>(() => Object.fromEntries(data.tags.map((t) => [t, t])));
+  const [fresh, setFresh] = useState('');
+  const [confirm, setConfirm] = useState<string | null>(null);
+  const run = async (fn: () => Promise<unknown>, msg: string) => {
+    try {
+      await fn();
+      await reload();
+      toast(msg);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  if (confirm) {
     return (
-      <Sheet title="Дело" onClose={onClose}>
-        <form onSubmit={save} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {fields}
-        </form>
-      </Sheet>
+      <Confirm
+        title={`Удалить метку «${confirm}»?`}
+        text="Метка уберётся и у всех задач, сами задачи останутся."
+        action="Удалить"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          const t = confirm;
+          setConfirm(null);
+          run(() => api('tags/delete', 'POST', { name: t }), `Метка «${t}» удалена`);
+        }}
+      />
     );
   }
   return (
-    <div className="overlay" onClick={onClose}>
-      <form ref={formRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="task-dlg" style={{ width: 'min(520px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
-        <h2 id="task-dlg" className="display" style={{ margin: 0, fontSize: 20 }}>
-          Дело
-        </h2>
-        {fields}
-      </form>
-    </div>
+    <Sheet title="Метки" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {data.tags.length === 0 && <p style={{ margin: 0, color: 'var(--muted)' }}>Меток пока нет. Добавьте здесь или прямо в задаче.</p>}
+        {data.tags.map((t) => (
+          <div key={t} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label className="sr-only" htmlFor={`tag-${t}`}>
+              Название метки {t}
+            </label>
+            <input
+              id={`tag-${t}`}
+              className="field"
+              style={{ flex: 1 }}
+              maxLength={30}
+              value={names[t] ?? t}
+              onChange={(e) => setNames({ ...names, [t]: e.target.value })}
+              onBlur={() => {
+                const to = (names[t] ?? t).trim();
+                if (to && to !== t) run(() => api('tags/rename', 'POST', { from: t, to }), 'Метка переименована');
+              }}
+            />
+            <button className="icon-btn bare" type="button" aria-label={`Удалить метку «${t}»`} onClick={() => setConfirm(t)}>
+              <Icon name="trash" size={18} />
+            </button>
+          </div>
+        ))}
+        <form
+          style={{ display: 'flex', gap: 8 }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = fresh.trim().replace(/^#/, '');
+            if (!n) return;
+            setFresh('');
+            run(() => api('tags', 'POST', { name: n }), `Метка «${n}» добавлена`);
+          }}
+        >
+          <label className="sr-only" htmlFor="tag-fresh">
+            Новая метка
+          </label>
+          <input id="tag-fresh" className="field" style={{ flex: 1 }} maxLength={30} placeholder="Новая метка" value={fresh} onChange={(e) => setFresh(e.target.value)} />
+          <button className="btn btn-primary" type="submit" disabled={!fresh.trim()}>
+            <Icon name="plus" size={18} />
+            <span className="btn-text">Добавить</span>
+          </button>
+        </form>
+      </div>
+    </Sheet>
   );
+}
+
+// ---------------------------------------------------------------- push
+
+/**
+ * Нажали на push: ?focus=<id>&slot=09:00 — показываем задачу крупно, с
+ * кнопкой «Сделано» (на iPhone в уведомлении её нет).
+ */
+function PushFocus({ onClose }: { onClose: () => void }) {
+  const { data, now, toast } = useApp();
+  const params = useSearchParams();
+  const rem = useReminderActions();
+  const today = localDay(now);
+  const todays = occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed);
+  const id = params.get('focus');
+  const slot = params.get('slot');
+  const reminder = id ? data.reminders.find((r) => r.id === id) : undefined;
+  const focus = id ? todays.find((o) => o.reminder.id === id && (!slot || o.slot === slot)) ?? todays.find((o) => o.reminder.id === id) : undefined;
+  const list = reminder?.checklist_id ? data.checklists.find((c) => c.id === reminder.checklist_id) : null;
+  return (
+    <Sheet title="Напоминание" onClose={onClose}>
+      {!reminder ? (
+        <p style={{ margin: 0, color: 'var(--muted)' }}>Этой задачи уже нет.</p>
+      ) : !focus ? (
+        <p style={{ margin: 0, color: 'var(--muted)' }}>«{reminder.title}» сегодня уже не по плану.</p>
+      ) : (
+        <div className="focus-card">
+          <span className="mono" style={{ fontSize: 15, color: 'var(--muted)' }}>
+            {focus.snoozedTo ?? focus.slot}
+          </span>
+          <p className="display focus-title">{reminder.title}</p>
+          {list && (
+            <span className="tag">
+              <Icon name="list" size={12} />
+              Чек-лист «{list.title}»
+            </span>
+          )}
+          {focus.done ? (
+            <p style={{ margin: 0, color: 'var(--accent-ink)', fontWeight: 600 }}>Уже отмечено — сделано.</p>
+          ) : (
+            <>
+              <button
+                className="btn btn-primary focus-done"
+                type="button"
+                onClick={() => {
+                  rem.done(reminder, focus.slot, true, true);
+                  toast('Сделано');
+                  onClose();
+                }}
+              >
+                <Icon name="check" size={22} />
+                Сделано
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[15, 60].map((m) => (
+                  <button
+                    key={m}
+                    className="btn btn-ghost"
+                    type="button"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      rem.snooze(focus, m);
+                      onClose();
+                    }}
+                  >
+                    <Icon name="clock" size={18} />
+                    {m < 60 ? `Через ${m} мин` : 'Через час'}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+const NOTIFIED_KEY = 'lifedashboard:notified';
+const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/** Пока вкладка открыта — тост «Пора: …» в момент напоминания (push шлёт сервер). */
+function useDueToasts() {
+  const { data, now, toast } = useApp();
+  useEffect(() => {
+    const today = localDay(now);
+    const cur = hm(now.getHours() * 60 + now.getMinutes());
+    let shown: string[] = [];
+    try {
+      shown = JSON.parse(sessionStorage.getItem(NOTIFIED_KEY) || '[]');
+    } catch {
+      shown = [];
+    }
+    for (const o of occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed)) {
+      const t = o.snoozedTo ?? o.slot;
+      const key = `${today}:${o.key}:${t}`;
+      if (o.done || t !== cur || shown.includes(key)) continue;
+      shown.push(key);
+      toast(`Пора: ${o.reminder.title}`);
+    }
+    try {
+      sessionStorage.setItem(NOTIFIED_KEY, JSON.stringify(shown.slice(-100)));
+    } catch {
+      /* приватный режим */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [now]);
 }
 
 // ---------------------------------------------------------------- экран
 
 /**
- * «Дела» — дела и напоминания одним списком по дням: просрочено, сегодня,
- * завтра, позже, без срока (src/lib/timeline.ts). Срок у дела — по желанию;
- * указали время — придёт push. «Быт по кругу» и все повторы — фильтрами
- * сверху; их списки, форма напоминания и окно по нажатию на push — из
- * src/components/Reminders.tsx во встроенном режиме.
+ * «Задачи»: с напоминанием — по дням (просрочено, сегодня, завтра, позже),
+ * без напоминания — списком, важные сверху (src/lib/timeline.ts). Сверху —
+ * фильтры по метке и важности (запоминаются), сбоку — календарь (на
+ * телефоне — лента недели): нажали день — видно задачи этого дня.
+ * Добавить — одной кнопкой: окно TaskDialog.
  */
 export default function Tasks() {
-  const { data, now, setOpenList, mutate, reload, toast } = useApp();
-  const { undo } = useTaskActions();
-  const rem = useReminderActions();
+  const { data, now } = useApp();
   const router = useRouter();
+  const params = useSearchParams();
   const phone = useIsPhone();
   const today = localDay(now);
-  const [open, setOpen] = useState<Task | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [view, setView] = useState<'all' | 'chores' | 'repeat'>('all');
-  const [tag, setTag] = useState<string | null>(null);
-  const params = useSearchParams();
+  const [dialog, setDialog] = useState<DialogTarget>(null);
+  const [day, setDay] = useState<string | null>(null);
+  const [filter, setFilterState] = useState<Filter>({ tag: null, prio: 0 });
+  const [managing, setManaging] = useState(false);
+  useDueToasts();
 
-  // Пришли из поиска: /tasks?open=<id> — открываем дело.
+  useEffect(() => setFilterState(loadFilter()), []);
+  const setFilter = (f: Filter) => {
+    setFilterState(f);
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify(f));
+    } catch {
+      /* приватный режим */
+    }
+  };
+
+  // Пришли из поиска, с Главной или по старым ссылкам: ?open=<задача>,
+  // ?edit=<напоминание>, ?new=1[&date=…&time=…&title=…].
   useEffect(() => {
-    const id = params.get('open');
-    const t = id ? data.tasks.find((x) => x.id === id) : null;
-    if (t) setOpen(t);
+    const open = params.get('open');
+    const edit = params.get('edit');
+    const t = open ? data.tasks.find((x) => x.id === open) : null;
+    const r = edit ? data.reminders.find((x) => x.id === edit) : null;
+    if (t) setDialog({ task: t });
+    else if (r) setDialog({ reminder: r });
+    else if (params.get('new')) setDialog({ day: params.get('date') ?? undefined, time: params.get('time') ?? undefined, title: params.get('title') ?? undefined });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
+  const closeDialog = () => {
+    setDialog(null);
+    if (params.get('open') || params.get('edit') || params.get('new')) router.replace('/tasks');
+  };
 
-  const tasks = data.tasks.filter((t) => !tag || t.tag === tag);
-  const groups = timeline(tasks, data.reminders.filter((r) => !tag || r.tag === tag), today, new Set(data.done), data.snoozed);
+  const tags = knownTags(data.tags, data.tasks, data.reminders);
+  const tag = filter.tag && tags.includes(filter.tag) ? filter.tag : null;
+  const pass = (x: { tags: string[]; priority: Priority }) => (!tag || x.tags.includes(tag)) && x.priority >= filter.prio;
+  const tasks = data.tasks.filter(pass);
+  const reminders = data.reminders.filter(pass);
+  const doneSet = useMemo(() => new Set(data.done), [data.done]);
+  const groups = timeline(tasks, reminders, today, doneSet, data.snoozed);
+  const dots = (d: string) => agendaFor(d, reminders, today, doneSet);
   const doneToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && t.done_at);
-  const repeatedToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && !t.done_at);
-  const tags = knownTags(data.tasks, data.reminders);
-  const editReminder = (id: string) => router.replace(`/tasks?edit=${encodeURIComponent(id)}`);
-  const show = (v: 'all' | 'chores' | 'repeat', t: string | null = null) => {
-    setView(v);
-    setTag(t);
-  };
+  const filtered = !!tag || filter.prio > 0;
 
-  const remRow = (row: Extract<Row, { kind: 'rem' }>, group: string) => {
-    const o = row.occ;
-    const r = o.reminder;
-    const isToday = group === 'today';
-    const overdue = isToday && r.rule.kind === 'after' && !o.done && today > dueDay(r.rule, r.last_done);
-    return (
-      <Swipe
-        key={row.key}
-        onRight={isToday && !o.done ? () => rem.done(r, o.slot, true) : undefined}
-        actions={[
-          ...(isToday && !o.done ? [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => rem.snooze(o, 60) }] : []),
-          { label: 'Изменить', icon: 'edit', onClick: () => editReminder(r.id) },
-        ]}
-      >
-        <div className="task-row">
-          {isToday ? (
-            <label className={`check round${o.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
-              <input type="checkbox" checked={o.done} onChange={(e) => rem.done(r, o.slot, e.target.checked)} aria-label={r.title} />
-              <button
-                type="button"
-                className="check-text task-open"
-                onClick={(e) => {
-                  e.preventDefault();
-                  editReminder(r.id);
-                }}
-              >
-                {r.title}
-                {overdue && (
-                  <span className="chip chip-danger" style={{ marginLeft: 6 }}>
-                    давно пора
-                  </span>
-                )}
-              </button>
-            </label>
-          ) : (
-            <button type="button" className="check future" style={{ flex: 1, minWidth: 0 }} onClick={() => editReminder(r.id)}>
-              <span className="future-dot" aria-hidden="true">
-                <Icon name="bell" size={14} />
-              </span>
-              <span className="check-text">{r.title}</span>
-            </button>
-          )}
-          <span className="row-meta">
-            {r.tag && <span className="tag">{r.tag}</span>}
-            {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
-            {group === 'later' && <span>{shortDate(row.date, today)} ·</span>}
-            <span className={`mono row-time${group === 'today' && !o.done && minutesOf(row.time) < now.getHours() * 60 + now.getMinutes() ? ' late' : ''}`}>{row.time}</span>
-          </span>
-        </div>
-      </Swipe>
+  const open = (r: Reminder) => setDialog({ reminder: r });
+  const row = (r: Row, overdue = false, hideDate = false) =>
+    r.kind === 'task' ? (
+      <TaskRow key={r.key} task={r.task} onOpen={(t) => setDialog({ task: t })} />
+    ) : (
+      <ReminderRow key={r.key} occ={r.occ} date={r.date} time={r.time} onOpen={open} overdue={overdue} hideDate={hideDate} />
     );
+
+  // Выбранный в календаре день: его задачи с напоминанием (сегодня — с галочками).
+  const dayRows = (d: string): Row[] => {
+    if (d === today) return groups.find((g) => g.id === 'today')?.rows ?? [];
+    return agendaFor(d, reminders, today).map((i) => {
+      const r = reminders.find((x) => x.id === i.id)!;
+      return { kind: 'rem', key: i.key, occ: { reminder: r, slot: i.time, key: occurrenceKey(r.id, i.time), done: false, snoozedTo: null }, date: d, time: i.time };
+    });
   };
 
-  const totalOpen = groups.reduce((n, g) => n + g.rows.length, 0);
+  const filters = (
+    <div className="task-filters">
+      <div className="chip-scroll" role="group" aria-label="Метки">
+        <button className="chip" type="button" aria-pressed={!tag} onClick={() => setFilter({ ...filter, tag: null })}>
+          Все метки
+        </button>
+        {tags.map((t) => (
+          <button key={t} className="chip" type="button" aria-pressed={tag === t} onClick={() => setFilter({ ...filter, tag: tag === t ? null : t })}>
+            #{t}
+          </button>
+        ))}
+        <button className="chip" type="button" onClick={() => setManaging(true)}>
+          <Icon name="edit" size={14} />
+          {tags.length ? 'Метки' : 'Добавить метки'}
+        </button>
+      </div>
+      <label className="sr-only" htmlFor="prio-filter">
+        Важность
+      </label>
+      <select id="prio-filter" className="field prio-select" data-on={filter.prio > 0 || undefined} value={filter.prio} onChange={(e) => setFilter({ ...filter, prio: Number(e.target.value) as Priority })}>
+        {PRIO_FILTERS.map((p) => (
+          <option key={p.v} value={p.v}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const rowsOfDay = day ? dayRows(day) : [];
+  const list = day ? (
+    <section aria-labelledby="day-head">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 className="group-title day-title" id="day-head" style={{ flex: 1 }}>
+          {dayHead(day, today)}
+        </h2>
+        {day >= today && (
+          <button className="btn btn-ghost" type="button" style={{ minHeight: 36, padding: '4px 10px' }} onClick={() => setDialog({ day })}>
+            <Icon name="plus" size={16} />
+            На этот день
+          </button>
+        )}
+        <button className="icon-btn bare" type="button" aria-label="Показать все задачи" title="Все задачи" onClick={() => setDay(null)}>
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      {rowsOfDay.length === 0 ? <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>На этот день ничего нет.</p> : rowsOfDay.map((r) => row(r, false, true))}
+    </section>
+  ) : (
+    <div className="day-groups">
+      {groups.length === 0 &&
+        doneToday.length === 0 &&
+        (filtered ? (
+          <p style={{ margin: 0, color: 'var(--muted)' }}>
+            По этому фильтру задач нет.{' '}
+            <button className="add-line" type="button" style={{ display: 'inline', padding: 0 }} onClick={() => setFilter({ tag: null, prio: 0 })}>
+              Сбросить фильтр
+            </button>
+          </p>
+        ) : (
+          <Empty icon="tasks" title="Задач нет — можно выдохнуть" action="Добавить задачу" onAction={() => setDialog({})} />
+        ))}
+      {groups.map((g) => (
+        <section key={g.id} aria-labelledby={`g-${g.id}`}>
+          <h2 className="group-title day-title" id={`g-${g.id}`} data-tone={g.id === 'overdue' ? 'danger' : undefined}>
+            {g.title}
+            <span className="day-count">{g.rows.length}</span>
+          </h2>
+          {g.rows.map((r) => row(r, g.id === 'overdue'))}
+        </section>
+      ))}
+      {doneToday.length > 0 && (
+        <details>
+          <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length}</summary>
+          {sortTasks(doneToday).map((t) => (
+            <TaskRow key={t.id} task={t} />
+          ))}
+        </details>
+      )}
+    </div>
+  );
+
+  const pickDay = (d: string) => setDay(d === day ? null : d);
 
   return (
     <>
       <div className="page-head">
         <h1 className="h1 display" style={{ flex: 1 }}>
-          Дела
+          Задачи
         </h1>
         {!phone && (
-          <button className="btn btn-primary" type="button" onClick={() => setAdding(true)}>
+          <button className="btn btn-primary" type="button" onClick={() => setDialog(day && day >= today ? { day } : {})}>
             <Icon name="plus" size={18} />
-            Новое дело
+            Добавить задачу
           </button>
         )}
       </div>
 
-      <div className="chip-scroll" role="group" aria-label="Что показать" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        <button className="chip" type="button" aria-pressed={view === 'all' && !tag} onClick={() => show('all')}>
-          Всё
-        </button>
-        <button className="chip" type="button" aria-pressed={view === 'chores'} onClick={() => show('chores')}>
-          Быт по кругу
-        </button>
-        <button className="chip" type="button" aria-pressed={view === 'repeat'} onClick={() => show('repeat')}>
-          Повторы
-        </button>
-        {tags.map((t) => (
-          <button key={t} className="chip" type="button" aria-pressed={view === 'all' && tag === t} onClick={() => show('all', tag === t ? null : t)}>
-            #{t}
-          </button>
-        ))}
+      <div className="tasks-layout">
+        <div className="tasks-main">
+          {phone && <WeekStrip key="week" sel={day ?? today} today={today} onPick={pickDay} dots={dots} />}
+          {filters}
+          {list}
+        </div>
+        {!phone && (
+          <aside className="tasks-side">
+            <section className="card" aria-label="Календарь задач">
+              <WeekStrip key="month" sel={day ?? today} today={today} onPick={pickDay} dots={dots} alwaysMonth />
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
+                {day ? (
+                  <button className="add-line" type="button" style={{ padding: 0 }} onClick={() => setDay(null)}>
+                    Показать все задачи
+                  </button>
+                ) : (
+                  'Точки — задачи с напоминанием. Нажмите день — покажу его задачи.'
+                )}
+              </p>
+            </section>
+          </aside>
+        )}
       </div>
 
-      {view === 'all' && (
-        <div className="day-groups">
-          {totalOpen === 0 && doneToday.length === 0 && <Empty icon="tasks" title="Дел нет — можно выдохнуть" action="Добавить дело" onAction={() => setAdding(true)} />}
-          {groups.map((g) => (
-            <section key={g.id} aria-labelledby={`g-${g.id}`}>
-              <h2 className="group-title day-title" id={`g-${g.id}`} data-tone={g.id === 'overdue' ? 'danger' : undefined}>
-                {g.title}
-                <span className="day-count">{g.rows.length}</span>
-              </h2>
-              {g.rows.map((row) =>
-                row.kind === 'task' ? (
-                  <TaskRow key={row.key} task={row.task} onOpen={setOpen} showDate={g.id === 'later'} hideDue={g.id === 'today' || g.id === 'tomorrow'} />
-                ) : (
-                  remRow(row, g.id)
-                ),
-              )}
-            </section>
-          ))}
-          {doneToday.length + repeatedToday.length > 0 && (
-            <details>
-              <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length + repeatedToday.length}</summary>
-              {doneToday.map((t) => (
-                <TaskRow key={t.id} task={t} />
-              ))}
-              {repeatedToday.map((t) => (
-                <div key={t.id} className="task-row" style={{ gap: 8, padding: '4px 0 4px 12px', fontSize: 14, color: 'var(--muted)' }}>
-                  <Icon name="repeat" size={14} />
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    {t.title} — следующий раз {dueLabel(t.due_date, today)?.text}
-                  </span>
-                  <button className="btn btn-ghost" type="button" style={{ minHeight: 36, padding: '4px 10px' }} onClick={() => undo(t)}>
-                    Вернуть
-                  </button>
-                </div>
-              ))}
-            </details>
-          )}
-        </div>
-      )}
-
-      {/* Списки «Быт по кругу» / «Повторы» и окна напоминаний (правка, push, удаление). */}
-      <Reminders
-        data={data}
-        mutate={mutate}
-        reload={reload}
-        now={now}
-        toast={toast}
-        embedded={view === 'chores' ? 'chores' : view === 'repeat' ? 'all' : 'sheets'}
-        base="/tasks"
-        onOpenChecklist={(id) => {
-          setOpenList(id);
-          router.push('/lists');
-        }}
-      />
-
-      {phone && <Fab label="Новое дело" onClick={() => setAdding(true)} />}
-      {adding && (
-        <Sheet title="Новое дело" onClose={() => setAdding(false)}>
-          <AddTask autoFocus onDone={() => setAdding(false)} />
-        </Sheet>
-      )}
-      {open && <EditDialog task={open} onClose={() => setOpen(null)} />}
+      {phone && <Fab label="Добавить задачу" onClick={() => setDialog(day && day >= today ? { day } : {})} />}
+      {dialog && <TaskDialog key={'task' in dialog ? dialog.task.id : 'reminder' in dialog ? dialog.reminder.id : 'new'} target={dialog} onClose={closeDialog} />}
+      {managing && <TagManager onClose={() => setManaging(false)} />}
+      {params.get('focus') && <PushFocus onClose={() => router.replace('/tasks')} />}
     </>
   );
 }

@@ -6,7 +6,7 @@ const at = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));
 const night = quietOf('23:00', '07:00');
 const nap = quietOf('13:00', '15:00');
 const occ = (slot: string, done = false, snoozedTo: string | null = null): Occurrence => ({
-  reminder: { id: slot, title: `r${slot}`, times: [slot], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'once', date: '2026-10-03' } },
+  reminder: { id: slot, title: `r${slot}`, times: [slot], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, rule: { kind: 'once', date: '2026-10-03' } },
   slot,
   key: `${slot}@${slot}`,
   done,
@@ -32,16 +32,7 @@ describe('тихие часы', () => {
     const list = [occ('05:00'), occ('06:00', true), occ('09:00'), occ('23:30'), occ('08:00', false, '06:45')];
     expect(quietMissed(list, night).map((o) => o.slot)).toEqual(['05:00', '08:00']);
   });
-  it('итог дня: просроченные и сегодняшние дела, неотмеченные напоминания', () => {
-    const tasks = [
-      { due_date: '2026-10-03', done_at: null },
-      { due_date: '2026-10-01', done_at: null },
-      { due_date: '2026-10-04', done_at: null },
-      { due_date: null, done_at: null },
-      { due_date: '2026-10-03', done_at: '2026-10-03' },
-    ];
-    const r = reviewItems(tasks, [occ('09:00'), occ('10:00', true)], '2026-10-03');
-    expect(r.tasks).toHaveLength(2);
-    expect(r.reminders).toHaveLength(1);
+  it('итог дня: неотмеченные напоминания дня', () => {
+    expect(reviewItems([occ('09:00'), occ('10:00', true)])).toHaveLength(1);
   });
 });

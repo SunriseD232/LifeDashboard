@@ -7,53 +7,44 @@ import { localDay } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
 import { reviewItems } from '@/lib/quiet';
 import { addDays, describe, nextOccurrence } from '@/lib/recur';
-import { dueLabel, type Task } from '@/lib/tasks';
+import { shortDate } from '@/lib/tasks';
+import { isOverdue } from '@/lib/timeline';
 import { useApp } from './AppShell';
 import Empty from './Empty';
 import { Icon } from './icons';
-import { useTaskActions } from './Tasks';
+import { useReminderActions } from './reminderActions';
 
 /**
- * Итог дня (приходит push вечером): что не сделано сегодня — сделать или
- * перенести на завтра, по одному или всё сразу. Повторяющееся напоминание
- * не переносим — оно и так будет в свой следующий раз.
+ * Итог дня (приходит push вечером): какие задачи с напоминанием не сделаны —
+ * сегодняшние и просроченные — сделать или перенести на завтра, по одной
+ * или все сразу. Повторяющиеся не переносим — они и так будут в свой
+ * следующий раз.
  */
 export default function Review() {
   const { data, mutate, now, toast } = useApp();
-  const { complete } = useTaskActions();
+  const rem = useReminderActions();
   const router = useRouter();
   const today = localDay(now);
   const tomorrow = addDays(today, 1);
   const occ = occurrencesOn(data.reminders, today, new Set(data.done), data.snoozed);
-  const left = reviewItems(data.tasks, occ, today);
+  const overdue: Occurrence[] = data.reminders
+    .filter((r) => isOverdue(r, today))
+    .flatMap((r) => r.times.map((slot) => ({ reminder: r, slot, key: occurrenceKey(r.id, slot), done: false, snoozedTo: null })));
+  const left = [...overdue, ...reviewItems(occ)];
 
-  const taskTomorrow = (t: Task) =>
-    mutate(
-      (d) => ({ ...d, tasks: d.tasks.map((x) => (x.id === t.id ? { ...x, due_date: tomorrow } : x)) }),
-      () => api(`tasks/${t.id}`, 'PATCH', { due_date: tomorrow }),
-    );
-  const remDone = (o: Occurrence) => {
-    const key = occurrenceKey(o.reminder.id, o.slot);
-    mutate(
-      (d) => ({ ...d, done: [...d.done, key] }),
-      () => api(`reminders/${o.reminder.id}/done`, 'PUT', { day: today, slot: o.slot, done: true }),
-    );
-  };
-  const remTomorrow = (o: Occurrence) =>
+  const toTomorrow = (o: Occurrence) =>
     mutate(
       (d) => ({ ...d, reminders: d.reminders.map((r) => (r.id === o.reminder.id ? { ...r, rule: { kind: 'once', date: tomorrow } } : r)) }),
       () => api(`reminders/${o.reminder.id}`, 'PATCH', { rule: { kind: 'once', date: tomorrow } }),
     );
-  const movable = left.reminders.filter((o) => o.reminder.rule.kind === 'once');
+  const movable = left.filter((o) => o.reminder.rule.kind === 'once');
+  // У разовой с несколькими временами — переносим один раз.
+  const movableOnce = [...new Map(movable.map((o) => [o.reminder.id, o])).values()];
 
   const allTomorrow = () => {
-    left.tasks.forEach(taskTomorrow);
-    // У разового напоминания с несколькими временами — переносим один раз.
-    [...new Map(movable.map((o) => [o.reminder.id, o])).values()].forEach(remTomorrow);
-    toast(`На завтра: ${left.tasks.length + movable.length}`);
+    movableOnce.forEach(toTomorrow);
+    toast(`На завтра: ${movableOnce.length}`);
   };
-
-  const n = left.tasks.length + left.reminders.length;
 
   return (
     <div style={{ maxWidth: 640 }}>
@@ -61,47 +52,35 @@ export default function Review() {
         <h1 className="h1 display" style={{ flex: 1 }}>
           Итог дня
         </h1>
-        {left.tasks.length + movable.length > 1 && (
+        {movableOnce.length > 1 && (
           <button className="btn btn-primary" type="button" onClick={allTomorrow}>
             <Icon name="calendar" size={18} />
             Всё на завтра
           </button>
         )}
       </div>
-      {n === 0 ? (
+      {left.length === 0 ? (
         <Empty icon="check" title="Всё сделано — хорошего вечера" action="На главную" onAction={() => router.push('/')} />
       ) : (
         <ul className="review-list">
-          {left.tasks.map((t) => (
-            <li key={t.id} className="review-row">
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontWeight: 600 }}>{t.title}</span>
-                <span className="review-meta">Дело · {dueLabel(t.due_date, today)?.text}</span>
-              </span>
-              <button className="btn btn-ghost" type="button" onClick={() => complete(t)} aria-label={`Сделано: ${t.title}`}>
-                <Icon name="check" size={18} />
-              </button>
-              <button className="btn btn-ghost" type="button" onClick={() => taskTomorrow(t)}>
-                Завтра
-              </button>
-            </li>
-          ))}
-          {left.reminders.map((o) => {
+          {left.map((o) => {
             const r = o.reminder;
             const next = r.rule.kind === 'once' ? null : nextOccurrence(r.rule, tomorrow, r.last_done);
+            const late = r.rule.kind === 'once' && r.rule.date < today;
             return (
-              <li key={o.key} className="review-row">
+              <li key={`${o.key}:${late ? 'late' : 'today'}`} className="review-row">
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontWeight: 600 }}>{r.title}</span>
                   <span className="review-meta">
-                    {o.slot} · {r.rule.kind === 'once' ? 'один раз' : `${describe(r.rule)}${next ? `, следующий — ${next === tomorrow ? 'завтра' : next.slice(8, 10) + '.' + next.slice(5, 7)}` : ''}`}
+                    {late && r.rule.kind === 'once' ? `просрочено, было ${shortDate(r.rule.date, today)} · ` : ''}
+                    {o.slot} · {r.rule.kind === 'once' ? 'один раз' : `${describe(r.rule)}${next ? `, следующий — ${next === tomorrow ? 'завтра' : shortDate(next, today)}` : ''}`}
                   </span>
                 </span>
-                <button className="btn btn-ghost" type="button" onClick={() => remDone(o)} aria-label={`Сделано: ${r.title}`}>
+                <button className="btn btn-ghost" type="button" onClick={() => rem.done(r, o.slot, true)} aria-label={`Сделано: ${r.title}`}>
                   <Icon name="check" size={18} />
                 </button>
                 {r.rule.kind === 'once' && (
-                  <button className="btn btn-ghost" type="button" onClick={() => remTomorrow(o)}>
+                  <button className="btn btn-ghost" type="button" onClick={() => toTomorrow(o)}>
                     Завтра
                   </button>
                 )}

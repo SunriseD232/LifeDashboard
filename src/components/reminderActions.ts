@@ -20,18 +20,19 @@ export function useReminderActions() {
       navigator.vibrate?.(12);
       toast(`Сделано: «${r.title}»`, () => done(r, slot, false, true));
     }
-    const after = r.rule.kind === 'after';
+    // last_done — по нему считаются «после выполнения» и просроченные разовые.
+    const tracked = r.rule.kind === 'after' || r.rule.kind === 'once';
     mutate(
       (d) => ({
         ...d,
         done: value ? [...d.done.filter((x) => x !== key), key] : d.done.filter((x) => x !== key),
         snoozed: value ? d.snoozed.filter((s) => !(s.reminder_id === r.id && s.slot === slot)) : d.snoozed,
-        reminders: after && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
+        reminders: tracked && value ? d.reminders.map((x) => (x.id === r.id ? { ...x, last_done: today } : x)) : d.reminders,
       }),
       async () => {
         await api(`reminders/${r.id}/done`, 'PUT', { day: today, slot, done: value });
-        // Сняли отметку у «после выполнения» — прошлую дату знает сервер.
-        if (after && !value) await reload();
+        // Сняли отметку — прошлую дату знает сервер.
+        if (tracked && !value) await reload();
       },
     );
   };

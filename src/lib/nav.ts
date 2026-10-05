@@ -24,10 +24,9 @@ export interface NavPref {
 export const HOME: Section = { href: '/', label: 'Главная', icon: 'home', phone: true };
 
 export const MOVABLE: Section[] = [
-  { href: '/tasks', label: 'Дела', icon: 'tasks', phone: true },
+  { href: '/tasks', label: 'Задачи', icon: 'tasks', phone: true },
   { href: '/notes', label: 'Заметки', icon: 'note' },
   { href: '/lists', label: 'Чек-листы', icon: 'list' },
-  { href: '/calendar', label: 'Календарь', icon: 'calendar' },
   { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом и спорт' },
   { href: '/workouts', label: 'Тренировки', icon: 'dumbbell', phone: true, short: 'Спорт' },
 ];

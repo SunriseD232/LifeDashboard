@@ -28,10 +28,12 @@ export interface AppData {
   done: string[];
   /** Отложенные сегодня. */
   snoozed: Snooze[];
-  /** Открытые дела и закрытые сегодня. */
+  /** Задачи без напоминания: открытые и закрытые сегодня. */
   tasks: Task[];
-  /** id дел, отмеченных сегодня (в том числе повторяющихся, переехавших дальше). */
+  /** id задач, отмеченных сегодня. */
   tasksDoneToday: string[];
+  /** Свои метки — по порядку (src/server/tagStore.ts). */
+  tags: string[];
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
@@ -80,6 +82,7 @@ const EMPTY: AppData = {
   snoozed: [],
   tasks: [],
   tasksDoneToday: [],
+  tags: [],
   notes: [],
   kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
   gym: { workouts: [], exercises: [], templates: [] },
@@ -91,11 +94,11 @@ const EMPTY: AppData = {
 function withQueued(d: AppData, q: Queued): AppData {
   const b = (q.body ?? {}) as Record<string, unknown>;
   if (q.path === 'tasks' && q.tempId) {
-    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tag: (b.tag as string) ?? null, due_date: (b.due_date as string) ?? null, rule: null, done_at: null, household_id: null, author: null };
+    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Task['priority']) ?? 0, checklist_id: null, done_at: null, household_id: null, author: null };
     return { ...d, tasks: [...d.tasks, t] };
   }
   if (q.path === 'reminders' && q.tempId) {
-    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tag: typeof b.tag === 'string' && b.tag.trim() ? b.tag.trim() : null };
+    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Reminder['priority']) ?? 0, note: null };
     return { ...d, reminders: [...d.reminders, r] };
   }
   if (q.path === 'kitchen/shopping' && d.kitchen.shopping_id && Array.isArray(b.items)) {

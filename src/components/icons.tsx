@@ -9,6 +9,18 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />,
+  flag: (
+    <>
+      <path d="M5 21V4" />
+      <path d="M5 4h11l-2 4 2 4H5" />
+    </>
+  ),
+  tag: (
+    <>
+      <path d="M3 12V4h8l9 9-8 8z" />
+      <circle cx="7.5" cy="8.5" r="1.2" />
+    </>
+  ),
   reset: <path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,
   bell: (

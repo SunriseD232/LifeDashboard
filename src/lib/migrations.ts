@@ -620,12 +620,92 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     version: 13,
-    name: 'Метка у напоминаний',
-    up: (db) =>
+    name: 'Задачи: два типа, метки, приоритет, чек-лист',
+    up: (db) => {
       db.exec(`
-    -- Как у дел («дом», «работа»): дело со временем сохраняется напоминанием.
-    alter table reminders add column tag text;
-    `),
+    -- Задачи двух видов: без напоминания (tasks, без даты — просто список) и с
+    -- напоминанием (reminders: дата, время, повтор). У обоих — метки (JSON-
+    -- массив названий), приоритет 0–3 (нет, низкий, средний, высокий),
+    -- чек-лист и заметка.
+    alter table tasks add column tags text not null default '[]';
+    alter table tasks add column priority integer not null default 0;
+    alter table tasks add column checklist_id text references checklists(id) on delete set null;
+    alter table reminders add column tags text not null default '[]';
+    alter table reminders add column priority integer not null default 0;
+    alter table reminders add column note text;
+    -- Свои метки человека: из них выбирают в форме и фильтре.
+    create table user_tags (
+      user_id text not null references users(id) on delete cascade,
+      name text not null,
+      position integer not null default 0,
+      primary key (user_id, name)
+    );
+    update tasks set tags = json_array(tag) where tag is not null and trim(tag) <> '';
+    insert or ignore into user_tags (user_id, name) select distinct user_id, tag from tasks where tag is not null and trim(tag) <> '';
+
+    drop trigger tasks_search_ai;
+    drop trigger tasks_search_au;
+    drop trigger reminders_search_ai;
+    drop trigger reminders_search_au;
+    create trigger tasks_search_ai after insert on tasks begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('task', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger tasks_search_au after update on tasks begin
+      delete from search_fts where kind = 'task' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('task', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger reminders_search_ai after insert on reminders begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger reminders_search_au after update on reminders begin
+      delete from search_fts where kind = 'reminder' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, null, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    `);
+
+      // Дела со сроком → задачи с напоминанием в этот день, во время «напоминаний
+      // о сроках» из настроек. Общие дела семьи напоминанием стать не могут
+      // (push — одному человеку) — у них просто убираем срок.
+      const open = db
+        .prepare(
+          `select t.id, t.user_id, t.household_id, t.title, t.note, t.tags, t.due_date, t.rule, t.created_at,
+             coalesce(s.deadline_time, '09:00') as at
+           from tasks t left join user_settings s on s.user_id = t.user_id
+           where t.done_at is null and t.due_date is not null`,
+        )
+        .all() as {
+        id: string;
+        user_id: string;
+        household_id: string | null;
+        title: string;
+        note: string | null;
+        tags: string;
+        due_date: string;
+        rule: string | null;
+        created_at: string;
+        at: string;
+      }[];
+      const addRem = db.prepare(
+        'insert into reminders (id, user_id, title, times, rule, tags, note, created_at) values (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      const drop = db.prepare('delete from tasks where id = ?');
+      const undate = db.prepare('update tasks set due_date = null, rule = null where id = ?');
+      for (const t of open) {
+        if (t.household_id) {
+          undate.run(t.id);
+          continue;
+        }
+        let rule: Record<string, unknown> = { kind: 'once', date: t.due_date };
+        if (t.rule) {
+          const r = JSON.parse(t.rule) as Record<string, unknown>;
+          // Повтор считаем от ближайшего срока.
+          if (r.kind === 'repeat' || r.kind === 'after') rule = { ...r, start: t.due_date };
+        }
+        addRem.run(randomUUID(), t.user_id, t.title.slice(0, 120), JSON.stringify([t.at]), JSON.stringify(rule), t.tags, t.note, t.created_at);
+        drop.run(t.id);
+      }
+      db.exec('update tasks set due_date = null, rule = null');
+    },
   },
 ];
 

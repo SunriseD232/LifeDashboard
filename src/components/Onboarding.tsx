@@ -33,8 +33,8 @@ export default function Onboarding() {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await api('tasks', 'POST', { title: title.trim(), due_date: null });
-      toast('Первое дело добавлено');
+      await api('tasks', 'POST', { title: title.trim() });
+      toast('Первая задача добавлена');
       await finish();
     } catch (err) {
       toast((err as Error).message);

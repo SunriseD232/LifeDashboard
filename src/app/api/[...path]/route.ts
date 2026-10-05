@@ -14,6 +14,7 @@ import { search } from '@/server/api/search';
 import { support } from '@/server/api/support';
 import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
+import { tags } from '@/server/api/tags';
 import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
@@ -36,6 +37,7 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   reminders,
   push,
   tasks,
+  tags,
   household,
   settings,
   weather,

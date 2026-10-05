@@ -13,7 +13,7 @@
  *    приложение. Запрос same-origin, кука входа уходит вместе с ним сама.
  */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const STATIC = `ld-static-${VERSION}`;
 const PAGES = `ld-pages-${VERSION}`;
 

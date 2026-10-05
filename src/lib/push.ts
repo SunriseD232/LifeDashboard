@@ -3,9 +3,7 @@ import { readReminders, doneKeys, snoozesOn, type StoredReminder } from '../serv
 import { minutesOf } from './dates';
 import { db } from './db';
 import { occurrencesOn, type Occurrence } from './occurrences';
-import { deadlineNotices } from './tasks';
 import { readSettings } from '../server/settings';
-import { readTasks } from '../server/taskStore';
 import { aiConfigured } from '../server/ai';
 import { daySummary } from '../server/summary';
 import { dueDay } from './recur';
@@ -192,9 +190,6 @@ async function tick(): Promise<void> {
       }
     }
 
-    // Сроки дел: за день и в день срока, в своё время из настроек. Общие дела
-    // семьи каждый участник получает в своём цикле — по своим видимым делам.
-    const { tasks } = readTasks(d, userId, lp.day);
     // Конец тихих часов: одно сообщение о том, что пришлось на ночь.
     if (quiet) {
       const late = lp.minutes - minutesOf(quiet.to);
@@ -207,19 +202,6 @@ async function tick(): Promise<void> {
           url: '/task/tasks',
         });
       }
-    }
-
-    for (const n of deadlineNotices(tasks, lp.day, lp.minutes, outOfQuiet(st.deadline_time, quiet))) {
-      const fresh = d
-        .prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)')
-        .run(`task:${n.task.id}:${userId}`, lp.day, n.kind);
-      if (fresh.changes === 0) continue;
-      await sendToUser(userId, {
-        title: n.task.title,
-        body: n.kind === 'today' ? 'Сегодня срок' : 'Завтра срок — дело уже в «Срочно»',
-        tag: `task:${n.task.id}:${lp.day}`,
-        url: '/task/tasks',
-      });
     }
 
     // Утренняя сводка от ИИ — в выбранное время, раз в день.
@@ -242,12 +224,11 @@ async function tick(): Promise<void> {
     if (st.review_time) {
       const late = lp.minutes - minutesOf(outOfQuiet(st.review_time, quiet));
       if (late >= 0 && late <= WINDOW_MIN) {
-        const left = reviewItems(tasks, occ, lp.day);
-        const n = left.tasks.length + left.reminders.length;
+        const n = reviewItems(occ).length;
         if (n > 0 && mark(`review:${userId}`, 'review')) {
           await sendToUser(userId, {
             title: 'Итог дня',
-            body: `Не сделано: ${plural(n, 'дело', 'дела', 'дел')}. Перенести на завтра?`,
+            body: `Не сделано: ${plural(n, 'задача', 'задачи', 'задач')}. Перенести на завтра?`,
             tag: `review:${lp.day}`,
             url: '/task/review',
           });

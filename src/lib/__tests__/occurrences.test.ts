@@ -3,11 +3,11 @@ import { occurrencesOn } from '../occurrences';
 import type { Reminder } from '../types';
 
 const pills: Reminder = {
-  id: 'p', title: 'Таблетки', times: ['09:00', '21:00'], checklist_id: null, last_done: null, nag: null, tag: null,
+  id: 'p', title: 'Таблетки', times: ['09:00', '21:00'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null,
   rule: { kind: 'repeat', unit: 'day', every: 1, start: '2026-10-01' },
 };
 const wash: Reminder = {
-  id: 'w', title: 'Стирка', times: ['20:00'], checklist_id: null, last_done: '2026-09-29', nag: null, tag: null,
+  id: 'w', title: 'Стирка', times: ['20:00'], checklist_id: null, last_done: '2026-09-29', nag: null, tags: [], priority: 0, note: null,
   rule: { kind: 'after', unit: 'day', every: 4, start: '2026-09-01' },
 };
 

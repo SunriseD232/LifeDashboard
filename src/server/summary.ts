@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { occurrencesOn } from '@/lib/occurrences';
 import { addDays, diffDays, weekday } from '@/lib/recur';
-import { bucket } from '@/lib/tasks';
+import { isOverdue, sortTasks } from '@/lib/timeline';
 import { plannedFor } from '@/lib/workouts';
 import { readChecklists, readItems } from './checklistStore';
 import { doneKeys, readReminders } from './reminderStore';
@@ -28,14 +28,16 @@ export async function dayFacts(d: Database.Database, userId: string, day: string
   if (w) lines.push(`Погода (${w.city}): ${w.now.temp}°, ${w.now.label.toLowerCase()}${w.hint ? `; ${w.hint}` : ''}.`);
 
   const { tasks } = readTasks(d, userId, day);
-  const urgent = tasks.filter((t) => bucket(t, day) === 'urgent');
-  const overdue = urgent.filter((t) => t.due_date && t.due_date < day);
-  if (urgent.length) lines.push(`Срочные дела (${urgent.length}): ${urgent.slice(0, 8).map((t) => t.title + (t.due_date && t.due_date < day ? ' (просрочено)' : t.due_date === day ? ' (сегодня срок)' : '')).join('; ')}.`);
-  if (overdue.length) lines.push(`Просрочено: ${overdue.length}.`);
-  const soon = tasks.filter((t) => bucket(t, day) === 'later' && t.due_date! <= addDays(day, 7));
-  if (soon.length) lines.push(`Сроки на неделе: ${soon.slice(0, 5).map((t) => `${t.title} — ${t.due_date}`).join('; ')}.`);
+  const open = sortTasks(tasks.filter((t) => !t.done_at));
+  const important = open.filter((t) => t.priority >= 2);
+  if (important.length) lines.push(`Важные задачи без срока (${important.length}): ${important.slice(0, 8).map((t) => t.title + (t.priority === 3 ? ' (высокая важность)' : '')).join('; ')}.`);
+  else if (open.length) lines.push(`Задач в списке без срока: ${open.length}.`);
 
   const reminders = readReminders(d, userId);
+  const overdue = reminders.filter((r) => isOverdue(r, day));
+  if (overdue.length) lines.push(`Просрочено: ${overdue.slice(0, 5).map((r) => `${r.title} (было ${(r.rule as { date: string }).date})`).join('; ')}.`);
+  const soon = reminders.filter((r) => r.rule.kind === 'once' && r.rule.date > day && r.rule.date <= addDays(day, 7));
+  if (soon.length) lines.push(`На неделе: ${soon.slice(0, 5).map((r) => `${r.title} — ${(r.rule as { date: string }).date}`).join('; ')}.`);
   const occ = occurrencesOn(reminders, day, new Set(doneKeys(d, userId, day)));
   if (occ.length) {
     const lists = readChecklists(d, userId);
@@ -97,14 +99,12 @@ async function otherDayFacts(d: Database.Database, userId: string, day: string, 
   const f = w?.days.find((x) => x.day === day);
   if (f) lines.push(`Прогноз (${w!.city}): от ${f.min}° до ${f.max}°, ${ICON_WORD[f.icon] ?? 'без осадков'}.`);
 
-  const { tasks } = readTasks(d, userId, today);
-  const due = tasks.filter((t) => !t.done_at && t.due_date === day);
-  if (due.length) lines.push(`Дела со сроком в этот день (${due.length}): ${due.slice(0, 8).map((t) => t.title).join('; ')}.`);
+  const reminders = readReminders(d, userId);
   if (n > 0) {
-    const before = tasks.filter((t) => !t.done_at && t.due_date && t.due_date >= today && t.due_date < day);
-    if (before.length) lines.push(`До этого дня ещё сроки: ${before.slice(0, 5).map((t) => `${t.title} — ${t.due_date}`).join('; ')}.`);
+    const before = reminders.filter((r) => r.rule.kind === 'once' && r.rule.date >= today && r.rule.date < day);
+    if (before.length) lines.push(`До этого дня ещё: ${before.slice(0, 5).map((r) => `${r.title} — ${(r.rule as { date: string }).date}`).join('; ')}.`);
   }
-  const occ = occurrencesOn(readReminders(d, userId), day);
+  const occ = occurrencesOn(reminders, day);
   if (occ.length) lines.push(`Напоминания в этот день: ${occ.map((o) => `${o.slot} ${o.reminder.title}`).join('; ')}.`);
   const plan = plannedFor(readTemplates(d, userId), day);
   if (plan) lines.push(`По плану тренировка: ${plan.title}.`);

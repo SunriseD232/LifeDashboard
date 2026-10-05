@@ -8,6 +8,7 @@ import { isAdmin } from './support';
 import { readExercises, readTemplates, readWorkouts } from '../workoutStore';
 import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
+import { readTags } from '../tagStore';
 import { readTasks } from '../taskStore';
 import { DAY_RE, HttpError, type Ctx } from '../http';
 
@@ -31,6 +32,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
       snoozed,
       tasks,
       tasksDoneToday: doneToday,
+      tags: readTags(d, userId),
       notes: readNotes(d, userId),
       kitchen: {
         products: readProducts(d),

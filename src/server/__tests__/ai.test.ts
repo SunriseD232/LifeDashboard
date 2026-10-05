@@ -54,16 +54,17 @@ describe('ИИ', () => {
 
   it('сводка на выбранный день — про этот день, не про сегодня', async () => {
     const d = setup();
-    d.prepare("insert into tasks (id, user_id, title, due_date) values ('t1', 'me', 'Сдать паспорт', '2026-10-08')").run();
-    d.prepare("insert into tasks (id, user_id, title, due_date) values ('t2', 'me', 'Сегодняшнее', '2026-10-04')").run();
+    const add = d.prepare("insert into reminders (id, user_id, title, times, rule) values (?, 'me', ?, '[\"09:00\"]', ?)");
+    add.run('r1', 'Сдать паспорт', JSON.stringify({ kind: 'once', date: '2026-10-08' }));
+    add.run('r2', 'Сегодняшнее', JSON.stringify({ kind: 'once', date: '2026-10-04' }));
     replies.push('{"text":"В четверг — сдать паспорт."}');
     const r = (await call(ai, d, 'me', 'POST', ['summary'], { today: '2026-10-04', day: '2026-10-08' })) as { text: string };
     expect(r.text).toContain('паспорт');
     const facts = JSON.stringify(asked[0]);
     expect(facts).toContain('2026-10-08');
-    expect(facts).toContain('Дела со сроком в этот день (1): Сдать паспорт');
-    // Сегодняшнее — только как «до этого дня ещё сроки», не как дело того дня.
-    expect(facts).toContain('До этого дня ещё сроки: Сегодняшнее');
+    expect(facts).toContain('Напоминания в этот день: 09:00 Сдать паспорт');
+    // Сегодняшнее — только как «до этого дня ещё», не как задача того дня.
+    expect(facts).toContain('До этого дня ещё: Сегодняшнее');
   });
 
   it('день в сводке называется правильно, «сегодня» про другой день исправляется', async () => {

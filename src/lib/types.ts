@@ -41,9 +41,14 @@ export interface Reminder {
   last_done: string | null;
   /** Не отметили — повторить push через столько минут (до NAG_TIMES раз); null — не повторять. */
   nag: number | null;
-  /** Метка, как у дел: «дом», «работа»… */
-  tag: string | null;
+  /** Метки: «дом», «работа»… */
+  tags: string[];
+  /** Важность: 0 — нет, 1 — низкая, 2 — средняя, 3 — высокая. */
+  priority: Priority;
+  note: string | null;
 }
+
+export type Priority = 0 | 1 | 2 | 3;
 
 /** Отложенное время дела на сегодня: напомнить ещё раз в at. */
 export interface Snooze {
