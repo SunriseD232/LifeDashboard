@@ -31,6 +31,19 @@ export const SIZES = [
 export type Size = (typeof SIZES)[number]['id'];
 export const SIZE_COOKIE = 'ld_size';
 
+/** Фон: оттенок подложки, карточек и линий. light/dark — для образца в настройках. */
+export const BGS = [
+  { id: 'cool', label: 'Прохладный', light: ['#eef3f2', '#ffffff'], dark: ['#0e1615', '#16211f'] },
+  { id: 'neutral', label: 'Нейтральный', light: ['#f1f1f2', '#ffffff'], dark: ['#121214', '#1b1b1e'] },
+  { id: 'warm', label: 'Тёплый', light: ['#f5f0e8', '#fffdf9'], dark: ['#17130e', '#211b15'] },
+  { id: 'blue', label: 'Голубой', light: ['#eef2f8', '#ffffff'], dark: ['#0e131b', '#161d28'] },
+  { id: 'lavender', label: 'Лавандовый', light: ['#f3f0f8', '#ffffff'], dark: ['#14111b', '#1d1927'] },
+  { id: 'rose', label: 'Розовый', light: ['#f8eff2', '#ffffff'], dark: ['#1a1013', '#24181c'] },
+] as const;
+export type Bg = (typeof BGS)[number]['id'];
+export const BG_COOKIE = 'ld_bg';
+export const isBg = (v: unknown): v is Bg => BGS.some((b) => b.id === v);
+
 export const isAccent = (v: unknown): v is Accent => ACCENTS.some((a) => a.id === v);
 export const isSize = (v: unknown): v is Size => SIZES.some((s) => s.id === v);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ACCENT_COOKIE, ACCENTS, isAccent, isSize, saveCookie, SIZE_COOKIE, SIZES, THEMES as ORDER, THEME_COOKIE, type Accent, type Size, type Theme } from '@/lib/theme';
+import { ACCENT_COOKIE, ACCENTS, BG_COOKIE, BGS, isAccent, isBg, isSize, saveCookie, SIZE_COOKIE, SIZES, THEMES as ORDER, THEME_COOKIE, type Accent, type Bg, type Size, type Theme } from '@/lib/theme';
 import { Icon } from './icons';
 
 const LABEL: Record<Theme, string> = { system: 'как в системе', light: 'светлая', dark: 'тёмная' };
@@ -67,12 +67,19 @@ export function ThemePicker() {
 export function AppearancePicker() {
   const [accent, setAccent] = useState<Accent>('teal');
   const [size, setSize] = useState<Size>('md');
+  const [bg, setBg] = useState<Bg>('cool');
   useEffect(() => {
-    const a = document.documentElement.dataset.accent;
-    const s = document.documentElement.dataset.size;
+    const { accent: a, size: s, bg: b } = document.documentElement.dataset;
     setAccent(isAccent(a) ? a : 'teal');
     setSize(isSize(s) ? s : 'md');
+    setBg(isBg(b) ? b : 'cool');
   }, []);
+  const pickBg = (b: Bg) => {
+    setBg(b);
+    if (b === 'cool') delete document.documentElement.dataset.bg;
+    else document.documentElement.dataset.bg = b;
+    saveCookie(BG_COOKIE, b);
+  };
   const pickAccent = (a: Accent) => {
     setAccent(a);
     if (a === 'teal') delete document.documentElement.dataset.accent;
@@ -99,6 +106,28 @@ export function AppearancePicker() {
           {ACCENTS.map((a) => (
             <button key={a.id} type="button" className="swatch" role="radio" aria-checked={accent === a.id} aria-label={a.label} title={a.label} style={{ background: a.color }} onClick={() => pickAccent(a.id)}>
               {accent === a.id && <Icon name="check" size={18} strokeWidth={2.4} />}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="fld">
+        <span className="label" id="bg-label">
+          Фон
+        </span>
+        <div className="swatches" role="radiogroup" aria-labelledby="bg-label">
+          {BGS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              className="swatch swatch-bg"
+              role="radio"
+              aria-checked={bg === b.id}
+              aria-label={b.label}
+              title={b.label}
+              style={{ '--bg-l1': b.light[0], '--bg-l2': b.light[1], '--bg-d1': b.dark[0], '--bg-d2': b.dark[1] } as React.CSSProperties}
+              onClick={() => pickBg(b.id)}
+            >
+              {bg === b.id && <Icon name="check" size={18} strokeWidth={2.4} />}
             </button>
           ))}
         </div>

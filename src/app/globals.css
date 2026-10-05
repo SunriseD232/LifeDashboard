@@ -2961,3 +2961,181 @@ button.task-open:hover > span:first-child {
   border-radius: 12px;
   text-align: left;
 }
+
+/* Фон (src/lib/theme.ts): <html data-bg>. Светлый и тёмный вариант у каждого;
+   тёмные — с большей специфичностью, чтобы перекрыть светлый. */
+:root[data-bg='neutral'] {
+  --ground: #f1f1f2;
+  --surface: #ffffff;
+  --soft: #f7f7f8;
+  --field: #ffffff;
+  --seg: #e6e6ea;
+  --track: #e1e1e5;
+  --line: #dedee2;
+  --line-strong: #c8c8ce;
+}
+:root[data-theme='dark'][data-bg='neutral'] {
+  --ground: #121214;
+  --surface: #1b1b1e;
+  --soft: #222226;
+  --field: #151517;
+  --seg: #0c0c0e;
+  --track: #2c2c31;
+  --line: #2e2e33;
+  --line-strong: #44444b;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-bg='neutral'] {
+    --ground: #121214;
+    --surface: #1b1b1e;
+    --soft: #222226;
+    --field: #151517;
+    --seg: #0c0c0e;
+    --track: #2c2c31;
+    --line: #2e2e33;
+    --line-strong: #44444b;
+  }
+}
+:root[data-bg='warm'] {
+  --ground: #f5f0e8;
+  --surface: #fffdf9;
+  --soft: #faf6ef;
+  --field: #fffdf9;
+  --seg: #ece4d6;
+  --track: #e8dfd0;
+  --line: #e5dccd;
+  --line-strong: #d3c6b2;
+}
+:root[data-theme='dark'][data-bg='warm'] {
+  --ground: #17130e;
+  --surface: #211b15;
+  --soft: #29221a;
+  --field: #1a1510;
+  --seg: #100c08;
+  --track: #352c22;
+  --line: #382e24;
+  --line-strong: #4f4234;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-bg='warm'] {
+    --ground: #17130e;
+    --surface: #211b15;
+    --soft: #29221a;
+    --field: #1a1510;
+    --seg: #100c08;
+    --track: #352c22;
+    --line: #382e24;
+    --line-strong: #4f4234;
+  }
+}
+:root[data-bg='blue'] {
+  --ground: #eef2f8;
+  --surface: #ffffff;
+  --soft: #f5f7fb;
+  --field: #ffffff;
+  --seg: #e1e7f1;
+  --track: #dce3ee;
+  --line: #d8e0ec;
+  --line-strong: #c2cddd;
+}
+:root[data-theme='dark'][data-bg='blue'] {
+  --ground: #0e131b;
+  --surface: #161d28;
+  --soft: #1c2532;
+  --field: #111821;
+  --seg: #090d13;
+  --track: #253041;
+  --line: #283345;
+  --line-strong: #3b4a61;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-bg='blue'] {
+    --ground: #0e131b;
+    --surface: #161d28;
+    --soft: #1c2532;
+    --field: #111821;
+    --seg: #090d13;
+    --track: #253041;
+    --line: #283345;
+    --line-strong: #3b4a61;
+  }
+}
+:root[data-bg='lavender'] {
+  --ground: #f3f0f8;
+  --surface: #ffffff;
+  --soft: #f8f6fb;
+  --field: #ffffff;
+  --seg: #e8e3f1;
+  --track: #e4deee;
+  --line: #e1dbec;
+  --line-strong: #cdc4dd;
+}
+:root[data-theme='dark'][data-bg='lavender'] {
+  --ground: #14111b;
+  --surface: #1d1927;
+  --soft: #241f31;
+  --field: #17141f;
+  --seg: #0d0b13;
+  --track: #2f2940;
+  --line: #322b44;
+  --line-strong: #483e60;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-bg='lavender'] {
+    --ground: #14111b;
+    --surface: #1d1927;
+    --soft: #241f31;
+    --field: #17141f;
+    --seg: #0d0b13;
+    --track: #2f2940;
+    --line: #322b44;
+    --line-strong: #483e60;
+  }
+}
+:root[data-bg='rose'] {
+  --ground: #f8eff2;
+  --surface: #ffffff;
+  --soft: #fbf5f7;
+  --field: #ffffff;
+  --seg: #f1e3e8;
+  --track: #eedee4;
+  --line: #ecdbe1;
+  --line-strong: #dcc3cc;
+}
+:root[data-theme='dark'][data-bg='rose'] {
+  --ground: #1a1013;
+  --surface: #24181c;
+  --soft: #2d1f24;
+  --field: #1d1316;
+  --seg: #120a0c;
+  --track: #3a2930;
+  --line: #3e2b32;
+  --line-strong: #573e48;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'][data-bg='rose'] {
+    --ground: #1a1013;
+    --surface: #24181c;
+    --soft: #2d1f24;
+    --field: #1d1316;
+    --seg: #120a0c;
+    --track: #3a2930;
+    --line: #3e2b32;
+    --line-strong: #573e48;
+  }
+}
+
+/* образец фона: подложка и карточка — светлые или тёмные, по теме */
+.swatch-bg {
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--bg-l1) 50%, var(--bg-l2) 50%);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+:root[data-theme='dark'] .swatch-bg {
+  background: linear-gradient(135deg, var(--bg-d1) 50%, var(--bg-d2) 50%);
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='system'] .swatch-bg {
+    background: linear-gradient(135deg, var(--bg-d1) 50%, var(--bg-d2) 50%);
+  }
+}
