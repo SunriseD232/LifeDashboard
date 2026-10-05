@@ -2952,3 +2952,12 @@ button.task-open:hover > span:first-child {
   border: 1px solid var(--line);
   background: var(--soft);
 }
+
+/* длинная подпись в плашке (например, «не хватает: …») — переносится, а не вылезает из карточки */
+.chip.chip-wrap {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+  text-align: left;
+}

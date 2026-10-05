@@ -66,7 +66,7 @@ export function MatchChip({ m, byId }: { m: Match; byId: Map<string, Product> })
       </span>
     );
   const names = m.missing.map((id) => byId.get(id)?.name ?? '…');
-  return <span className="chip chip-warm">не хватает: {names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')}</span>;
+  return <span className="chip chip-warm chip-wrap">не хватает: {names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : '')}</span>;
 }
 
 export function RecipeCard({ r, m, byId }: { r: Recipe; m: Match; byId: Map<string, Product> }) {
