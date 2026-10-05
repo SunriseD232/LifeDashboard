@@ -86,7 +86,15 @@ async function route(req: NextRequest, { params }: { params: { path: string[] } 
     return NextResponse.json(await handle(req, params.path ?? []));
   } catch (e) {
     if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });
-    console.error('[lifedashboard api]', e);
+    // В логе — когда и какой запрос: иначе не понять, что упало.
+    const where = `${new Date().toISOString()} ${req.method} /${(params.path ?? []).join('/')}`;
+    // Внешний сервис (погода, ИИ, страница по ссылке) не ответил вовремя — это не наша ошибка.
+    const name = (e as Error)?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      console.warn('[lifedashboard api] таймаут внешнего сервиса:', where);
+      return NextResponse.json({ error: 'Сервис не ответил вовремя. Попробуйте ещё раз чуть позже.' }, { status: 504 });
+    }
+    console.error('[lifedashboard api]', where, e);
     return NextResponse.json({ error: 'Что-то пошло не так. Попробуйте ещё раз.' }, { status: 500 });
   }
 }
