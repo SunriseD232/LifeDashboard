@@ -4,7 +4,7 @@ import type { Task } from '../tasks';
 import type { Reminder } from '../types';
 
 const task = (over: Partial<Task>): Task => ({ id: 't', title: 'Дело', note: null, tag: null, due_date: '2026-10-05', rule: null, done_at: null, household_id: null, author: null, ...over });
-const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
 const today = '2026-10-03';
 
 describe('календарь: что на день', () => {

@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { addDays, dayTitle, inMinutes, localDay, minutesOf, plural, weekdayName } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
 import { dayLabel, describe, diffDays, dueDay, nextOccurrence, WEEKDAY_SHORT, weekday, type Rule } from '@/lib/recur';
+import { knownTags } from '@/lib/tasks';
 import { CHORE_TEMPLATES } from '@/lib/templates';
 import type { Reminder } from '@/lib/types';
 import type { AppData, Mutate } from './AppShell';
@@ -45,6 +46,7 @@ interface Draft {
   checklist_id: string;
   /** Повтор push, если не отметили: минуты или 0 — не повторять. */
   nag: number;
+  tag: string;
 }
 
 const NOTIFIED_KEY = 'lifedashboard:notified';
@@ -60,6 +62,7 @@ function emptyDraft(now: Date, rule?: Rule): Draft {
     rule: rule ?? { kind: 'once', date: localDay(now) },
     checklist_id: '',
     nag: 0,
+    tag: '',
   };
 }
 
@@ -143,7 +146,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
   };
 
   const startEdit = (r: Reminder) =>
-    openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '', nag: r.nag ?? 0 });
+    openForm({ id: r.id, title: r.title, times: r.times, rule: r.rule, checklist_id: r.checklist_id ?? '', nag: r.nag ?? 0, tag: r.tag ?? '' });
 
   // Пришли из поиска: /reminders?edit=<id> — открываем его в форме.
   const params = useSearchParams();
@@ -173,7 +176,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     const date = params.get('date');
     const time = params.get('time');
     const d = emptyDraft(now, date && date >= today ? { kind: 'once', date } : undefined);
-    openForm({ ...d, title: params.get('title') ?? '', times: time ? [time] : d.times });
+    openForm({ ...d, title: params.get('title') ?? '', times: time ? [time] : d.times, tag: params.get('tag') ?? '' });
     router.replace(base);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
@@ -182,7 +185,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
     e.preventDefault();
     if (!draft.title.trim() || draft.times.length === 0 || draft.times.some((t) => !t)) return;
     setSaving(true);
-    const body = { title: draft.title.trim(), times: draft.times, rule: draft.rule, checklist_id: draft.checklist_id || null, nag: draft.nag || null };
+    const body = { title: draft.title.trim(), times: draft.times, rule: draft.rule, checklist_id: draft.checklist_id || null, nag: draft.nag || null, tag: draft.tag.trim() || null };
     try {
       if (draft.id) await api(`reminders/${draft.id}`, 'PATCH', body);
       else await api('reminders', 'POST', body);
@@ -305,6 +308,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                     <Icon name="repeat" size={14} />
                     {describe(r.rule)}
                   </span>
+                  {r.tag && <span className="tag">{r.tag}</span>}
                   {checklistChip(r)}
                   {o.snoozedTo && !o.done && (
                     <span className="chip" style={{ cursor: 'default' }}>
@@ -501,6 +505,7 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
                   {cap(describe(r.rule))}
                 </span>
                 <span>· {nx ? `следующий раз ${whenLabel(nx, today)}` : 'больше не повторится'}</span>
+                {r.tag && <span className="tag">{r.tag}</span>}
                 {checklistChip(r)}
               </div>
             </div>
@@ -563,6 +568,17 @@ export default function Reminders({ data, mutate, reload, now, onOpenChecklist, 
         />
       </div>
       <RuleEditor key={formKey} rule={draft.rule} times={draft.times} today={today} onChange={(rule, times) => setDraft({ ...draft, rule, times })} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label className="label" htmlFor="r-tag">
+          Метка
+        </label>
+        <input id="r-tag" className="field" list="r-tags" maxLength={30} placeholder="дом, работа…" value={draft.tag} onChange={(e) => setDraft({ ...draft, tag: e.target.value })} />
+        <datalist id="r-tags">
+          {knownTags(data.tasks, data.reminders).map((t) => (
+            <option key={t} value={t} />
+          ))}
+        </datalist>
+      </div>
       {sheetMode ? (
         <details className="more-opts">
           <summary>Ещё: чек-лист, повтор, если не отметили</summary>

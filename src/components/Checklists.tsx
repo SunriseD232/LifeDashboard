@@ -291,7 +291,8 @@ function ChecklistDetail({
   const patchItem = (id: string, patch: Partial<ChecklistItem>) =>
     mutate(
       (d) => ({ ...d, items: d.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }),
-      () => api(`items/${id}`, 'PATCH', patch),
+      // В покупках «купил» кладёт продукт в «что есть дома» — подтянем это.
+      () => api(`items/${id}`, 'PATCH', patch).then(() => (list.kind === 'shopping' && patch.done ? reload() : undefined)),
     );
 
   const addItem = async (title: string, group: string | null) => {
@@ -305,7 +306,8 @@ function ChecklistDetail({
           ...d,
           items: [...d.items, { id, checklist_id: list.id, title, group_name: group, note: null, done: false, position }],
         }),
-        async () => {},
+        // Покупки: сервер привязал продукт и отдел — подтянем.
+        async () => (list.kind === 'shopping' ? reload() : undefined),
       );
     } catch (e) {
       toast((e as Error).message);

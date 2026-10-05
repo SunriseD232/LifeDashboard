@@ -95,7 +95,7 @@ function withQueued(d: AppData, q: Queued): AppData {
     return { ...d, tasks: [...d.tasks, t] };
   }
   if (q.path === 'reminders' && q.tempId) {
-    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null };
+    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tag: typeof b.tag === 'string' && b.tag.trim() ? b.tag.trim() : null };
     return { ...d, reminders: [...d.reminders, r] };
   }
   if (q.path === 'kitchen/shopping' && d.kitchen.shopping_id && Array.isArray(b.items)) {

@@ -126,3 +126,8 @@ export function deadlineNotices<T extends Pick<Task, 'due_date' | 'done_at'>>(
   }
   return out;
 }
+
+/** Все метки — у дел и у напоминаний (дело со временем хранится напоминанием). */
+export function knownTags(...lists: { tag: string | null }[][]): string[] {
+  return [...new Set(lists.flat().map((x) => x.tag).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, 'ru'));
+}

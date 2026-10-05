@@ -4,7 +4,7 @@ import { leftToday, timeline } from '../timeline';
 import type { Reminder } from '../types';
 
 const task = (over: Partial<Task>): Task => ({ id: Math.random().toString(36).slice(2), title: 'Дело', note: null, tag: null, due_date: null, rule: null, done_at: null, household_id: null, author: null, ...over });
-const rem = (over: Partial<Reminder>): Reminder => ({ id: Math.random().toString(36).slice(2), title: 'Витамины', times: ['09:00'], checklist_id: null, last_done: null, nag: null, rule: { kind: 'repeat', unit: 'day', every: 1, start: '2026-10-01' }, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: Math.random().toString(36).slice(2), title: 'Витамины', times: ['09:00'], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'repeat', unit: 'day', every: 1, start: '2026-10-01' }, ...over });
 const today = '2026-10-04';
 
 describe('«Дела» по дням', () => {

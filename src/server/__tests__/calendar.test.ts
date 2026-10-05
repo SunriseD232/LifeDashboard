@@ -7,7 +7,7 @@ vi.mock('@/lib/db', () => ({ db: () => { throw new Error('нет базы в т�
 const { icsFor, rrule } = await import('../calendar');
 
 const task = (over: Partial<Task>): Task => ({ id: 't', title: 'Оплатить свет', note: null, tag: null, due_date: '2026-10-05', rule: null, done_at: null, household_id: null, author: null, ...over });
-const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
 
 describe('календарь (.ics)', () => {
   const ics = icsFor([task({}), task({ id: 'd', done_at: '2026-10-01' }), task({ id: 'n', due_date: null })], [rem({})], '2026-10-02', new Date('2026-10-02T10:00:00Z'));

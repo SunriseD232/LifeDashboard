@@ -6,7 +6,7 @@ const at = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3));
 const night = quietOf('23:00', '07:00');
 const nap = quietOf('13:00', '15:00');
 const occ = (slot: string, done = false, snoozedTo: string | null = null): Occurrence => ({
-  reminder: { id: slot, title: `r${slot}`, times: [slot], checklist_id: null, last_done: null, nag: null, rule: { kind: 'once', date: '2026-10-03' } },
+  reminder: { id: slot, title: `r${slot}`, times: [slot], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'once', date: '2026-10-03' } },
   slot,
   key: `${slot}@${slot}`,
   done,

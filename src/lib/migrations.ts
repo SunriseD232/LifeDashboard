@@ -618,6 +618,15 @@ export const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+    version: 13,
+    name: 'Метка у напоминаний',
+    up: (db) =>
+      db.exec(`
+    -- Как у дел («дом», «работа»): дело со временем сохраняется напоминанием.
+    alter table reminders add column tag text;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

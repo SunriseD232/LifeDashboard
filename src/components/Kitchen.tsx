@@ -317,7 +317,8 @@ export function Shopping() {
         items: d.items.map((x) => (x.id === i.id ? { ...x, done } : x)),
         kitchen: done && i.product_id && !d.kitchen.pantry.includes(i.product_id) ? { ...d.kitchen, pantry: [...d.kitchen.pantry, i.product_id] } : d.kitchen,
       }),
-      () => api(`items/${i.id}`, 'PATCH', { done }),
+      // Пункт без продукта сервер привяжет сам — подтянем, что теперь есть дома.
+      () => api(`items/${i.id}`, 'PATCH', { done }).then(() => (done && !i.product_id ? reload() : undefined)),
     );
 
   const remove = (i: ChecklistItem) => {

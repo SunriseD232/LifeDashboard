@@ -52,17 +52,17 @@ export function findItem(
   d: Database.Database,
   userId: string,
   id: unknown,
-): { id: string; product_id: string | null; done: number; checklist: ChecklistRow } | null {
+): { id: string; title: string; product_id: string | null; done: number; checklist: ChecklistRow } | null {
   if (typeof id !== 'string' || !id) return null;
   const v = visibleWhere(d, userId, 'c');
   const r = d
     .prepare(
-      `select i.id, i.product_id, i.done, c.id as cid, c.user_id, c.household_id, c.kind
+      `select i.id, i.title, i.product_id, i.done, c.id as cid, c.user_id, c.household_id, c.kind
        from checklist_items i join checklists c on c.id = i.checklist_id where i.id = ? and ${v.where}`,
     )
     .get(id, ...v.params) as
-    | { id: string; product_id: string | null; done: number; cid: string; user_id: string; household_id: string | null; kind: string }
+    | { id: string; title: string; product_id: string | null; done: number; cid: string; user_id: string; household_id: string | null; kind: string }
     | undefined;
   if (!r) return null;
-  return { id: r.id, product_id: r.product_id, done: r.done, checklist: { id: r.cid, user_id: r.user_id, household_id: r.household_id, kind: r.kind } };
+  return { id: r.id, title: r.title, product_id: r.product_id, done: r.done, checklist: { id: r.cid, user_id: r.user_id, household_id: r.household_id, kind: r.kind } };
 }

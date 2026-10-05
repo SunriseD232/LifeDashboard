@@ -32,7 +32,7 @@ function rule(v: unknown): Rule {
 
 /**
  * Напоминания: /api/reminders[/:id[/done|snooze]].
- * Тело: { title, times: ['09:00', …], rule (src/lib/recur.ts), checklist_id }.
+ * Тело: { title, times: ['09:00', …], rule (src/lib/recur.ts), checklist_id, nag, tag }.
  */
 export function reminders({ d, userId, method, body, id, action }: Ctx): unknown {
   const checklistId = (v: unknown) => {
@@ -50,7 +50,7 @@ export function reminders({ d, userId, method, body, id, action }: Ctx): unknown
     const r = rule(body.rule);
     checkPair(t, r);
     const rid = randomUUID();
-    d.prepare('insert into reminders (id, user_id, title, times, rule, checklist_id, nag) values (?, ?, ?, ?, ?, ?, ?)').run(
+    d.prepare('insert into reminders (id, user_id, title, times, rule, checklist_id, nag, tag) values (?, ?, ?, ?, ?, ?, ?, ?)').run(
       rid,
       userId,
       text(body.title, 120, 'Что сделать'),
@@ -58,6 +58,7 @@ export function reminders({ d, userId, method, body, id, action }: Ctx): unknown
       JSON.stringify(r),
       checklistId(body.checklist_id),
       nag(body.nag),
+      text(body.tag, 30, 'Метка', true),
     );
     return { id: rid };
   }
@@ -86,6 +87,7 @@ export function reminders({ d, userId, method, body, id, action }: Ctx): unknown
     d.transaction(() => {
       if (body.title !== undefined) d.prepare('update reminders set title = ? where id = ?').run(text(body.title, 120, 'Что сделать'), id);
       if (body.nag !== undefined) d.prepare('update reminders set nag = ? where id = ?').run(nag(body.nag), id);
+      if (body.tag !== undefined) d.prepare('update reminders set tag = ? where id = ?').run(text(body.tag, 30, 'Метка', true), id);
       if (body.checklist_id !== undefined) d.prepare('update reminders set checklist_id = ? where id = ?').run(checklistId(body.checklist_id), id);
       d.prepare('update reminders set times = ?, rule = ? where id = ?').run(JSON.stringify(t), JSON.stringify(r), id);
       // Убранное время — его отметки и отложенные больше не нужны.

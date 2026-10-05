@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { findChecklist } from '../checklistStore';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
+import { productByName } from '../kitchenStore';
 
 const ICONS = new Set(['bag', 'wave', 'house', 'list', 'suitcase']);
 
@@ -71,9 +72,14 @@ export function checklists({ d, userId, method, body, id, action }: Ctx): unknow
       ((d.prepare('select max(position) as m from checklist_items where checklist_id = ?').get(list.id) as {
         m: number | null;
       }).m ?? -1) + 1;
+    const title = text(body.title, 120, 'Вещь')!;
+    let group = text(body.group_name, 60, 'Группа', true);
+    // В списке покупок вещь — это продукт: тогда «купил» отправит его в «что есть дома».
+    const product = list.kind === 'shopping' ? productByName(d, userId, title) : null;
+    if (product && !group) group = product.dept;
     d.prepare(
-      'insert into checklist_items (id, checklist_id, user_id, title, group_name, position) values (?, ?, ?, ?, ?, ?)',
-    ).run(iid, list.id, userId, text(body.title, 120, 'Вещь'), text(body.group_name, 60, 'Группа', true), pos);
+      'insert into checklist_items (id, checklist_id, user_id, title, group_name, position, product_id) values (?, ?, ?, ?, ?, ?, ?)',
+    ).run(iid, list.id, userId, title, group, pos, product?.id ?? null);
     return { id: iid, position: pos };
   }
   if (method === 'POST' && action === 'reorder') {

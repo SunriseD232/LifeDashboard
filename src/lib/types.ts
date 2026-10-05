@@ -41,6 +41,8 @@ export interface Reminder {
   last_done: string | null;
   /** Не отметили — повторить push через столько минут (до NAG_TIMES раз); null — не повторять. */
   nag: number | null;
+  /** Метка, как у дел: «дом», «работа»… */
+  tag: string | null;
 }
 
 /** Отложенное время дела на сегодня: напомнить ещё раз в at. */

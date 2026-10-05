@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { localDay, minutesOf } from '@/lib/dates';
 import { addDays, describe, dueDay, type Rule } from '@/lib/recur';
-import { dueLabel, firstDue, nextDue, shortDate, type Task } from '@/lib/tasks';
+import { dueLabel, firstDue, knownTags, nextDue, shortDate, type Task } from '@/lib/tasks';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
@@ -291,7 +291,6 @@ function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Dr
           )}
         </>
       )}
-      {!d.remind && (
       <div className="fld">
         <label className="label" htmlFor="t-tag">
           Метка
@@ -303,7 +302,6 @@ function Fields({ d, set, tags, canShare, today, compact, allowRemind }: { d: Dr
           ))}
         </datalist>
       </div>
-      )}
       {canShare && !d.remind && (
         <label className="check" style={{ alignSelf: 'flex-end' }}>
           <input type="checkbox" checked={d.shared} onChange={(e) => set({ ...d, shared: e.target.checked })} />
@@ -333,7 +331,7 @@ export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; on
   const today = localDay(now);
   const [d, setD] = useState<Draft>(() => draftOf(null, today));
   const [busy, setBusy] = useState(false);
-  const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])];
+  const tags = knownTags(data.tasks, data.reminders);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -343,7 +341,7 @@ export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; on
       if (d.dated && d.remind) {
         // Со временем — это напоминание: придёт push.
         const rule = ruleOf(d.repeat, d.n, d.due < today ? today : d.due) ?? { kind: 'once', date: d.due < today ? today : d.due };
-        await api('reminders', 'POST', { title: d.title.trim(), times: [d.time], rule, checklist_id: null });
+        await api('reminders', 'POST', { title: d.title.trim(), times: [d.time], rule, checklist_id: null, tag: d.tag.trim() || null });
       } else await api('tasks', 'POST', bodyOf(d, today));
       await reload();
       setD({ ...draftOf(null, today), dated: d.dated, due: d.due });
@@ -383,7 +381,7 @@ export function AddTask({ autoFocus = false, onDone }: { autoFocus?: boolean; on
         <Link
           className="add-line"
           style={{ padding: 0 }}
-          href={`/tasks?new=1&title=${encodeURIComponent(d.title)}&date=${d.due}&time=${d.time}`}
+          href={`/tasks?new=1&title=${encodeURIComponent(d.title)}&date=${d.due}&time=${d.time}&tag=${encodeURIComponent(d.tag)}`}
         >
           Больше настроек: несколько времён, чек-лист, повтор, если не отметили
         </Link>
@@ -402,7 +400,7 @@ function EditDialog({ task, onClose }: { task: Task; onClose: () => void }) {
   const formRef = useRef<HTMLFormElement>(null);
   const phone = useIsPhone();
   useModalFocus(formRef);
-  const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])];
+  const tags = knownTags(data.tasks, data.reminders);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -527,10 +525,10 @@ export default function Tasks() {
   }, [params]);
 
   const tasks = data.tasks.filter((t) => !tag || t.tag === tag);
-  const groups = timeline(tasks, tag ? [] : data.reminders, today, new Set(data.done), data.snoozed);
+  const groups = timeline(tasks, data.reminders.filter((r) => !tag || r.tag === tag), today, new Set(data.done), data.snoozed);
   const doneToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && t.done_at);
   const repeatedToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && !t.done_at);
-  const tags = [...new Set(data.tasks.map((t) => t.tag).filter(Boolean) as string[])].sort();
+  const tags = knownTags(data.tasks, data.reminders);
   const editReminder = (id: string) => router.replace(`/tasks?edit=${encodeURIComponent(id)}`);
   const show = (v: 'all' | 'chores' | 'repeat', t: string | null = null) => {
     setView(v);
@@ -580,6 +578,7 @@ export default function Tasks() {
             </button>
           )}
           <span className="row-meta">
+            {r.tag && <span className="tag">{r.tag}</span>}
             {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
             {group === 'later' && <span>{shortDate(row.date, today)} ·</span>}
             <span className={`mono row-time${group === 'today' && !o.done && minutesOf(row.time) < now.getHours() * 60 + now.getMinutes() ? ' late' : ''}`}>{row.time}</span>

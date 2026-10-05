@@ -7,7 +7,7 @@ const { sendsDue } = await import('../push');
 import type { Occurrence } from '../occurrences';
 
 const occ = (over: Partial<Occurrence>): Occurrence => ({
-  reminder: { id: 'r', title: 'Таблетки', times: ['09:00'], checklist_id: null, last_done: null, nag: null, rule: { kind: 'once', date: '2026-10-02' } },
+  reminder: { id: 'r', title: 'Таблетки', times: ['09:00'], checklist_id: null, last_done: null, nag: null, tag: null, rule: { kind: 'once', date: '2026-10-02' } },
   slot: '09:00', key: 'r@09:00', done: false, snoozedTo: null, ...over,
 });
 const nagging = (over: Partial<Occurrence>) => { const o = occ(over); return { ...o, reminder: { ...o.reminder, nag: 30 } }; };
