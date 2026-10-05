@@ -2726,3 +2726,52 @@ button.task-open:hover > span:first-child {
     padding: 0 2px;
   }
 }
+
+/* подсказки по разделам */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+.tour-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+}
+.tour-hole {
+  position: absolute;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px var(--scrim), 0 0 0 2px var(--accent);
+  pointer-events: none;
+}
+.tour-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.tour-step {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+/* шестерёнка в окне задачи */
+.td-gear .menu-list {
+  right: 0;
+  left: auto;
+  min-width: 200px;
+}
+.menu-head {
+  padding: 6px 10px 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}

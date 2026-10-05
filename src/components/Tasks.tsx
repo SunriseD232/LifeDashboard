@@ -557,15 +557,19 @@ export default function Tasks() {
   };
 
   const tags = knownTags(data.tags, data.tasks, data.reminders);
-  const tag = filter.tag && tags.includes(filter.tag) ? filter.tag : null;
-  const pass = (x: { tags: string[]; priority: Priority }) => (!tag || x.tags.includes(tag)) && x.priority >= filter.prio;
+  // Спрятали поле шестерёнкой в окне задачи — прячем и его фильтр.
+  const useTags = !data.settings.task_hidden.includes('tags');
+  const usePrio = !data.settings.task_hidden.includes('priority');
+  const tag = useTags && filter.tag && tags.includes(filter.tag) ? filter.tag : null;
+  const prio = usePrio ? filter.prio : 0;
+  const pass = (x: { tags: string[]; priority: Priority }) => (!tag || x.tags.includes(tag)) && x.priority >= prio;
   const tasks = data.tasks.filter(pass);
   const reminders = data.reminders.filter(pass);
   const doneSet = useMemo(() => new Set(data.done), [data.done]);
   const groups = timeline(tasks, reminders, today, doneSet, data.snoozed);
   const dots = (d: string) => agendaFor(d, reminders, today, doneSet);
   const doneToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && t.done_at);
-  const filtered = !!tag || filter.prio > 0;
+  const filtered = !!tag || prio > 0;
 
   const open = (r: Reminder) => setDialog({ reminder: r });
   const row = (r: Row, overdue = false, hideDate = false) =>
@@ -584,32 +588,38 @@ export default function Tasks() {
     });
   };
 
-  const filters = (
-    <div className="task-filters">
-      <div className="chip-scroll" role="group" aria-label="Метки">
-        <button className="chip" type="button" aria-pressed={!tag} onClick={() => setFilter({ ...filter, tag: null })}>
-          Все метки
-        </button>
-        {tags.map((t) => (
-          <button key={t} className="chip" type="button" aria-pressed={tag === t} onClick={() => setFilter({ ...filter, tag: tag === t ? null : t })}>
-            #{t}
+  const filters = (useTags || usePrio) && (
+    <div className="task-filters" data-tour="tasks-filters">
+      {useTags && (
+        <div className="chip-scroll" role="group" aria-label="Метки">
+          <button className="chip" type="button" aria-pressed={!tag} onClick={() => setFilter({ ...filter, tag: null })}>
+            Все метки
           </button>
-        ))}
-        <button className="chip" type="button" onClick={() => setManaging(true)}>
-          <Icon name="edit" size={14} />
-          {tags.length ? 'Метки' : 'Добавить метки'}
-        </button>
-      </div>
-      <label className="sr-only" htmlFor="prio-filter">
-        Важность
-      </label>
-      <select id="prio-filter" className="field prio-select" data-on={filter.prio > 0 || undefined} value={filter.prio} onChange={(e) => setFilter({ ...filter, prio: Number(e.target.value) as Priority })}>
-        {PRIO_FILTERS.map((p) => (
-          <option key={p.v} value={p.v}>
-            {p.label}
-          </option>
-        ))}
-      </select>
+          {tags.map((t) => (
+            <button key={t} className="chip" type="button" aria-pressed={tag === t} onClick={() => setFilter({ ...filter, tag: tag === t ? null : t })}>
+              #{t}
+            </button>
+          ))}
+          <button className="chip" type="button" onClick={() => setManaging(true)}>
+            <Icon name="edit" size={14} />
+            {tags.length ? 'Метки' : 'Добавить метки'}
+          </button>
+        </div>
+      )}
+      {usePrio && (
+        <>
+          <label className="sr-only" htmlFor="prio-filter">
+            Важность
+          </label>
+          <select id="prio-filter" className="field prio-select" data-on={filter.prio > 0 || undefined} value={filter.prio} onChange={(e) => setFilter({ ...filter, prio: Number(e.target.value) as Priority })}>
+            {PRIO_FILTERS.map((p) => (
+              <option key={p.v} value={p.v}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
     </div>
   );
 

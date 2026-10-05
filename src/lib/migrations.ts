@@ -707,6 +707,17 @@ export const MIGRATIONS: Migration[] = [
       db.exec('update tasks set due_date = null, rule = null');
     },
   },
+  {
+    version: 14,
+    name: 'Подсказки по разделам, свои поля в окне задачи',
+    up: (db) =>
+      db.exec(`
+    -- Какие разделы уже показали в подсказках (JSON-массив: ["home","tasks"]).
+    alter table user_settings add column tour_seen text not null default '[]';
+    -- Какие поля спрятаны в окне задачи (JSON: ["tags","priority","checklist","note"]).
+    alter table user_settings add column task_hidden text not null default '[]';
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

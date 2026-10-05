@@ -33,7 +33,7 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
 }
 
 /** Окно снизу: заголовок, крестик, содержимое; Esc и тап мимо — закрыть. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Sheet({ title, onClose, children, actions }: { title: string; onClose: () => void; children: React.ReactNode; actions?: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useModalFocus(ref);
   useEffect(() => {
@@ -54,6 +54,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
           <h2 className="display" style={{ margin: 0, fontSize: 19, flex: 1 }}>
             {title}
           </h2>
+          {actions}
           <button className="icon-btn bare" type="button" aria-label="Закрыть" onClick={onClose}>
             <Icon name="x" size={20} />
           </button>

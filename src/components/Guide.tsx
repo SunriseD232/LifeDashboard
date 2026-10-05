@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 
@@ -71,8 +72,12 @@ const PARTS: Part[] = [
         Задачи бывают двух видов: <b>без напоминания</b> — просто список «сделать», без даты, и <b>с напоминанием</b> — на день и время, придёт push.
       </>,
       <>
-        Добавить — кнопкой <b>«Добавить задачу»</b> (на телефоне — круглая «+»): в окне выберите вид, метки, важность и чек-лист. С ИИ можно написать своими словами —
-        «завтра в 9 позвонить врачу, срочно, #работа», и окно заполнится само.
+        Добавить — кнопкой <b>«Добавить задачу»</b> (на телефоне — круглая «+»): в окне выберите вид, метки, важность и чек-лист. С ИИ напишите в названии своими
+        словами — «завтра в 9 позвонить врачу, срочно, #работа» — и нажмите <b>«Разобрать»</b>: форма заполнится, останется проверить и добавить. Не нажали — задача
+        сохранится как написано.
+      </>,
+      <>
+        <b>Шестерёнка</b> в окне задачи прячет лишние поля — метки, важность, чек-лист, заметку. Спрятанное пропадает и из фильтров.
       </>,
       <>
         <b>Метки</b> («дом», «работа»…) выбираются из своих или вписываются новые; переименовать и удалить — кнопкой «Метки» над списком. <b>Важность</b> — низкая,
@@ -229,14 +234,27 @@ const PARTS: Part[] = [
 
 /** «Как пользоваться»: все разделы и фишки на одной странице с оглавлением. */
 export default function Guide() {
-  const { data } = useApp();
+  const { data, mutate, toast } = useApp();
   const parts = PARTS.filter((p) => !p.ai || data.ai);
+  const replay = () => {
+    mutate(
+      (d) => ({ ...d, settings: { ...d.settings, tour_seen: [] } }),
+      () => api('settings', 'PATCH', { tour_seen: [] }),
+    );
+    toast('Подсказки покажутся снова — при входе в каждый раздел');
+  };
   return (
     <div className="guide">
       <div className="page-head" style={{ marginBottom: 0 }}>
-        <h1 className="h1 display">Как пользоваться</h1>
+        <h1 className="h1 display" style={{ flex: 1 }}>
+          Как пользоваться
+        </h1>
+        <button className="btn btn-ghost" type="button" onClick={replay}>
+          <Icon name="help" size={18} />
+          Показать подсказки заново
+        </button>
       </div>
-      <p style={{ margin: 0, color: 'var(--muted)' }}>LifeDashboard — дела, напоминания, чек-листы, заметки, кухня и спорт в одном месте. Вот что он умеет.</p>
+      <p style={{ margin: 0, color: 'var(--muted)' }}>LifeDashboard — задачи, напоминания, чек-листы, заметки, кухня и спорт в одном месте. Вот что он умеет.</p>
       <nav className="guide-toc" aria-label="Оглавление">
         {parts.map((p) => (
           <a key={p.id} className="chip" href={`#${p.id}`} style={{ textDecoration: 'none' }}>

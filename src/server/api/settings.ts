@@ -1,7 +1,7 @@
 import { HttpError, text, type Ctx } from '../http';
 import { randomBytes } from 'node:crypto';
 import { parseNav } from '@/lib/nav';
-import { readSettings } from '../settings';
+import { cleanList, readSettings, TASK_FIELDS } from '../settings';
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -97,6 +97,9 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
          nav = excluded.nav, calendar_token = excluded.calendar_token, onboarded = excluded.onboarded,
          quiet_from = excluded.quiet_from, quiet_to = excluded.quiet_to, review_time = excluded.review_time`,
     ).run(userId, city, lat, lon, tz, deadline_time, summary_time, nav ? JSON.stringify(nav) : null, calendar_token, onboarded ? 1 : 0, quiet_from, quiet_to, review_time);
+    // Списки — строкой JSON; неизвестное отбрасываем.
+    if (body.tour_seen !== undefined) d.prepare('update user_settings set tour_seen = ? where user_id = ?').run(JSON.stringify(cleanList(JSON.stringify(body.tour_seen))), userId);
+    if (body.task_hidden !== undefined) d.prepare('update user_settings set task_hidden = ? where user_id = ?').run(JSON.stringify(cleanList(JSON.stringify(body.task_hidden), TASK_FIELDS)), userId);
     return { ok: true };
   }
 
