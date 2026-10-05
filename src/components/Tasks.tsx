@@ -55,6 +55,95 @@ export function useTaskActions() {
   return { complete, undo, remove, today };
 }
 
+/**
+ * Перенос по дням свайпом: задача без напоминания «на завтра» становится
+ * задачей с напоминанием (время — из настроек); разовую можно сдвинуть на
+ * завтра или убрать дату — тогда она снова просто в списке.
+ */
+export function useDateMoves() {
+  const { data, mutate, reload, now, toast } = useApp();
+  const today = localDay(now);
+  const tomorrow = addDays(today, 1);
+  const at = data.settings.deadline_time;
+  const run = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (e) {
+      toast((e as Error).message);
+    }
+    await reload();
+  };
+  const remBody = (x: { title: string; tags: string[]; priority: Priority; note: string | null; checklist_id: string | null }, date: string, times = [at]) => ({
+    title: x.title.slice(0, 120),
+    times,
+    rule: { kind: 'once', date },
+    tags: x.tags,
+    priority: x.priority,
+    note: x.note,
+    checklist_id: x.checklist_id,
+  });
+  const taskBody = (x: { title: string; tags: string[]; priority: Priority; note: string | null; checklist_id: string | null }) => ({
+    title: x.title,
+    tags: x.tags,
+    priority: x.priority,
+    note: x.note,
+    checklist_id: x.checklist_id,
+  });
+
+  /** Задача без даты → напоминание на завтра. */
+  const taskTomorrow = (t: Task) => {
+    mutate(
+      (d) => ({ ...d, tasks: d.tasks.filter((x) => x.id !== t.id) }),
+      () =>
+        run(async () => {
+          const { id } = await api<{ id: string }>('reminders', 'POST', remBody(t, tomorrow));
+          await api(`tasks/${t.id}`, 'DELETE');
+          toast(`«${t.title}» — завтра в ${at}`, () =>
+            run(async () => {
+              await api('tasks', 'POST', taskBody(t));
+              await api(`reminders/${id}`, 'DELETE');
+            }),
+          );
+        }),
+    );
+  };
+
+  /** Разовую — на завтра (время то же). */
+  const remTomorrow = (r: Reminder) => {
+    const was = r.rule;
+    mutate(
+      (d) => ({ ...d, reminders: d.reminders.map((x) => (x.id === r.id ? { ...x, rule: { kind: 'once', date: tomorrow } } : x)) }),
+      () => api(`reminders/${r.id}`, 'PATCH', { rule: { kind: 'once', date: tomorrow } }),
+    );
+    toast(`«${r.title}» — на завтра`, () =>
+      mutate(
+        (d) => ({ ...d, reminders: d.reminders.map((x) => (x.id === r.id ? { ...x, rule: was } : x)) }),
+        () => api(`reminders/${r.id}`, 'PATCH', { rule: was }),
+      ),
+    );
+  };
+
+  /** Убрать дату: напоминание → задача в списке «Без напоминания». */
+  const remUndate = (r: Reminder) => {
+    mutate(
+      (d) => ({ ...d, reminders: d.reminders.filter((x) => x.id !== r.id) }),
+      () =>
+        run(async () => {
+          const { id } = await api<{ id: string }>('tasks', 'POST', taskBody(r));
+          await api(`reminders/${r.id}`, 'DELETE');
+          toast(`«${r.title}» — без даты`, () =>
+            run(async () => {
+              await api('reminders', 'POST', { ...remBody(r, r.rule.kind === 'once' ? r.rule.date : today, r.times), rule: r.rule, nag: r.nag });
+              await api(`tasks/${id}`, 'DELETE');
+            }),
+          );
+        }),
+    );
+  };
+
+  return { taskTomorrow, remTomorrow, remUndate, tomorrow };
+}
+
 // ---------------------------------------------------------------- строки
 
 /** Метки, чек-лист, «общая» — подписи под названием. */
@@ -86,6 +175,7 @@ function Meta({ tags, checklistId, shared, author }: { tags: string[]; checklist
 
 export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => void }) {
   const { complete, undo, remove } = useTaskActions();
+  const moves = useDateMoves();
   const done = !!task.done_at;
   // Чужую общую задачу удалить нельзя (сервер не даст) — и свайп не предлагает.
   const canDelete = !task.household_id || !task.author;
@@ -99,7 +189,18 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
     </>
   );
   return (
-    <Swipe onRight={done ? undefined : () => complete(task)} actions={done || !canDelete ? [] : [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }]}>
+    <Swipe
+      onRight={done ? undefined : () => complete(task)}
+      actions={
+        done
+          ? []
+          : [
+              // Общую задачу семьи в напоминание не превратить: push — одному человеку.
+              ...(!task.household_id ? [{ label: 'Завтра', icon: 'calendar', tone: 'warm' as const, onClick: () => moves.taskTomorrow(task) }] : []),
+              ...(canDelete ? [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }] : []),
+            ]
+      }
+    >
       <div className="task-row">
         <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
           <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
@@ -130,6 +231,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
  */
 export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { occ: Occurrence; date: string; time: string; onOpen: (r: Reminder) => void; overdue?: boolean; hideDate?: boolean }) {
   const rem = useReminderActions();
+  const moves = useDateMoves();
   const { now } = useApp();
   const today = localDay(now);
   const r = occ.reminder;
@@ -151,7 +253,13 @@ export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { oc
       onRight={checkable && !occ.done ? () => rem.done(r, occ.slot, true) : undefined}
       actions={[
         ...(date === today && !occ.done ? [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => rem.snooze(occ, 60) }] : []),
-        { label: 'Изменить', icon: 'edit', onClick: () => onOpen(r) },
+        // Разовую — на завтра или без даты; повтор меняют в окне задачи.
+        ...(r.rule.kind === 'once'
+          ? [
+              ...(r.rule.date !== moves.tomorrow ? [{ label: 'Завтра', icon: 'calendar', onClick: () => moves.remTomorrow(r) }] : []),
+              { label: 'Без даты', icon: 'tasks', onClick: () => moves.remUndate(r) },
+            ]
+          : [{ label: 'Изменить', icon: 'edit', onClick: () => onOpen(r) }]),
       ]}
     >
       <div className="task-row">
