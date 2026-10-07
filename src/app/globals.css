@@ -2701,7 +2701,9 @@ button.task-open:hover > span:first-child {
 .home-soon {
   width: 100%;
   min-height: 44px;
+  align-items: flex-start;
   gap: 12px;
+  padding: 10px 0;
   border-top: 0;
   border-left: 0;
   border-right: 0;
@@ -2710,6 +2712,26 @@ button.task-open:hover > span:first-child {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+.soon-when {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 52px;
+  font-size: calc(13px * var(--fs));
+  line-height: 1.5;
+  color: var(--muted);
+}
+.soon-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+/* длинное слово переносится, только если не влезает целиком — слова не рвутся посередине */
+.soon-title {
+  overflow-wrap: break-word;
 }
 @media (max-width: 860px) {
   .tasks-layout {

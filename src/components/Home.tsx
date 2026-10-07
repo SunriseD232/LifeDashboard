@@ -77,18 +77,23 @@ export default function Home() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {upcoming.map(({ r, date }) => (
+            // Когда — столбиком слева, название — на всю оставшуюся ширину, метки под ним.
             <button key={r.id} type="button" className="task-row home-soon" onClick={() => setDialog({ reminder: r })}>
-              <span className="mono" style={{ width: 60, flex: 'none', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
-                {shortDate(date, today)}
+              <span className="soon-when mono">
+                <span>{shortDate(date, today)}</span>
+                <span>{r.times[0]}</span>
               </span>
-              <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{r.title}</span>
-              {r.tags.slice(0, 2).map((t) => (
-                <span key={t} className="tag">
-                  #{t}
-                </span>
-              ))}
-              <span className="mono" style={{ fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
-                {r.times[0]}
+              <span className="soon-body">
+                <span className="soon-title">{r.title}</span>
+                {r.tags.length > 0 && (
+                  <span className="row-tags">
+                    {r.tags.slice(0, 3).map((t) => (
+                      <span key={t} className="tag">
+                        #{t}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </span>
             </button>
           ))}
