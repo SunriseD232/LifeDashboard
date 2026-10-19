@@ -8,7 +8,7 @@ describe('выгрузка чек-листа в xlsx', () => {
   ];
 
   it('лист как в образце: шапка на 4 строки, темы, разделитель между группами', () => {
-    const x = sheetXml(groups);
+    const { xml: x, boxes } = sheetXml(groups);
     expect(x).toContain('<mergeCell ref="A1:A4"/>');
     expect(x).toContain('<mergeCell ref="B1:B4"/>');
     expect(x).toContain('<mergeCell ref="C1:C4"/>');
@@ -19,14 +19,15 @@ describe('выгрузка чек-листа в xlsx', () => {
     expect(x).toContain('<mergeCell ref="A10:C10"/>');
     expect(x).toMatch(/<c r="B11"[^>]*><is><t xml:space="preserve">Тема 2</);
     expect(x).toContain('<c r="A12" s="2"><v>1</v></c>');
-    // Статус — встроенный флажок Excel: логическое значение в ячейке со стилем-флажком.
-    expect(x).toContain('<c r="C6" s="6" t="b"><v>1</v></c>');
-    expect(x).toContain('<c r="C7" s="6" t="b"><v>0</v></c>');
+    // Статус — флажок-элемент управления на каждое дело, отмечены сделанные.
+    expect(boxes.map((b) => [b.row, b.checked])).toEqual([[6, true], [7, false], [8, false], [12, false]]);
+    expect(x).toContain('<control shapeId="1025" r:id="rId3" name="Check Box 1">');
+    expect(x).toContain('<legacyDrawing r:id="rId2"/>');
     expect(x).toContain('A &amp; &lt;B&gt; (2 шт)');
   });
 
   it('одна безымянная группа — без строки «Тема»', () => {
-    const x = sheetXml([{ name: null, items: [{ title: 'X', done: false }] }]);
+    const { xml: x } = sheetXml([{ name: null, items: [{ title: 'X', done: false }] }]);
     expect(x).toMatch(/<c r="B5"[^>]*><is><t xml:space="preserve">X</);
   });
 
@@ -41,6 +42,7 @@ describe('выгрузка чек-листа в xlsx', () => {
     const v = new DataView(z.buffer);
     expect(v.getUint32(0, true)).toBe(0x04034b50);
     expect(v.getUint32(z.length - 22, true)).toBe(0x06054b50);
-    expect(v.getUint16(z.length - 22 + 10, true)).toBe(7);
+    // 6 основных + rels листа, drawing, vml и по ctrlProp на каждое из 4 дел.
+    expect(v.getUint16(z.length - 22 + 10, true)).toBe(13);
   });
 });
