@@ -345,7 +345,8 @@ function ChecklistDetail({
       });
       if (navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: list.title });
+          // Только файл: title iOS отдаёт отдельным текстом — лишнее сообщение в Telegram и text.txt в «Файлах».
+          await navigator.share({ files: [file] });
         } catch (e) {
           if ((e as Error).name !== 'AbortError') toast('Не получилось отдать файл');
         }
