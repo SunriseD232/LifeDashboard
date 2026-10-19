@@ -335,7 +335,8 @@ function ChecklistDetail({
   const groupLabel = (name: string | null) => name ?? 'Без группы';
 
   const download = () => {
-    const blob = new Blob([checklistXlsx(list.title, groups)], {
+    // .buffer — ровно байты файла; сам Uint8Array новые типы TS в Blob не пускают.
+    const blob = new Blob([checklistXlsx(list.title, groups).buffer as ArrayBuffer], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const url = URL.createObjectURL(blob);
