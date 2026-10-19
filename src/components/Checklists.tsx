@@ -11,6 +11,7 @@ import Swipe from './Swipe';
 import { Fab, Sheet, useIsPhone } from './Phone';
 import { Icon, LIST_ICONS } from './icons';
 import TemplatePicker from './TemplatePicker';
+import { checklistXlsx } from '@/lib/xlsx';
 
 interface Props {
   data: AppData;
@@ -333,6 +334,20 @@ function ChecklistDetail({
 
   const groupLabel = (name: string | null) => name ?? 'Без группы';
 
+  const download = () => {
+    const blob = new Blob([checklistXlsx(list.title, groups)], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${list.title.replace(/[\\/:*?"<>|]/g, ' ').trim() || 'Чек-лист'}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   return (
     <article className="panel" style={{ padding: 'clamp(18px, 3vw, 28px) clamp(16px, 3vw, 32px)', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
@@ -389,6 +404,12 @@ function ChecklistDetail({
             >
               <Icon name="reset" size={18} />
               Снять отметки
+            </button>
+          )}
+          {!editing && (
+            <button className="btn btn-ghost" type="button" disabled={items.length === 0} onClick={download}>
+              <Icon name="download" size={18} />
+              Скачать .xlsx
             </button>
           )}
           {editing ? (

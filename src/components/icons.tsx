@@ -226,6 +226,7 @@ const PATHS: Record<string, JSX.Element> = {
   ),
   chat: <path d="M4 5h16v11H9l-5 4z" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
+  download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   logout: (
     <>
       <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
