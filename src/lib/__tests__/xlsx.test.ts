@@ -19,8 +19,9 @@ describe('выгрузка чек-листа в xlsx', () => {
     expect(x).toContain('<mergeCell ref="A10:C10"/>');
     expect(x).toMatch(/<c r="B11"[^>]*><is><t xml:space="preserve">Тема 2</);
     expect(x).toContain('<c r="A12" s="2"><v>1</v></c>');
-    expect(x).toMatch(/r="C6"[^>]*><is><t xml:space="preserve">☑</);
-    expect(x).toMatch(/r="C7"[^>]*><is><t xml:space="preserve">☐</);
+    // Статус — встроенный флажок Excel: логическое значение в ячейке со стилем-флажком.
+    expect(x).toContain('<c r="C6" s="6" t="b"><v>1</v></c>');
+    expect(x).toContain('<c r="C7" s="6" t="b"><v>0</v></c>');
     expect(x).toContain('A &amp; &lt;B&gt; (2 шт)');
   });
 
@@ -40,6 +41,6 @@ describe('выгрузка чек-листа в xlsx', () => {
     const v = new DataView(z.buffer);
     expect(v.getUint32(0, true)).toBe(0x04034b50);
     expect(v.getUint32(z.length - 22, true)).toBe(0x06054b50);
-    expect(v.getUint16(z.length - 22 + 10, true)).toBe(6);
+    expect(v.getUint16(z.length - 22 + 10, true)).toBe(7);
   });
 });
