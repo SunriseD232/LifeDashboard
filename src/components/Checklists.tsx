@@ -11,7 +11,7 @@ import Swipe from './Swipe';
 import { Fab, Sheet, useIsPhone } from './Phone';
 import { Icon, LIST_ICONS } from './icons';
 import TemplatePicker from './TemplatePicker';
-import { checklistXlsx } from '@/lib/xlsx';
+import { checklistXlsx, xlsxFileName } from '@/lib/xlsx';
 
 interface Props {
   data: AppData;
@@ -334,19 +334,31 @@ function ChecklistDetail({
 
   const groupLabel = (name: string | null) => name ?? 'Без группы';
 
-  const download = () => {
-    // .buffer — ровно байты файла; сам Uint8Array новые типы TS в Blob не пускают.
-    const blob = new Blob([checklistXlsx(list.title, groups).buffer as ArrayBuffer], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    });
-    const url = URL.createObjectURL(blob);
+  const download = async () => {
+    // iPhone/iPad: файл — в «Поделиться» («Сохранить в Файлы», мессенджеры);
+    // ссылка на файл там открылась бы просмотром поверх приложения.
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios) {
+      // .buffer — ровно байты файла; сам Uint8Array новые типы TS в Blob не пускают.
+      const file = new File([checklistXlsx(list.title, groups).buffer as ArrayBuffer], xlsxFileName(list.title), {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: list.title });
+        } catch (e) {
+          if ((e as Error).name !== 'AbortError') toast('Не получилось отдать файл');
+        }
+        return;
+      }
+    }
+    // Остальным — файл с сервера (Content-Disposition: attachment): blob-ссылки
+    // установленное приложение и Safari открывают как страницу, а не скачивают.
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${list.title.replace(/[\\/:*?"<>|]/g, ' ').trim() || 'Чек-лист'}.xlsx`;
+    a.href = `/task/api/checklists/${list.id}/xlsx`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (

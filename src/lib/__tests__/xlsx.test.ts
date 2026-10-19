@@ -19,7 +19,8 @@ describe('выгрузка чек-листа в xlsx', () => {
     expect(x).toContain('<mergeCell ref="A10:C10"/>');
     expect(x).toMatch(/<c r="B11"[^>]*><is><t xml:space="preserve">Тема 2</);
     expect(x).toContain('<c r="A12" s="2"><v>1</v></c>');
-    expect(x).toContain('Собрано');
+    expect(x).toMatch(/r="C6"[^>]*><is><t xml:space="preserve">☑</);
+    expect(x).toMatch(/r="C7"[^>]*><is><t xml:space="preserve">☐</);
     expect(x).toContain('A &amp; &lt;B&gt; (2 шт)');
   });
 

@@ -19,6 +19,8 @@ import { tasks } from '@/server/api/tasks';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
 import { calendarFeed } from '@/server/calendar';
+import { findChecklist, readItems } from '@/server/checklistStore';
+import { checklistXlsx, groupForXlsx, xlsxFileName } from '@/lib/xlsx';
 import { HttpError, type Ctx } from '@/server/http';
 
 /**
@@ -83,6 +85,27 @@ async function route(req: NextRequest, { params }: { params: { path: string[] } 
     });
   }
   try {
+    // Чек-лист в .xlsx — файлом с сервера: blob-ссылки часть браузеров
+    // (установленное приложение, Safari) открывает как страницу, а не скачивает.
+    const [, cid, action] = params.path ?? [];
+    if (res === 'checklists' && action === 'xlsx' && req.method === 'GET') {
+      const userId = await currentUserId();
+      if (!userId) throw new HttpError(401, 'Войдите, чтобы открыть LifeDashboard.');
+      const d = db();
+      const list = findChecklist(d, userId, cid);
+      if (!list) throw new HttpError(404, 'Чек-лист не найден.');
+      const { title } = d.prepare('select title from checklists where id = ?').get(list.id) as { title: string };
+      const bytes = checklistXlsx(title, groupForXlsx(readItems(d, userId).filter((i) => i.checklist_id === list.id)));
+      const name = xlsxFileName(title);
+      return new NextResponse(bytes.buffer as ArrayBuffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          // ASCII-запасное имя для старых браузеров, настоящее — в filename*.
+          'Content-Disposition': `attachment; filename="checklist.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
     return NextResponse.json(await handle(req, params.path ?? []));
   } catch (e) {
     if (e instanceof HttpError) return NextResponse.json({ error: e.message }, { status: e.status });

@@ -10,6 +10,24 @@ export interface XlsxGroup {
   items: { title: string; note?: string | null; done: boolean }[];
 }
 
+/** Пункты по группам в порядке их первого появления — как в чек-листе на экране. */
+export function groupForXlsx(
+  items: { title: string; group_name: string | null; note?: string | null; done: boolean; position: number }[],
+): XlsxGroup[] {
+  const out: XlsxGroup[] = [];
+  for (const it of [...items].sort((a, b) => a.position - b.position)) {
+    let g = out.find((x) => x.name === it.group_name);
+    if (!g) out.push((g = { name: it.group_name, items: [] }));
+    g.items.push({ title: it.title, note: it.note, done: it.done });
+  }
+  return out;
+}
+
+/** Имя файла для Content-Disposition: без запрещённых в Windows знаков. */
+export function xlsxFileName(title: string): string {
+  return `${title.replace(/[\\/:*?"<>|]/g, ' ').trim() || 'Чек-лист'}.xlsx`;
+}
+
 // Индексы cellXfs в styles.xml ниже.
 const S_HEAD = 1;
 const S_NUM = 2;
@@ -101,7 +119,7 @@ export function sheetXml(groups: XlsxGroup[]): string {
       const text = it.note ? `${it.title} (${it.note})` : it.title;
       row(
         r,
-        num(`A${r}`, S_NUM, i + 1) + str(`B${r}`, S_TEXT, text) + (it.done ? str(`C${r}`, S_STATUS, 'Собрано') : blank(`C${r}`, S_STATUS)),
+        num(`A${r}`, S_NUM, i + 1) + str(`B${r}`, S_TEXT, text) + str(`C${r}`, S_STATUS, it.done ? '☑' : '☐'),
         rowHeight(text),
       );
       r++;
