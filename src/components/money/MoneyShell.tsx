@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, apiDirect } from '@/lib/api';
 import { localDay } from '@/lib/dates';
@@ -42,6 +42,11 @@ interface MoneyContext {
   open: (sheet: Sheet) => void;
   /** Включён ли ИИ (на сервере и в настройках) и модуль из него. */
   aiOn: (module?: 'voice' | 'receipts') => boolean;
+  /**
+   * Запись легла в другой месяц (чек от 24 сентября) — переключиться на него
+   * и открыть «Операции», иначе её не видно. Вернёт название месяца или null.
+   */
+  reveal: (day: string) => string | null;
 }
 
 const Ctx = createContext<MoneyContext | null>(null);
@@ -69,6 +74,7 @@ const TABS = [
  */
 export default function MoneyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [status, setStatus] = useState<Status>('loading');
   const [data, setData] = useState<MoneyState | null>(null);
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
@@ -196,6 +202,15 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     toBase: (minor, code) => convert(minor, code, base, rateOf),
     shown: (m) => !data.settings!.hidden.includes(m),
     openOp: (op) => setSheet({ type: 'op', op }),
+    reveal: (day) => {
+      const m = day.slice(0, 7);
+      // Главная всегда про текущий месяц, «Операции» — про выбранный.
+      const visible = pathname.startsWith('/money/ops') ? monthRef.current : localDay().slice(0, 7);
+      if (m === visible) return null;
+      setMonth(m);
+      if (!pathname.startsWith('/money/ops')) router.push('/money/ops');
+      return new Date(`${m}-15T12:00:00`).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '');
+    },
     open: setSheet,
     aiOn: (m) => data.ai && (m ? !data.settings!.hidden.includes(m) : !data.settings!.hidden.includes('ai')),
   };

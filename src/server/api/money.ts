@@ -212,6 +212,16 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       const f = opFields(d, userId, body);
       const list = items(d, userId, body.items);
       const source = ['manual', 'text', 'voice', 'photo', 'import', 'sms'].includes(body.source) ? body.source : 'manual';
+      // Тот же чек второй раз (не увидели первый — он лёг в другой месяц) — спросить.
+      if (source === 'photo' && !body.force) {
+        const same = d
+          .prepare("select payee, day from money_ops where account_id = ? and day = ? and amount_minor = ? and kind = 'expense' and source = 'photo' limit 1")
+          .get(f.account_id, f.day, f.amount_minor) as { payee: string | null; day: string } | undefined;
+        if (same) {
+          const when = new Date(`${same.day}T12:00:00Z`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', timeZone: 'UTC' });
+          throw new HttpError(409, `Этот чек уже записан: ${same.payee ?? 'покупка'}, ${when}.`);
+        }
+      }
       const oid = randomUUID();
       d.transaction(() => {
         d.prepare(

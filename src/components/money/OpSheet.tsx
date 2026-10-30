@@ -37,7 +37,7 @@ const editable = (minor: number | null | undefined, code: string) => (minor ? fo
  * валюты. Новая — из черновика, существующую можно поправить или удалить.
  */
 export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null; onClose: () => void }) {
-  const { data, reload, toast, rateOf, shown, open } = useMoney();
+  const { data, reload, toast, rateOf, shown, open, reveal } = useMoney();
   const existing = op && 'id' in op ? (op as MoneyOp) : null;
   const draft = (existing ? {} : op ?? {}) as OpDraft;
   const base = data.settings!.base_currency;
@@ -143,7 +143,8 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
         /* приватный режим — не запомним, не страшно */
       }
       await reload();
-      toast(res?.queued ? 'Нет сети — отправлю, когда появится' : existing ? 'Сохранено' : 'Записано');
+      const where = res?.queued ? null : reveal(day);
+      toast(res?.queued ? 'Нет сети — отправлю, когда появится' : `${existing ? 'Сохранено' : 'Записано'}${where ? ` — показываю ${where}` : ''}`);
       onClose();
     } catch (e) {
       setError((e as Error).message);

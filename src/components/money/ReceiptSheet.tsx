@@ -21,7 +21,7 @@ type Phase = 'pick' | 'reading' | 'edit' | 'error';
  * записанной операции — её позиции: посмотреть, поправить, добавить с фото.
  */
 export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: MoneyOp; onClose: () => void }) {
-  const { data, reload, toast, rateOf } = useMoney();
+  const { data, reload, toast, rateOf, reveal } = useMoney();
   const base = data.settings!.base_currency;
   const [phase, setPhase] = useState<Phase>(file ? 'reading' : op?.items_count ? 'reading' : 'pick');
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +140,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         if (!acc) throw new Error('Сначала заведите счёт.');
         if (!total) throw new Error('Введите итог чека.');
         if (!charged) throw new Error(`Сколько списали со счёта в ${acc.currency}?`);
-        await api('money/ops', 'POST', {
+        const body = {
           kind: 'expense',
           day,
           account_id: acc.id,
@@ -151,7 +151,14 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
           source: 'photo',
           items: list,
           ...(foreign ? { orig_amount_minor: total, orig_currency: cur } : {}),
-        });
+        };
+        try {
+          await api('money/ops', 'POST', body);
+        } catch (e) {
+          // Такой чек уже есть — записать второй раз, только если человек так решил.
+          if ((e as { status?: number }).status !== 409 || !confirm(`${(e as Error).message} Записать ещё раз?`)) throw e;
+          await api('money/ops', 'POST', { ...body, force: true });
+        }
         try {
           localStorage.setItem('money:lastAccount', acc.id);
         } catch {
@@ -159,7 +166,8 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         }
       }
       await reload();
-      toast(target ? 'Позиции сохранены' : 'Чек записан');
+      const where = target ? null : reveal(day);
+      toast(target ? 'Позиции сохранены' : where ? `Чек от ${shortDay(day)} записан — показываю ${where}` : 'Чек записан');
       onClose();
     } catch (e) {
       setError((e as Error).message);
