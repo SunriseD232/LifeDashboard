@@ -11,6 +11,7 @@ import { HttpError } from './http';
  *       openrouter.ai с этой VPS режется WAF — ходим через локальный туннель
  *       (Xray на сервере, общий для всего VPS). На другом сервере — убрать.
  *   AI_AUDIO_MODEL=google/gemini-3.5-flash-lite   голос в «Деньгах»
+ *   AI_RECEIPT_MODEL=google/gemini-3.5-flash      фото чеков в «Деньгах»
  *   AI_DAILY_LIMIT=50              запросов на человека в сутки
  *
  * Модель отвечает строго JSON; дальше ответ разбирают и проверяют функции из
@@ -44,6 +45,9 @@ export interface AiRequest {
 
 /** Модель для голоса («Деньги»): основная звук не понимает. */
 export const audioModel = () => process.env.AI_AUDIO_MODEL || 'google/gemini-3.5-flash-lite';
+
+/** Модель для чеков: читает мелкие сокращения кассы буква в букву, а не «по смыслу». */
+export const receiptModel = () => process.env.AI_RECEIPT_MODEL || 'google/gemini-3.5-flash';
 
 /** Транспорт — подменяется в тестах; по умолчанию — fetch к OpenRouter. */
 type Transport = (req: AiRequest) => Promise<string>;

@@ -74,7 +74,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
       const photo = await loadPhoto(f);
       const req = api<{ receipt: ReceiptDraft }>('money/ai/receipt', 'POST', { image: photo.dataUrl, today: localDay() });
       // QR ищем, пока ИИ читает: на телефоне это доли секунды.
-      const code = await new Promise<string | null>((r) => setTimeout(() => r(findQr(photo.canvas)), 0));
+      const code = await new Promise<string | null>((r) => setTimeout(() => r(findQr(photo.canvas, (t) => !!parseFiscalQr(t))), 0));
       const fiscal = code ? parseFiscalQr(code) : null;
       setQr(fiscal);
       try {
