@@ -128,6 +128,12 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     // Сервис-воркер LifeDashboard: страницы и файлы — из кэша без сети.
     registerOffline();
+    // С экрана «Домой» открываемся сразу с последней копией, свежие данные — следом.
+    const cached = monthRef.current === localDay().slice(0, 7) ? loadCache() : null;
+    if (cached) {
+      setData(cached.state);
+      setStatus('ready');
+    }
     reload().then(sync);
     // Вернулись в приложение — данные могли поменяться у семьи; появилась сеть — отправить очередь.
     const onVisible = () => !document.hidden && sync().then(reload);
@@ -144,8 +150,11 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
 
   if (status === 'loading') {
     return (
-      <div aria-busy="true" className="m-center muted">
-        Загружаем…
+      <div aria-busy="true" className="m-center m-splash">
+        <span className="m-splash-icon" aria-hidden="true">
+          <Icon name="wallet" size={34} />
+        </span>
+        <span className="muted">Загружаем…</span>
       </div>
     );
   }

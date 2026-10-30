@@ -10,8 +10,8 @@
   "theme_color": "#eef3f2",
   "lang": "ru",
   "icons": [
-    { "src": "/task/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/task/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/task/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/task/money/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/task/money/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/task/money/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

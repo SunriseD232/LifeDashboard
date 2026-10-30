@@ -122,7 +122,7 @@ export function OpRow({ op, accounts }: { op: MoneyOp; accounts: MoneyAccount[] 
   return (
     <button type="button" className="m-op" onClick={() => openOp(op)}>
       <span className="m-op-ic">
-        <Icon name={op.items_count ? 'receipt' : KIND_ICON[op.kind]} />
+        <Icon name={op.debt_id ? 'users' : op.items_count ? 'receipt' : KIND_ICON[op.kind]} />
       </span>
       <span className="m-op-t">
         <b>{title}</b>
@@ -215,7 +215,7 @@ export function SubHead({ title, children }: { title: string; children?: React.R
       <Link className="icon-btn bare" href="/money/settings" aria-label="Назад">
         <Icon name="back" />
       </Link>
-      <h1 className="display m-h1" style={{ flex: 1 }}>
+      <h1 className="display m-h1 m-h1-sub" style={{ flex: 1 }}>
         {title}
       </h1>
       {children}

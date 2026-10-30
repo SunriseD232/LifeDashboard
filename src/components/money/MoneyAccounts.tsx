@@ -41,7 +41,7 @@ export default function MoneyAccounts() {
       <main className="m-main">
         <section className="m-card" style={{ gap: 2 }}>
           <div className="muted m-small">Всего</div>
-          <div className="display m-total">{money(total, base, { trim: true })}</div>
+          <div className="display m-total">{money(total, base, { whole: true })}</div>
         </section>
         <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
           {active.map((a) => (
@@ -76,6 +76,7 @@ function AccountRow({ a, onOpen }: { a: MoneyAccount; onOpen: () => void }) {
         <b>{a.name}</b>
         <small>
           {ACCOUNT_KINDS.find((k) => k.id === a.kind)?.label}
+          {a.card_last4 && ` · *${a.card_last4}`}
           {a.shared && ' · семейный'}
           {a.author && ` · ${a.author}`}
         </small>

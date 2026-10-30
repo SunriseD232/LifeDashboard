@@ -1011,3 +1011,78 @@
   font-weight: 600;
   text-align: center;
 }
+
+/* ---------------------------------------------------------------- этап 5: полировка */
+
+/* Сумма в окне операции — главное на экране, как в макете. LifeDashboard на
+   телефоне ставит всем полям 16px с !important (чтобы iPhone не приближал
+   страницу) — здесь крупнее, это тоже не даёт приблизить. */
+input.m-amount {
+  font-size: calc(38px * var(--fs)) !important;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.m-amount-sign,
+.m-amount-cur {
+  font-size: calc(28px * var(--fs));
+}
+
+/* Ручка у нижних окон — видно, что окно можно смахнуть. */
+.m-sheet::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 40px;
+  height: 5px;
+  margin: -2px 0 -4px;
+  border-radius: 99px;
+  background: var(--line-strong);
+}
+
+/* Заставка первой загрузки. */
+.m-splash {
+  gap: 14px;
+  align-content: center;
+}
+.m-splash-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: #0b4f4e;
+  color: #fff;
+}
+/* «Без категории» — не категория, а то, что ещё не разложено: тише остальных. */
+.m-catbar-none {
+  color: var(--muted);
+}
+.m-catbar-none .bar > i {
+  background: var(--line-strong);
+}
+
+/* Строки-ссылки (разделы в «Ещё», счета на главной) — без подчёркивания. */
+a.m-op,
+a.m-card,
+a.m-acc {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* Вложенные экраны: заголовок помельче — «Регулярные платежи» в одну строку. */
+.m-h1-sub {
+  font-size: calc(22px * var(--fs));
+  line-height: 1.2;
+}
+
+/* «Добавить» во вложенных экранах — значок с акцентом. */
+.m-add {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.m-add:hover:not(:disabled) {
+  color: #fff;
+  background: var(--accent-hover);
+}

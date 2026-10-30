@@ -122,9 +122,13 @@ export function parseAmount(raw: string, code: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
-/** 123450 → «1 234,50» (без знака валюты). */
-export function formatMinor(minor: number, code: string, opts: { trim?: boolean } = {}): string {
+/** 123450 → «1 234,50» (без знака валюты); whole — округлить до целых: «1 235». */
+export function formatMinor(minor: number, code: string, opts: { trim?: boolean; whole?: boolean } = {}): string {
   const { digits } = currency(code);
+  if (opts.whole && digits) {
+    minor = Math.round(minor / 10 ** digits) * 10 ** digits;
+    opts = { ...opts, trim: true };
+  }
   const neg = minor < 0;
   const abs = Math.abs(minor);
   const int = Math.floor(abs / 10 ** digits);
@@ -135,7 +139,7 @@ export function formatMinor(minor: number, code: string, opts: { trim?: boolean 
 }
 
 /** 123450, RUB → «1 234,50 ₽»; без знака — «1 234,50 KZT». */
-export function money(minor: number, code: string, opts: { trim?: boolean; sign?: boolean } = {}): string {
+export function money(minor: number, code: string, opts: { trim?: boolean; sign?: boolean; whole?: boolean } = {}): string {
   const c = currency(code);
   const text = formatMinor(minor, code, opts);
   const plus = opts.sign && minor > 0 ? '+' : '';

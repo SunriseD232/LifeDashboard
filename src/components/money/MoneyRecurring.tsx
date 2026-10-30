@@ -43,9 +43,8 @@ export default function MoneyRecurringPage() {
   return (
     <>
       <SubHead title="Регулярные платежи">
-        <button className="btn btn-primary" type="button" onClick={() => setEdit({ kind: 'expense', unit: 'month', every: 1, mode: 'ask', next_day: today })}>
-          <Icon name="plus" size={18} />
-          Платёж
+        <button className="icon-btn m-add" type="button" aria-label="Добавить платёж" onClick={() => setEdit({ kind: 'expense', unit: 'month', every: 1, mode: 'ask', next_day: today })}>
+          <Icon name="plus" size={22} />
         </button>
       </SubHead>
       <main className="m-main">
@@ -66,7 +65,8 @@ export default function MoneyRecurringPage() {
                 <span className="m-op-t">
                   <b>{r.payee}</b>
                   <small>
-                    {r.active ? `${shortDay(r.next_day, today)} · ${period(r)}` : 'на паузе'} · {r.mode === 'auto' ? 'запишется сам' : 'спросит'}
+                    {r.active ? `${shortDay(r.next_day, today)} · ${period(r)}` : 'на паузе'}
+                    {r.mode === 'auto' && ' · авто'}
                   </small>
                 </span>
                 <span className={`mono${r.kind === 'income' ? ' m-pos' : ''}`}>{money(r.kind === 'income' ? r.amount_minor : -r.amount_minor, r.currency, { sign: true })}</span>

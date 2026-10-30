@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { plural } from '@/lib/dates';
 import { CURRENCIES, currency } from '@/lib/currencies';
 import { MODULES, type MoneyCategory } from '@/lib/money';
 import { Icon } from '../icons';
@@ -124,9 +125,9 @@ export default function MoneySettings() {
 }
 
 const HUB: { href: string; module: string; icon: string; title: string; hint: (d: ReturnType<typeof useMoney>['data']) => string }[] = [
-  { href: '/money/recurring', module: 'recurring', icon: 'repeat', title: 'Регулярные платежи', hint: (d) => (d.recurring.length ? `${d.recurring.filter((r) => r.active).length} активных` : 'Подписки, аренда, связь') },
+  { href: '/money/recurring', module: 'recurring', icon: 'repeat', title: 'Регулярные платежи', hint: (d) => (d.recurring.length ? `активных: ${d.recurring.filter((r) => r.active).length}` : 'Подписки, аренда, связь') },
   { href: '/money/debts', module: 'debts', icon: 'users', title: 'Долги', hint: (d) => (d.debts.some((x) => !x.closed) ? `открытых: ${d.debts.filter((x) => !x.closed).length}` : 'Кто кому должен') },
-  { href: '/money/goals', module: 'goals', icon: 'flag', title: 'Цели', hint: (d) => (d.goals.length ? `${d.goals.length} целей` : 'Копить на отпуск, подушку') },
+  { href: '/money/goals', module: 'goals', icon: 'flag', title: 'Цели', hint: (d) => (d.goals.length ? plural(d.goals.length, 'цель', 'цели', 'целей') : 'Копить на отпуск, подушку') },
   { href: '/money/import', module: 'import', icon: 'download', title: 'Импорт выписки', hint: () => 'Файл банка или скриншоты' },
   { href: '/money/sms', module: 'sms', icon: 'chat', title: 'SMS от банка', hint: (d) => (d.sms_on ? 'подключены' : 'Записывать покупки сами') },
 ];

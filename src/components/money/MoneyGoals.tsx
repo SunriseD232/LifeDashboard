@@ -43,9 +43,8 @@ export default function MoneyGoals() {
   return (
     <>
       <SubHead title="Цели">
-        <button className="btn btn-primary" type="button" onClick={() => setEdit('new')}>
-          <Icon name="plus" size={18} />
-          Цель
+        <button className="icon-btn m-add" type="button" aria-label="Добавить цель" onClick={() => setEdit('new')}>
+          <Icon name="plus" size={22} />
         </button>
       </SubHead>
       <main className="m-main">

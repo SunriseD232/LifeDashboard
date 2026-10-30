@@ -47,8 +47,8 @@ export default function MoneyHome() {
     spentTotal += p.base_minor;
     spent.set(p.category_id, (spent.get(p.category_id) ?? 0) + p.base_minor);
   }
-  const top = [...spent.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const max = top[0]?.[1] ?? 1;
+  const top = [...spent.entries()].sort((a, b) => (a[0] === null ? 1 : b[0] === null ? -1 : b[1] - a[1])).slice(0, 5);
+  const max = Math.max(1, ...top.map(([, v]) => v));
   const prevSpend = scope === 'all' ? data.prev_spend.mine + data.prev_spend.family : data.prev_spend[scope];
   const delta = prevSpend > 0 ? Math.round(((spentTotal - prevSpend) / prevSpend) * 100) : null;
   // Бюджеты — про всё, что человек видит, а не про переключатель «Моё/Семья».
@@ -68,7 +68,7 @@ export default function MoneyHome() {
         <ScopeSwitch scope={scope} onChange={setScope} />
         <section className="m-card" style={{ gap: 2 }}>
           <div className="muted m-small">Всего на счетах</div>
-          <div className="display m-total">{money(total, base, { trim: true })}</div>
+          <div className="display m-total">{money(total, base, { whole: true })}</div>
           {shown('currencies') && byCur.size > 0 && (
             <div className="muted m-small">
               в т.ч.{' '}
@@ -110,14 +110,14 @@ export default function MoneyHome() {
               Отчёт
             </Link>
           </div>
-          <div className="display m-sum">{money(spentTotal, base, { trim: true })}</div>
+          <div className="display m-sum">{money(spentTotal, base, { whole: true })}</div>
           {delta !== null && delta !== 0 && (
             <div className="muted m-small" style={{ marginTop: -6 }}>
               на {Math.abs(delta)}% {delta < 0 ? 'меньше' : 'больше'}, чем в прошлом месяце
             </div>
           )}
           {top.map(([id, v]) => (
-            <div key={id ?? '-'} className="m-catbar">
+            <div key={id ?? '-'} className={`m-catbar${id === null ? ' m-catbar-none' : ''}`}>
               <div className="m-row-between">
                 <span>{catName(id)}</span>
                 <span className="mono">{money(v, base, { trim: true })}</span>

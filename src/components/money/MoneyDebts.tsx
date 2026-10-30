@@ -43,9 +43,8 @@ export default function MoneyDebts() {
   return (
     <>
       <SubHead title="Долги">
-        <button className="btn btn-primary" type="button" onClick={() => setAdd(true)}>
-          <Icon name="plus" size={18} />
-          Долг
+        <button className="icon-btn m-add" type="button" aria-label="Добавить долг" onClick={() => setAdd(true)}>
+          <Icon name="plus" size={22} />
         </button>
       </SubHead>
       <main className="m-main">

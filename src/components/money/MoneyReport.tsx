@@ -92,22 +92,29 @@ export default function MoneyReport() {
           </p>
         )}
 
+        {!rep && !error && (
+          // Место под отчёт, пока он считается, — чтобы карточки ниже не прыгали.
+          <section className="m-card m-reading" aria-busy="true" style={{ minHeight: 300, justifyContent: 'center' }}>
+            <span className="m-spinner" aria-hidden="true" />
+            <span className="muted">Считаю…</span>
+          </section>
+        )}
         {rep && (
           <>
             <section className="m-card" style={{ gap: 4 }}>
               <div className="muted m-small">Потрачено</div>
-              <div className="display m-total">{money(rep.spend, base, { trim: true })}</div>
+              <div className="display m-total">{money(rep.spend, base, { whole: true })}</div>
               <div className="muted m-small">
                 {change !== null && change !== 0 && (
                   <>
                     <span className={change > 0 ? 'm-up' : 'm-down'}>{signed(change)}</span> {PREV_LABEL[period]} ·{' '}
                   </>
                 )}
-                доходы <span className="mono">{money(rep.income, base, { trim: true })}</span>
+                доходы <span className="mono">{money(rep.income, base, { whole: true })}</span>
                 {rep.income > 0 && (
                   <>
                     {' '}
-                    · осталось <span className="mono">{money(rep.income - rep.spend, base, { trim: true, sign: true })}</span>
+                    · осталось <span className="mono">{money(rep.income - rep.spend, base, { whole: true, sign: true })}</span>
                   </>
                 )}
               </div>
@@ -125,7 +132,7 @@ export default function MoneyReport() {
                       title={`${b.short}: ${money(b.spend, base, { trim: true })}`}
                       onClick={() => (picked === i ? setDay(b.from) : setPicked(i))}
                     >
-                      <span className="m-barval mono">{on ? formatMinor(b.spend, base, { trim: true }) : ''}</span>
+                      <span className="m-barval mono">{on ? formatMinor(b.spend, base, { whole: true }) : ''}</span>
                       <span className="m-barwrap">
                         <i style={{ height: `${b.spend ? Math.max(3, Math.round((b.spend / maxBar) * 100)) : 0}%` }} />
                       </span>
