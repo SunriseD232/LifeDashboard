@@ -17,6 +17,8 @@ import {
   visibleOp,
 } from '../moneyStore';
 import { refreshRates, todayRates } from '../moneyRates';
+import { aiConfigured } from '../ai';
+import { aiReceipt, aiText, aiVoice } from '../moneyAi';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
@@ -160,7 +162,9 @@ function monthRange(month: string): [string, string] {
  *  POST   ops { kind, day, account_id, amount_minor, to_account_id?, to_amount_minor?, orig_*?, category_id?, payee?, note?, items? };
  *  GET    ops/:id — с позициями; PATCH ops/:id; DELETE ops/:id;
  *  POST   categories { kind, name } / PATCH categories/:id { name?, archived? };
- *  POST   rates { currency, rate } — свой курс для валюты без курса ЦБ.
+ *  POST   rates { currency, rate } — свой курс для валюты без курса ЦБ;
+ *  POST   ai/text { text, today } · ai/voice { audio, today } · ai/receipt { image, today } — черновики от ИИ;
+ *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции.
  * Пока раздел тестовый — только для MONEY_USERS (src/server/moneyStore.ts).
  */
 export async function money({ d, userId, method, body, id: sub, action: id, req }: Ctx): Promise<unknown> {
@@ -185,8 +189,17 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       user_rates: readUserRates(d, userId),
       family: !!householdOf(d, userId),
       login,
+      ai: aiConfigured(),
     };
     return state;
+  }
+
+  if (sub === 'ai' && method === 'POST') {
+    if (!aiConfigured()) throw new HttpError(503, 'ИИ пока не подключён.');
+    if (id === 'text') return aiText(d, userId, body);
+    if (id === 'voice') return aiVoice(d, userId, body);
+    if (id === 'receipt') return aiReceipt(d, userId, body);
+    return undefined;
   }
 
   if (sub === 'onboard' && method === 'POST') {
@@ -299,6 +312,18 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     const op = visibleOp(d, userId, id);
     if (!op) throw new HttpError(404, 'Операция не найдена.');
     if (method === 'GET') return { items: readItems(d, op.id) };
+    if (method === 'PATCH' && body.only_items) {
+      // Позиции чека к уже записанной операции (например, к трате из банка).
+      const list = items(d, userId, body.items);
+      d.transaction(() => {
+        saveItems(d, op.id, list);
+        if (body.category_id !== undefined && !op.category_id && op.kind === 'expense') {
+          d.prepare('update money_ops set category_id = ? where id = ?').run(ownCategory(d, userId, body.category_id, 'expense'), op.id);
+        }
+        d.prepare("update money_ops set updated_at = datetime('now') where id = ?").run(op.id);
+      })();
+      return { ok: true };
+    }
     if (method === 'PATCH') {
       const f = opFields(d, userId, body, op.category_id);
       d.transaction(() => {

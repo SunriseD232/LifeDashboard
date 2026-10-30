@@ -37,7 +37,7 @@ export default function MoneySettings() {
       <main className="m-main">
         <h2 className="group-title">Что показывать</h2>
         <div className="m-card" style={{ gap: 0, padding: '0 14px' }}>
-          {MODULES.filter((m) => m.id !== 'family' || data.family).map((m) => (
+          {MODULES.filter((m) => (m.id === 'family' ? data.family : ['ai', 'voice', 'receipts'].includes(m.id) ? data.ai : true)).map((m) => (
             <label key={m.id} className="m-set">
               <span className="m-op-t">
                 <b>{m.label}</b>

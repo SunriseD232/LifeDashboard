@@ -5,21 +5,12 @@ import { api } from '@/lib/api';
 import { currency, formatMinor, money, parseAmount } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
 import { convert, exchangeRate, type MoneyOp, type OpKind } from '@/lib/money';
+import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
 
-/** Черновик новой операции — из быстрого ввода или кнопки «+». */
-export interface OpDraft {
-  kind?: OpKind;
-  amount_minor?: number | null;
-  /** Валюта суммы из быстрого ввода («12 €»), если её назвали. */
-  currency?: string | null;
-  payee?: string;
-  day?: string;
-  account_id?: string;
-  category_id?: string | null;
-  source?: string;
-}
+/** Черновик новой операции — из быстрого ввода, голоса, ИИ или кнопки «+». */
+export type OpDraft = MoneyDraft;
 
 const KINDS: { id: OpKind; label: string }[] = [
   { id: 'expense', label: 'Расход' },
@@ -46,7 +37,7 @@ const editable = (minor: number | null | undefined, code: string) => (minor ? fo
  * валюты. Новая — из черновика, существующую можно поправить или удалить.
  */
 export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null; onClose: () => void }) {
-  const { data, reload, toast, rateOf, shown } = useMoney();
+  const { data, reload, toast, rateOf, shown, open } = useMoney();
   const existing = op && 'id' in op ? (op as MoneyOp) : null;
   const draft = (existing ? {} : op ?? {}) as OpDraft;
   const base = data.settings!.base_currency;
@@ -74,12 +65,18 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
   const [amountText, setAmountText] = useState(
     existing ? editable(existing.amount_minor, existing.currency) : foreignDraft ? editable(convert(draft.amount_minor ?? 0, foreignDraft, startCur, rateOf), startCur) : editable(draft.amount_minor, startCur),
   );
-  const [toAccountId, setToAccountId] = useState(existing?.to_account_id ?? '');
-  const [toAmountText, setToAmountText] = useState(existing?.to_amount_minor ? editable(existing.to_amount_minor, existing.to_currency ?? base) : '');
+  const [toAccountId, setToAccountId] = useState(existing?.to_account_id ?? draft.to_account_id ?? '');
+  const [toAmountText, setToAmountText] = useState(
+    existing?.to_amount_minor
+      ? editable(existing.to_amount_minor, existing.to_currency ?? base)
+      : draft.to_amount_minor && byId(draft.to_account_id)
+        ? editable(draft.to_amount_minor, byId(draft.to_account_id)!.currency)
+        : '',
+  );
   const [categoryId, setCategoryId] = useState<string | null>(existing ? existing.category_id : draft.category_id ?? null);
   const [payee, setPayee] = useState(existing?.payee ?? draft.payee ?? '');
   const [day, setDay] = useState(existing?.day ?? draft.day ?? localDay());
-  const [note, setNote] = useState(existing?.note ?? '');
+  const [note, setNote] = useState(existing?.note ?? draft.note ?? '');
   const [origOn, setOrigOn] = useState(!!existing?.orig_currency || !!foreignDraft);
   const [origCur, setOrigCur] = useState(existing?.orig_currency ?? foreignDraft ?? data.settings!.currencies.find((c) => c !== startCur) ?? 'USD');
   const [origText, setOrigText] = useState(existing?.orig_amount_minor ? editable(existing.orig_amount_minor, existing.orig_currency!) : foreignDraft ? editable(draft.amount_minor, foreignDraft) : '');
@@ -182,6 +179,12 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
             <Icon name="x" />
           </button>
         </div>
+
+        {draft.said && (
+          <p className="m-said">
+            <span className="muted">{draft.source === 'voice' ? 'Вы сказали' : 'Вы написали'}</span> «{draft.said}» <span className="chip m-chip-ai">разобрал ИИ</span>
+          </p>
+        )}
 
         {kinds.length > 1 && (
           <div className="seg" role="group" aria-label="Тип операции" style={{ gridTemplateColumns: `repeat(${kinds.length}, 1fr)` }}>
@@ -340,7 +343,12 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
           <input className="field" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
         </label>
 
-        {existing && existing.items_count > 0 && <p className="muted m-small" style={{ margin: 0 }}>В чеке позиций: {existing.items_count}</p>}
+        {existing && existing.kind === 'expense' && (existing.items_count > 0 || existing.mine) && (
+          <button type="button" className="btn btn-ghost" onClick={() => open({ type: 'receipt', op: existing })}>
+            <Icon name="receipt" size={18} />
+            {existing.items_count > 0 ? `Чек: ${existing.items_count} поз.` : 'Добавить позиции чека'}
+          </button>
+        )}
         {error && (
           <p className="m-error" role="alert">
             {error}

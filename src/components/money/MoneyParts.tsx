@@ -1,25 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
 import { quickParse, type MoneyAccount, type MoneyOp } from '@/lib/money';
+import { needsAi, type MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
+import { showDrafts } from './VoiceSheet';
 
 /**
- * Строка быстрого ввода: «кофе 350», «такси 12 € вчера» — разбираем без ИИ
- * и открываем окно операции уже заполненным. Категорию и счёт подсказываем
- * по прошлым операциям с тем же названием.
+ * Строка быстрого ввода: «кофе 350», «такси 12 € вчера» — разбираем сами и
+ * открываем окно операции уже заполненным; длинное или с несколькими
+ * суммами («продукты 1200 и кофе 350») — разбирает ИИ. Рядом — голос и
+ * фото чека, если включены.
  */
 export function QuickBar() {
-  const { data, openOp } = useMoney();
+  const { data, openOp, open, aiOn, toast } = useMoney();
   const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const photo = useRef<HTMLInputElement>(null);
 
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const t = text.trim();
-    if (!t) return openOp(null);
+  function local(t: string) {
     const p = quickParse(t, data.settings!.base_currency);
     const low = p.title.toLowerCase();
     const cat = data.categories.find((c) => c.kind === 'expense' && c.name.toLowerCase() === low);
@@ -34,17 +37,66 @@ export function QuickBar() {
       account_id: p.currency ? undefined : past?.account_id,
       source: 'text',
     });
-    setText('');
   }
 
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const t = text.trim();
+    if (!t) return openOp(null);
+    const p = quickParse(t, data.settings!.base_currency);
+    if (!aiOn() || !needsAi(t, p.amount_minor !== null)) {
+      local(t);
+      setText('');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api<{ ops: MoneyDraft[] }>('money/ai/text', 'POST', { text: t, today: localDay() });
+      showDrafts(open, res.ops, t);
+      setText('');
+    } catch (err) {
+      // ИИ не ответил — простой разбор лучше, чем ничего.
+      if (p.amount_minor !== null) {
+        local(t);
+        setText('');
+      } else toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const typed = !!text.trim();
   return (
-    <form className="m-qbar" onSubmit={submit} aria-label="Быстрый ввод">
+    <form className="m-qbar" onSubmit={submit} aria-label="Быстрый ввод" aria-busy={busy}>
       <label htmlFor="m-quick" className="sr-only">
         Что потратили
       </label>
-      <input id="m-quick" className="field" type="text" enterKeyHint="done" autoComplete="off" placeholder="Кофе 350, такси 12 € вчера…" value={text} onChange={(e) => setText(e.target.value)} />
-      <button className="icon-btn m-qbar-go" type="submit" aria-label={text.trim() ? 'Записать' : 'Новая операция'}>
-        <Icon name={text.trim() ? 'arrow' : 'plus'} size={22} />
+      <input id="m-quick" className="field" type="text" enterKeyHint="done" autoComplete="off" placeholder="Кофе 350, такси 12 € вчера…" value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+      {!typed && aiOn('receipts') && (
+        <>
+          <input
+            ref={photo}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) open({ type: 'receipt', file: f });
+            }}
+          />
+          <button className="icon-btn bare" type="button" aria-label="Фото чека" onClick={() => photo.current?.click()}>
+            <Icon name="camera" size={22} />
+          </button>
+        </>
+      )}
+      {!typed && aiOn('voice') && (
+        <button className="icon-btn bare" type="button" aria-label="Сказать голосом" onClick={() => open({ type: 'voice' })}>
+          <Icon name="mic" size={22} />
+        </button>
+      )}
+      <button className="icon-btn m-qbar-go" type="submit" disabled={busy} aria-label={typed ? 'Записать' : 'Новая операция'}>
+        {busy ? <span className="m-spinner m-spinner-light" aria-hidden="true" /> : <Icon name={typed ? 'arrow' : 'plus'} size={22} />}
       </button>
     </form>
   );

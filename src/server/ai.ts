@@ -10,7 +10,8 @@ import { HttpError } from './http';
  *   AI_PROXY_URL=http://127.0.0.1:10809
  *       openrouter.ai с этой VPS режется WAF — ходим через локальный туннель
  *       (Xray на сервере, общий для всего VPS). На другом сервере — убрать.
- *   AI_DAILY_LIMIT=50               запросов на человека в сутки
+ *   AI_AUDIO_MODEL=google/gemini-3.5-flash-lite   голос в «Деньгах»
+ *   AI_DAILY_LIMIT=50              запросов на человека в сутки
  *
  * Модель отвечает строго JSON; дальше ответ разбирают и проверяют функции из
  * src/lib/aiParse.ts — сохраняет человек сам, после просмотра.
@@ -22,13 +23,21 @@ const URL_ = 'https://openrouter.ai/api/v1/chat/completions';
 const TIMEOUT_MS = 75_000;
 const DEFAULT_MODEL = 'z-ai/glm-5.3-flash';
 
-export type Part = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } };
+export type Part =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
+  | { type: 'input_audio'; input_audio: { data: string; format: string } };
 
 export interface AiRequest {
   system: string;
   user: string | Part[];
   maxTokens?: number;
+  /** Своя модель вместо AI_MODEL — например, для звука. */
+  model?: string;
 }
+
+/** Модель для голоса («Деньги»): основная звук не понимает. */
+export const audioModel = () => process.env.AI_AUDIO_MODEL || 'google/gemini-3.5-flash-lite';
 
 /** Транспорт — подменяется в тестах; по умолчанию — fetch к OpenRouter. */
 type Transport = (req: AiRequest) => Promise<string>;
@@ -82,7 +91,7 @@ async function call(req: AiRequest, key: string, signal: AbortSignal): Promise<s
         'X-Title': 'LifeDashboard',
       },
       body: JSON.stringify({
-        model: process.env.AI_MODEL || DEFAULT_MODEL,
+        model: req.model || process.env.AI_MODEL || DEFAULT_MODEL,
         messages: [
           { role: 'system', content: req.system },
           { role: 'user', content: req.user },

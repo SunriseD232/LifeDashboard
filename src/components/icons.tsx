@@ -234,6 +234,12 @@ const PATHS: Record<string, JSX.Element> = {
     </>
   ),
   exchange: <path d="M4 8h13l-3-3M20 16H7l3 3" />,
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    </>
+  ),
   receipt: (
     <>
       <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />

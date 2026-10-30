@@ -82,6 +82,8 @@ export interface MoneyState {
   /** Состоит ли в семье — тогда можно заводить семейные счета. */
   family: boolean;
   login: string | null;
+  /** ИИ подключён на сервере — есть голос, фото чеков и разбор фраз. */
+  ai: boolean;
 }
 
 /**
@@ -92,6 +94,9 @@ export const MODULES: { id: string; label: string; hint?: string }[] = [
   { id: 'accounts', label: 'Несколько счетов', hint: 'Выключено — один кошелёк' },
   { id: 'currencies', label: 'Валюты и обмен' },
   { id: 'family', label: 'Семейные счета' },
+  { id: 'ai', label: 'Разбор фраз ИИ', hint: 'Выключено — простой разбор: «кофе 350»' },
+  { id: 'voice', label: 'Ввод голосом' },
+  { id: 'receipts', label: 'Фото чеков', hint: 'Позиции, категории, проверка по QR' },
 ];
 
 export const DEFAULT_CATEGORIES: { kind: 'expense' | 'income'; names: string[] }[] = [

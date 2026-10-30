@@ -6,10 +6,22 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { api } from '@/lib/api';
 import { localDay } from '@/lib/dates';
 import { convert, type MoneyOp, type MoneyState } from '@/lib/money';
+import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import Login from '../Login';
+import DraftsSheet from './DraftsSheet';
 import MoneyOnboarding from './MoneyOnboarding';
 import OpSheet, { type OpDraft } from './OpSheet';
+import ReceiptSheet from './ReceiptSheet';
+import VoiceSheet from './VoiceSheet';
+
+/** Что открыто поверх экрана. */
+export type Sheet =
+  | { type: 'op'; op: MoneyOp | OpDraft | null }
+  | { type: 'drafts'; ops: MoneyDraft[]; said?: string }
+  | { type: 'voice' }
+  /** Новый чек с фото или позиции записанной операции. */
+  | { type: 'receipt'; file?: File; op?: MoneyOp };
 
 interface MoneyContext {
   data: MoneyState;
@@ -25,6 +37,9 @@ interface MoneyContext {
   shown: (module: string) => boolean;
   /** Открыть окно операции: новой (черновик) или существующей. */
   openOp: (op: MoneyOp | OpDraft | null) => void;
+  open: (sheet: Sheet) => void;
+  /** Включён ли ИИ (на сервере и в настройках) и модуль из него. */
+  aiOn: (module?: 'voice' | 'receipts') => boolean;
 }
 
 const Ctx = createContext<MoneyContext | null>(null);
@@ -55,7 +70,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   const [data, setData] = useState<MoneyState | null>(null);
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
   const [toastText, setToastText] = useState<string | null>(null);
-  const [sheet, setSheet] = useState<MoneyOp | OpDraft | null | undefined>(undefined);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monthRef = useRef(month);
 
@@ -135,8 +150,11 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     rateOf,
     toBase: (minor, code) => convert(minor, code, base, rateOf),
     shown: (m) => !data.settings!.hidden.includes(m),
-    openOp: (op) => setSheet(op),
+    openOp: (op) => setSheet({ type: 'op', op }),
+    open: setSheet,
+    aiOn: (m) => data.ai && (m ? !data.settings!.hidden.includes(m) : !data.settings!.hidden.includes('ai')),
   };
+  const close = () => setSheet(null);
   const active = (href: string) => (href === '/money' ? pathname === '/money' : pathname.startsWith(href));
 
   return (
@@ -152,7 +170,10 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
           ))}
         </nav>
       </div>
-      {sheet !== undefined && <OpSheet op={sheet} onClose={() => setSheet(undefined)} />}
+      {sheet?.type === 'op' && <OpSheet op={sheet.op} onClose={close} />}
+      {sheet?.type === 'drafts' && <DraftsSheet ops={sheet.ops} said={sheet.said} onClose={close} />}
+      {sheet?.type === 'voice' && <VoiceSheet onClose={close} />}
+      {sheet?.type === 'receipt' && <ReceiptSheet file={sheet.file} op={sheet.op} onClose={close} />}
       {toastText && (
         <div className="toast m-toast" role="status">
           <span>{toastText}</span>

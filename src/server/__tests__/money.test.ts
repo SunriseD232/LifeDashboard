@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { migrate } from '@/lib/migrations';
 import type { MoneyState } from '@/lib/money';
 
@@ -9,6 +9,7 @@ vi.mock('@/lib/db', () => ({ db: () => current }));
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined, set: () => {} }) }));
 
 const { money } = await import('../api/money');
+const { setAiTransport } = await import('../ai');
 const { resetRatesClock, setRatesTransport, refreshRates, latestRates, saveRates, todayRates } = await import('../moneyRates');
 import type { Ctx } from '../http';
 
@@ -241,5 +242,86 @@ describe('курсы', () => {
     saveRates(d, { day: '2026-10-31', rates: { USD: 81, EUR: 94 } });
     expect(todayRates(d, Date.parse('2026-10-30T15:00:00Z'))).toEqual({ rates: { USD: 80.56, EUR: 94 }, day: '2026-10-30' });
     expect(todayRates(d, Date.parse('2026-10-30T22:00:00Z')).rates.USD).toBe(81);
+  });
+});
+
+describe('ИИ: фраза, голос, чек', () => {
+  let replies: string[] = [];
+  let asked: { model?: string; system: string; user: unknown }[] = [];
+  beforeEach(() => {
+    replies = [];
+    asked = [];
+    process.env.AI_DAILY_LIMIT = '50';
+    setAiTransport(async (req) => {
+      asked.push(req);
+      return replies.shift() ?? '{}';
+    });
+  });
+  afterEach(() => setAiTransport(null));
+
+  it('фраза → черновики со счетами и категориями; ничего не сохраняет', async () => {
+    const d = setup();
+    // Счёт не назвали — его выберет экран (последний, которым платили).
+    await onboard(d, 'me');
+    expect((await state(d, 'me')).ai).toBe(true);
+    replies.push(JSON.stringify({ ops: [{ kind: 'expense', amount: 1200, category: 'Продукты', payee: 'Пятёрочка', date: '2026-10-30' }, { kind: 'expense', amount: 350, category: 'Кафе', payee: 'Кофе' }] }));
+    const res = await call(d, 'me', 'POST', ['ai', 'text'], { text: 'продукты 1200 и кофе 350', today: '2026-10-30' });
+    expect(res.ops).toHaveLength(2);
+    expect(res.ops[0]).toMatchObject({ amount_minor: 120000, account_id: undefined, payee: 'Пятёрочка', day: '2026-10-30' });
+    expect(res.ops[1].day).toBe('2026-10-30');
+    expect(asked[0].system).toContain('«Карта» (RUB)');
+    expect((await state(d, 'me')).ops).toHaveLength(0);
+    // Без сумм — понятная ошибка.
+    replies.push('{"ops":[]}');
+    expect((await fail(call(d, 'me', 'POST', ['ai', 'text'], { text: 'привет', today: '2026-10-30' })))?.status).toBe(422);
+  });
+
+  it('голос — модель со звуком, формат записи с iPhone', async () => {
+    const d = setup();
+    await onboard(d, 'me');
+    replies.push(JSON.stringify({ said: 'такси двести', ops: [{ kind: 'expense', amount: 200, payee: 'Такси' }] }));
+    const res = await call(d, 'me', 'POST', ['ai', 'voice'], { audio: 'data:audio/mp4;base64,AAAA', today: '2026-10-30' });
+    expect(res).toMatchObject({ said: 'такси двести', ops: [{ amount_minor: 20000, source: 'voice', said: 'такси двести' }] });
+    expect(asked[0].model).toBe('google/gemini-3.5-flash-lite');
+    expect(JSON.stringify(asked[0].user)).toContain('"format":"m4a"');
+    expect((await fail(call(d, 'me', 'POST', ['ai', 'voice'], { audio: 'data:text/plain;base64,AAAA', today: '2026-10-30' })))?.status).toBe(400);
+  });
+
+  it('чек: позиции; категория из прошлых правок; позиции к записанной трате', async () => {
+    const d = setup();
+    const acc = await onboard(d, 'me');
+    const cats = (await state(d, 'me')).categories;
+    const food = cats.find((c) => c.name === 'Продукты')!.id;
+    const chem = cats.find((c) => c.name === 'Бытовая химия')!.id;
+    // Раньше человек поставил губкам «Бытовую химию».
+    await call(d, 'me', 'POST', ['ops'], { kind: 'expense', day: '2026-10-01', account_id: acc.id, amount_minor: 8990, items: [{ name: 'Губки, 5 шт', total_minor: 8990, category_id: chem }] });
+    replies.push(
+      JSON.stringify({ payee: 'Пятёрочка', date: '2026-10-30', currency: 'RUB', total: 269.7, items: [{ name: 'Молоко', qty: 2, price: 89.9, total: 179.8, category: 'Продукты' }, { name: 'Губки 5 шт', total: 89.9, category: 'Продукты' }] }),
+    );
+    const { receipt } = await call(d, 'me', 'POST', ['ai', 'receipt'], { image: 'data:image/jpeg;base64,AAAA', today: '2026-10-30' });
+    expect(receipt.total_minor).toBe(26970);
+    expect(receipt.items.map((i: { category_id: string }) => i.category_id)).toEqual([food, chem]);
+    expect((await fail(call(d, 'me', 'POST', ['ai', 'receipt'], { image: 'data:application/pdf;base64,AAAA', today: '2026-10-30' })))?.status).toBe(400);
+
+    // Трата из банка без позиций — прикладываем чек.
+    const bank = await call(d, 'me', 'POST', ['ops'], { kind: 'expense', day: '2026-10-30', account_id: acc.id, amount_minor: 26970, payee: 'PYATEROCHKA 123' });
+    await call(d, 'me', 'PATCH', ['ops', bank.id], { only_items: true, items: receipt.items, category_id: food });
+    const op = (await state(d, 'me')).ops.find((o) => o.id === bank.id)!;
+    expect(op).toMatchObject({ items_count: 2, category_id: food, amount_minor: 26970, payee: 'PYATEROCHKA 123' });
+    expect((await call(d, 'me', 'GET', ['ops', bank.id])).items[1]).toMatchObject({ name: 'Губки 5 шт', category_id: chem });
+  });
+
+  it('ИИ не подключён — 503, флаг в state', async () => {
+    const d = setup();
+    await onboard(d, 'me');
+    setAiTransport(null);
+    const key = process.env.OPENROUTER_API_KEY;
+    delete process.env.OPENROUTER_API_KEY;
+    try {
+      expect((await state(d, 'me')).ai).toBe(false);
+      expect((await fail(call(d, 'me', 'POST', ['ai', 'text'], { text: 'кофе', today: '2026-10-30' })))?.status).toBe(503);
+    } finally {
+      if (key) process.env.OPENROUTER_API_KEY = key;
+    }
   });
 });
