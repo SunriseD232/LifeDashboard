@@ -828,6 +828,30 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 16,
+    name: 'Деньги: импорт выписок — ключ строки и шаблоны банков',
+    up: (db) =>
+      db.exec(`
+    -- Ключ строки выписки (id банка или день|сумма|описание): повторный
+    -- импорт той же выписки ничего не задваивает.
+    alter table money_ops add column import_key text;
+    create index money_ops_import_idx on money_ops (account_id, import_key);
+
+    -- Как читать таблицу этого банка (какой столбец что значит) и на какой
+    -- счёт её клали в прошлый раз. signature — заголовки таблицы или номер
+    -- счёта из выписки.
+    create table money_import_templates (
+      user_id text not null references users(id) on delete cascade,
+      signature text not null,
+      mapping text,
+      bank text,
+      account_id text references money_accounts(id) on delete set null,
+      updated_at text not null default (datetime('now')),
+      primary key (user_id, signature)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

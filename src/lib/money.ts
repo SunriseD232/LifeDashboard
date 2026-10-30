@@ -97,6 +97,7 @@ export const MODULES: { id: string; label: string; hint?: string }[] = [
   { id: 'ai', label: 'Разбор фраз ИИ', hint: 'Выключено — простой разбор: «кофе 350»' },
   { id: 'voice', label: 'Ввод голосом' },
   { id: 'receipts', label: 'Фото чеков', hint: 'Позиции, категории, проверка по QR' },
+  { id: 'import', label: 'Импорт выписок', hint: 'Файлы банков и скриншоты' },
 ];
 
 export const DEFAULT_CATEGORIES: { kind: 'expense' | 'income'; names: string[] }[] = [

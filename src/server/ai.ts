@@ -26,7 +26,9 @@ const DEFAULT_MODEL = 'z-ai/glm-5.3-flash';
 export type Part =
   | { type: 'text'; text: string }
   | { type: 'image_url'; image_url: { url: string } }
-  | { type: 'input_audio'; input_audio: { data: string; format: string } };
+  | { type: 'input_audio'; input_audio: { data: string; format: string } }
+  /** PDF: OpenRouter сам достаёт из него текст (plugins → file-parser). */
+  | { type: 'file'; file: { filename: string; file_data: string } };
 
 export interface AiRequest {
   system: string;
@@ -34,6 +36,10 @@ export interface AiRequest {
   maxTokens?: number;
   /** Своя модель вместо AI_MODEL — например, для звука. */
   model?: string;
+  /** Плагины OpenRouter — например, чтение PDF. */
+  plugins?: unknown[];
+  /** Свой срок ответа, мс (длинная выписка пишется дольше). */
+  timeoutMs?: number;
 }
 
 /** Модель для голоса («Деньги»): основная звук не понимает. */
@@ -63,12 +69,12 @@ async function openRouter(req: AiRequest): Promise<string> {
   // Срок — на весь ответ целиком: OpenRouter шлёт заголовки сразу, а тело —
   // когда модель допишет, и таймаут только на соединение тут не спасает.
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => ctl.abort(), req.timeoutMs ?? TIMEOUT_MS);
   try {
     return await call(req, key, ctl.signal);
   } catch (e) {
     if (ctl.signal.aborted) {
-      console.error('[lifedashboard ai] не уложился в', TIMEOUT_MS / 1000, 'с');
+      console.error('[lifedashboard ai] не уложился в', (req.timeoutMs ?? TIMEOUT_MS) / 1000, 'с');
       throw new HttpError(504, 'ИИ думает слишком долго. Попробуйте ещё раз или короче.');
     }
     throw e;
@@ -102,6 +108,7 @@ async function call(req: AiRequest, key: string, signal: AbortSignal): Promise<s
         reasoning: { effort: 'low' },
         max_tokens: (req.maxTokens ?? 2000) + REASONING_ALLOWANCE,
         temperature: 0.3,
+        ...(req.plugins ? { plugins: req.plugins } : {}),
       }),
       signal,
       ...(agent ? { dispatcher: agent } : {}),

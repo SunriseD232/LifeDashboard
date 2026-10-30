@@ -19,6 +19,8 @@ import {
 import { refreshRates, todayRates } from '../moneyRates';
 import { aiConfigured } from '../ai';
 import { aiReceipt, aiText, aiVoice } from '../moneyAi';
+import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
+import { validMapping } from '@/lib/moneyImport';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
@@ -164,7 +166,10 @@ function monthRange(month: string): [string, string] {
  *  POST   categories { kind, name } / PATCH categories/:id { name?, archived? };
  *  POST   rates { currency, rate } — свой курс для валюты без курса ЦБ;
  *  POST   ai/text { text, today } · ai/voice { audio, today } · ai/receipt { image, today } — черновики от ИИ;
- *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции.
+ *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции;
+ *  POST   import/start { kind: 'file', name, data } | { kind: 'screens', images } → { job };
+ *  GET    import/job?id= → { status, result?, error? }; POST import/check { account_id, rows } — повторы;
+ *  POST   import/commit { account_id, rows, signature?, mapping?, bank? } — записать выбранное.
  * Пока раздел тестовый — только для MONEY_USERS (src/server/moneyStore.ts).
  */
 export async function money({ d, userId, method, body, id: sub, action: id, req }: Ctx): Promise<unknown> {
@@ -362,6 +367,18 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     }
   }
 
+  if (sub === 'import') {
+    settingsRequired(d, userId);
+    if (id === 'start' && method === 'POST') return startImport(d, userId, body);
+    if (id === 'job' && method === 'GET') return readJob(userId, req.nextUrl.searchParams.get('id') ?? undefined);
+    if (id === 'check' && method === 'POST') {
+      if (!Array.isArray(body.rows) || body.rows.length > 2000) throw new HttpError(400, 'Неверный список строк.');
+      const rows = (body.rows as Record<string, unknown>[]).map((r) => ({ key: String(r?.key ?? ''), day: String(r?.day ?? ''), amount_minor: Number(r?.amount_minor) }));
+      return { rows: checkRows(d, userId, String(body.account_id ?? ''), rows) };
+    }
+    if (id === 'commit' && method === 'POST') return commitImport(d, userId, body);
+  }
+
   if (sub === 'rates' && method === 'POST') {
     const cur = currencyCode(body.currency);
     const rate = Number(body.rate);
@@ -374,4 +391,57 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
   }
 
   return undefined;
+}
+
+/**
+ * Записать выбранные строки выписки. new — новая операция (с ключом строки,
+ * чтобы повторный импорт её не задвоил), link — строка уже записана вручную:
+ * ставим ключ на ту операцию. Всё одной транзакцией.
+ */
+function commitImport(d: Ctx['d'], userId: string, body: Record<string, unknown>) {
+  const acc = d.prepare('select id, currency from money_accounts where id = ? and user_id = ?').get(body.account_id ?? '', userId) as { id: string; currency: string } | undefined;
+  if (!acc) throw new HttpError(400, 'Выберите свой счёт для выписки.');
+  if (!Array.isArray(body.rows) || !body.rows.length || body.rows.length > 2000) throw new HttpError(400, 'Нечего импортировать.');
+  let added = 0;
+  let linked = 0;
+  const insert = d.prepare(
+    `insert into money_ops (id, user_id, kind, day, account_id, amount_minor, currency, to_account_id, to_amount_minor, to_currency,
+       orig_amount_minor, orig_currency, category_id, payee, note, source, import_key)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?)`,
+  );
+  d.transaction(() => {
+    for (const raw of body.rows as Record<string, unknown>[]) {
+      const r = raw ?? {};
+      const key = text(r.key, 300, 'Ключ строки') as string;
+      if (r.action === 'link') {
+        const op = visibleOp(d, userId, r.link_id);
+        if (!op) throw new HttpError(400, 'Операция для склейки не найдена — обновите импорт.');
+        d.prepare("update money_ops set import_key = ?, updated_at = datetime('now') where id = ? and import_key is null").run(key, op.id);
+        linked++;
+        continue;
+      }
+      const signed = Number(r.amount_minor);
+      if (!Number.isSafeInteger(signed) || signed === 0) throw new HttpError(400, 'Неверная сумма в строке выписки.');
+      const kind = r.kind === 'transfer' ? 'transfer' : signed < 0 ? 'expense' : 'income';
+      // Перевод: списание — с этого счёта на другой, поступление — с другого на этот.
+      const other = kind === 'transfer' ? r.to_account_id : null;
+      const f = opFields(d, userId, {
+        kind,
+        day: r.day,
+        account_id: kind === 'transfer' && signed > 0 ? other : acc.id,
+        to_account_id: kind === 'transfer' ? (signed > 0 ? acc.id : other) : null,
+        amount_minor: Math.abs(signed),
+        category_id: r.category_id,
+        payee: r.payee,
+        note: r.note,
+        orig_amount_minor: r.orig_amount_minor,
+        orig_currency: r.orig_currency,
+      });
+      insert.run(randomUUID(), userId, f.kind, f.day, f.account_id, f.amount_minor, f.currency, f.to_account_id, f.to_amount_minor, f.to_currency, f.orig_amount_minor, f.orig_currency, f.category_id, f.payee, f.note, key);
+      added++;
+    }
+    const mapping = body.mapping ? validMapping(body.mapping, 500, 100000) : null;
+    saveTemplate(d, userId, typeof body.signature === 'string' ? body.signature : null, mapping, body.bank, acc.id);
+  })();
+  return { added, linked };
 }

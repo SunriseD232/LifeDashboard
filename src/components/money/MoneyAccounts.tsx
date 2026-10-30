@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { currency, formatMinor, money, parseAmount } from '@/lib/currencies';
@@ -24,6 +25,12 @@ export default function MoneyAccounts() {
         <h1 className="display m-h1" style={{ flex: 1 }}>
           Счета
         </h1>
+        {shown('import') && (
+          <Link className="btn btn-ghost" href="/money/import">
+            <Icon name="download" size={18} />
+            Импорт
+          </Link>
+        )}
         {canAdd && (
           <button className="btn btn-primary" type="button" onClick={() => setEdit('new')}>
             <Icon name="plus" size={18} />
