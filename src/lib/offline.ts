@@ -56,6 +56,8 @@ const QUEUEABLE = [
   /^kitchen\/shopping(\/clear)?$/,
   /^kitchen\/pantry(\/[^/]+)?$/,
   /^notes\/[^/]+$/,
+  // «Деньги»: новая операция и её правка без сети не теряются.
+  /^money\/ops(\/[^/]+)?$/,
 ];
 
 export function queueable(path: string, method: string): boolean {
@@ -76,7 +78,7 @@ export function outbox(): Queued[] {
 }
 
 export function enqueue(path: string, method: string, body?: unknown): Queued {
-  const creates = method === 'POST' && (path === 'tasks' || path === 'reminders' || /^checklists\/[^/]+\/items$/.test(path));
+  const creates = method === 'POST' && (path === 'tasks' || path === 'reminders' || path === 'money/ops' ||/^checklists\/[^/]+\/items$/.test(path));
   const q: Queued = { id: Math.random().toString(36).slice(2), path, method, body, at: Date.now(), ...(creates ? { tempId: `tmp-${Math.random().toString(36).slice(2, 10)}` } : {}) };
   write(OUTBOX, [...outbox(), q]);
   changed();
@@ -152,6 +154,8 @@ export function clearOffline(): void {
   try {
     localStorage.removeItem(STATE);
     localStorage.removeItem(OUTBOX);
+    // Копия «Денег» (src/components/money/MoneyShell.tsx).
+    localStorage.removeItem('money:state');
   } catch {
     /* нечего стирать */
   }

@@ -397,8 +397,8 @@ export function checkRows(d: Database.Database, userId: string, accountId: strin
           `select o.id, o.kind, o.day, o.account_id, o.amount_minor, o.to_account_id, o.to_amount_minor, o.payee, o.source, c.name as category_name
            from money_ops o left join money_categories c on c.id = o.category_id
            where (o.account_id = ? or o.to_account_id = ?) and o.day between ? and ?
-             -- Перевод мог прийти из выписки второго счёта — у него уже свой ключ.
-             and (o.import_key is null or o.kind = 'transfer')`,
+             -- Перевод мог прийти из выписки второго счёта, трата — из SMS: у них уже свой ключ.
+             and (o.import_key is null or o.kind = 'transfer' or o.source = 'sms')`,
         )
         .all(accountId, accountId, shift(days[0], -3), shift(days[days.length - 1], 3)) as {
         id: string;

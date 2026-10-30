@@ -136,14 +136,14 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
     if (!existing) body.source = draft.source ?? 'manual';
     setBusy(true);
     try {
-      await (existing ? api(`money/ops/${existing.id}`, 'PATCH', body) : api('money/ops', 'POST', body));
+      const res = (await (existing ? api(`money/ops/${existing.id}`, 'PATCH', body) : api('money/ops', 'POST', body))) as { queued?: boolean } | undefined;
       try {
         localStorage.setItem(LAST_ACCOUNT, acc.id);
       } catch {
         /* приватный режим — не запомним, не страшно */
       }
       await reload();
-      toast(existing ? 'Сохранено' : 'Записано');
+      toast(res?.queued ? 'Нет сети — отправлю, когда появится' : existing ? 'Сохранено' : 'Записано');
       onClose();
     } catch (e) {
       setError((e as Error).message);

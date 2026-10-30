@@ -1,4 +1,5 @@
 import { currency, isCurrency, parseAmount } from './currencies';
+import type { MoneyDebt, MoneyGoal, MoneyRecurring } from './moneyPlans';
 
 /** «Деньги»: общие для сервера и экрана типы и расчёты. */
 
@@ -27,6 +28,8 @@ export interface MoneyAccount {
   /** Кто завёл, если не я. */
   author: string | null;
   balance_minor: number;
+  /** Последние 4 цифры карты — по ним SMS попадает на этот счёт. */
+  card_last4: string | null;
 }
 
 export interface MoneyCategory {
@@ -54,6 +57,8 @@ export interface MoneyOp {
   payee: string | null;
   note: string | null;
   source: string;
+  /** Деньги по долгу — двигают остаток, но не траты и не доходы. */
+  debt_id: string | null;
   mine: boolean;
   author: string | null;
   items_count: number;
@@ -90,6 +95,12 @@ export interface MoneyState {
   month_parts: { op_id: string; category_id: string | null; base_minor: number }[];
   /** Траты прошлого месяца в основной валюте: по своим и семейным счетам. */
   prev_spend: { mine: number; family: number };
+  /** Регулярные платежи, долги, цели — свои. */
+  recurring: MoneyRecurring[];
+  debts: MoneyDebt[];
+  goals: MoneyGoal[];
+  /** Подключены SMS от банка (есть ключ для «Команд»). */
+  sms_on: boolean;
 }
 
 /**
@@ -106,6 +117,10 @@ export const MODULES: { id: string; label: string; hint?: string }[] = [
   { id: 'import', label: 'Импорт выписок', hint: 'Файлы банков и скриншоты' },
   { id: 'budgets', label: 'Бюджеты', hint: 'Лимиты на месяц по категориям' },
   { id: 'prices', label: 'Цены из чеков', hint: 'Как дорожают продукты' },
+  { id: 'recurring', label: 'Регулярные платежи', hint: 'Подписки, аренда, зарплата' },
+  { id: 'debts', label: 'Долги', hint: 'Кто кому должен' },
+  { id: 'goals', label: 'Цели', hint: 'Копить на что-то' },
+  { id: 'sms', label: 'SMS от банка', hint: 'Через «Команды» iOS' },
 ];
 
 export const DEFAULT_CATEGORIES: { kind: 'expense' | 'income'; names: string[] }[] = [

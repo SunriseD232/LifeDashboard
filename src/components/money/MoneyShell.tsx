@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, apiDirect } from '@/lib/api';
 import { localDay } from '@/lib/dates';
-import { convert, type MoneyOp, type MoneyState } from '@/lib/money';
+import { convert, opEffect, type MoneyOp, type MoneyState } from '@/lib/money';
+import { flush, onOutboxChange, outbox, type Queued } from '@/lib/offline';
+import { registerOffline } from '@/lib/pushClient';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import Login from '../Login';
@@ -81,16 +83,38 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     timer.current = setTimeout(() => setToastText(null), 4000);
   }, []);
 
+  const [offlineAt, setOfflineAt] = useState<number | null>(null);
+  const [, setQueueTick] = useState(0);
+
   const reload = useCallback(async () => {
     try {
       const fresh = await api<MoneyState>(`money/state?month=${monthRef.current}`);
       setData(fresh);
+      setOfflineAt(null);
       setStatus('ready');
+      if (monthRef.current === localDay().slice(0, 7)) saveCache(fresh);
     } catch (e) {
+      if ((e as { offline?: boolean }).offline) {
+        // Без сети — что уже на экране, иначе сохранённая копия.
+        const cached = loadCache();
+        setData((cur) => cur ?? cached?.state ?? null);
+        setOfflineAt((at) => at ?? cached?.at ?? Date.now());
+        setStatus((s) => (cached || s === 'ready' ? 'ready' : 'error'));
+        return;
+      }
       const code = (e as { status?: number }).status;
       setStatus(code === 401 ? 'guest' : code === 403 ? 'forbidden' : 'error');
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Отправить то, что записали без сети, и обновиться. */
+  const sync = useCallback(async () => {
+    if (!outbox().length || !navigator.onLine) return;
+    const r = await flush(apiDirect);
+    if (r.sent || r.rejected) await reload();
+    if (r.sent) toast(`Отправлено без сети записанное: ${r.sent}`);
+    if (r.rejected) toast(`Не принято сервером: ${r.rejected} — проверьте операции`);
+  }, [reload, toast]);
 
   const setMonth = useCallback(
     (m: string) => {
@@ -102,12 +126,21 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   );
 
   useEffect(() => {
-    reload();
-    // Вернулись в приложение — данные могли поменяться у семьи.
-    const onVisible = () => !document.hidden && reload();
+    // Сервис-воркер LifeDashboard: страницы и файлы — из кэша без сети.
+    registerOffline();
+    reload().then(sync);
+    // Вернулись в приложение — данные могли поменяться у семьи; появилась сеть — отправить очередь.
+    const onVisible = () => !document.hidden && sync().then(reload);
+    const onOnline = () => sync().then(reload);
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [reload]);
+    window.addEventListener('online', onOnline);
+    const off = onOutboxChange(() => setQueueTick((n) => n + 1));
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+      off();
+    };
+  }, [reload, sync]);
 
   if (status === 'loading') {
     return (
@@ -140,10 +173,12 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   }
   if (!data.settings) return <MoneyOnboarding onDone={reload} />;
 
+  const queued = outbox().filter((q) => q.path.startsWith('money/'));
+  const shownData = withPending(data, queued);
   const rateOf = (code: string) => (code === 'RUB' ? 1 : data.rates[code] ?? data.user_rates[code]);
   const base = data.settings.base_currency;
   const value: MoneyContext = {
-    data,
+    data: shownData,
     reload,
     month,
     setMonth,
@@ -161,6 +196,12 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   return (
     <Ctx.Provider value={value}>
       <div className="m-app">
+        {(offlineAt || queued.length > 0) && (
+          <div className="m-offline" role="status">
+            {offlineAt ? `Нет сети — данные от ${new Date(offlineAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Сеть есть'}
+            {queued.length > 0 && ` · ждут отправки: ${queued.length}`}
+          </div>
+        )}
         {children}
         <nav className="m-tabbar" aria-label="Разделы">
           {TABS.map((t) => (
@@ -182,4 +223,68 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
       )}
     </Ctx.Provider>
   );
+}
+
+const CACHE = 'money:state';
+
+/** Копия данных текущего месяца — чтобы открыться без сети. Стирается вместе с аккаунтом. */
+function saveCache(state: MoneyState) {
+  try {
+    localStorage.setItem(CACHE, JSON.stringify({ v: 1, at: Date.now(), state }));
+  } catch {
+    /* место кончилось — без офлайна, но работаем */
+  }
+}
+function loadCache(): { at: number; state: MoneyState } | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE) ?? 'null') as { v: number; at: number; state: MoneyState } | null;
+    return c?.v === 1 ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Операции, записанные без сети, видны сразу: в списке (с временным id) и в
+ * остатках счетов. Когда сеть вернётся, их отправит очередь, и данные с
+ * сервера заменят эти черновые.
+ */
+function withPending(data: MoneyState, queued: Queued[]): MoneyState {
+  const adds = queued.filter((q) => q.path === 'money/ops' && q.method === 'POST' && q.tempId);
+  if (!adds.length) return data;
+  const ops: MoneyOp[] = [];
+  for (const q of adds) {
+    const b = (q.body ?? {}) as Record<string, unknown>;
+    const acc = data.accounts.find((a) => a.id === b.account_id);
+    if (!acc || typeof b.day !== 'string' || !b.day.startsWith(data.month)) continue;
+    const to = data.accounts.find((a) => a.id === b.to_account_id);
+    const kind = b.kind as MoneyOp['kind'];
+    ops.push({
+      id: q.tempId!,
+      kind,
+      day: b.day,
+      account_id: acc.id,
+      amount_minor: Number(b.amount_minor) || 0,
+      currency: acc.currency,
+      to_account_id: to?.id ?? null,
+      to_amount_minor: kind === 'transfer' ? Number(b.amount_minor) || 0 : b.to_amount_minor ? Number(b.to_amount_minor) : null,
+      to_currency: to?.currency ?? null,
+      orig_amount_minor: b.orig_amount_minor ? Number(b.orig_amount_minor) : null,
+      orig_currency: typeof b.orig_currency === 'string' ? b.orig_currency : null,
+      category_id: typeof b.category_id === 'string' ? b.category_id : null,
+      category_name: data.categories.find((c) => c.id === b.category_id)?.name ?? null,
+      payee: typeof b.payee === 'string' ? b.payee : null,
+      note: 'ждёт отправки',
+      source: typeof b.source === 'string' ? b.source : 'manual',
+      debt_id: null,
+      mine: true,
+      author: null,
+      items_count: Array.isArray(b.items) ? b.items.length : 0,
+    });
+  }
+  return {
+    ...data,
+    ops: [...ops, ...data.ops].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0)),
+    accounts: data.accounts.map((a) => ({ ...a, balance_minor: a.balance_minor + ops.reduce((s, o) => s + opEffect(o, a.id), 0) })),
+  };
 }

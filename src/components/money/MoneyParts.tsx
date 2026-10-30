@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
@@ -115,6 +116,7 @@ export function OpRow({ op, accounts }: { op: MoneyOp; accounts: MoneyAccount[] 
     op.kind === 'transfer' || op.kind === 'exchange' ? `${from?.name ?? '?'} → ${to?.name ?? '?'}` : op.payee ? op.category_name : null,
     op.kind === 'transfer' || op.kind === 'exchange' ? null : from?.name,
     op.items_count ? `чек, ${op.items_count} поз.` : null,
+    op.debt_id ? 'долг' : op.source === 'sms' ? 'из SMS' : op.source === 'recurring' ? 'регулярный' : null,
     op.author,
   ].filter(Boolean);
   return (
@@ -185,4 +187,47 @@ export function ScopeSwitch({ scope, onChange }: { scope: Scope; onChange: (s: S
       ))}
     </div>
   );
+}
+
+/** Нижнее окно «Денег»: заголовок, крестик, закрытие по тапу мимо. */
+export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="sheet-head">
+          <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>
+            {title}
+          </h2>
+          <button className="icon-btn bare" type="button" onClick={onClose} aria-label="Закрыть">
+            <Icon name="x" />
+          </button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+/** Шапка вложенного экрана: «назад» в «Ещё» и заголовок. */
+export function SubHead({ title, children }: { title: string; children?: React.ReactNode }) {
+  return (
+    <header className="m-head">
+      <Link className="icon-btn bare" href="/money/settings" aria-label="Назад">
+        <Icon name="back" />
+      </Link>
+      <h1 className="display m-h1" style={{ flex: 1 }}>
+        {title}
+      </h1>
+      {children}
+    </header>
+  );
+}
+
+/** «5 нояб», «сегодня», «завтра». */
+export function shortDay(day: string, today: string): string {
+  if (day === today) return 'сегодня';
+  const t = new Date(`${today}T12:00:00`);
+  t.setDate(t.getDate() + 1);
+  if (day === t.toISOString().slice(0, 10)) return 'завтра';
+  return new Date(`${day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
 }

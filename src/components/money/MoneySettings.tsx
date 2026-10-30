@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { CURRENCIES, currency } from '@/lib/currencies';
@@ -31,10 +32,11 @@ export default function MoneySettings() {
     <>
       <header className="m-head">
         <h1 className="display m-h1" style={{ flex: 1 }}>
-          Настройки
+          Ещё
         </h1>
       </header>
       <main className="m-main">
+        <Hub />
         <h2 className="group-title">Что показывать</h2>
         <div className="m-card" style={{ gap: 0, padding: '0 14px' }}>
           {MODULES.filter((m) => (m.id === 'family' ? data.family : ['ai', 'voice', 'receipts'].includes(m.id) ? data.ai : true)).map((m) => (
@@ -118,6 +120,39 @@ export default function MoneySettings() {
         </div>
       </main>
     </>
+  );
+}
+
+const HUB: { href: string; module: string; icon: string; title: string; hint: (d: ReturnType<typeof useMoney>['data']) => string }[] = [
+  { href: '/money/recurring', module: 'recurring', icon: 'repeat', title: 'Регулярные платежи', hint: (d) => (d.recurring.length ? `${d.recurring.filter((r) => r.active).length} активных` : 'Подписки, аренда, связь') },
+  { href: '/money/debts', module: 'debts', icon: 'users', title: 'Долги', hint: (d) => (d.debts.some((x) => !x.closed) ? `открытых: ${d.debts.filter((x) => !x.closed).length}` : 'Кто кому должен') },
+  { href: '/money/goals', module: 'goals', icon: 'flag', title: 'Цели', hint: (d) => (d.goals.length ? `${d.goals.length} целей` : 'Копить на отпуск, подушку') },
+  { href: '/money/import', module: 'import', icon: 'download', title: 'Импорт выписки', hint: () => 'Файл банка или скриншоты' },
+  { href: '/money/sms', module: 'sms', icon: 'chat', title: 'SMS от банка', hint: (d) => (d.sms_on ? 'подключены' : 'Записывать покупки сами') },
+];
+
+/** Разделы «Денег», которые не в нижнем меню. */
+function Hub() {
+  const { data, shown } = useMoney();
+  const items = HUB.filter((h) => shown(h.module));
+  if (!items.length) return null;
+  return (
+    <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
+      {items.map((h) => (
+        <Link key={h.href} className="m-op" href={h.href}>
+          <span className="m-op-ic">
+            <Icon name={h.icon} />
+          </span>
+          <span className="m-op-t">
+            <b>{h.title}</b>
+            <small>{h.hint(data)}</small>
+          </span>
+          <span className="muted m-flip" aria-hidden="true">
+            <Icon name="back" size={18} />
+          </span>
+        </Link>
+      ))}
+    </div>
   );
 }
 

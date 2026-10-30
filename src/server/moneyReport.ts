@@ -33,7 +33,7 @@ export function flow(d: Database.Database, userId: string, from: string, to: str
   const base = readMoneySettings(d, userId)!.base_currency;
   const shared = new Map(readAccounts(d, userId).map((a) => [a.id, a.shared]));
   const ops = readOps(d, userId, from, to).filter((o) => {
-    if (o.kind !== 'expense' && o.kind !== 'income') return false;
+    if ((o.kind !== 'expense' && o.kind !== 'income') || o.debt_id) return false;
     const s = shared.get(o.account_id) ?? false;
     return scope === 'all' || (scope === 'family' ? s : !s);
   });

@@ -23,134 +23,18 @@ import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
 import { ask, monthFlow, prices, readBudgets, report, setBudget, type Scope } from '../moneyReport';
 import { PERIODS, type Period } from '@/lib/moneyReport';
 import { validMapping } from '@/lib/moneyImport';
+import { debts, goals, processRecurring, readDebts, readGoals, readRecurring, recurring } from '../moneyPlans';
+import { smsCreate, smsDelete, smsPreview, smsSetAccount, smsStatus } from '../moneySms';
+import { moscowDay } from '../moneyRates';
+import { currencyCode, currencyList, insertOp, items, opFields, ownCategory, rememberCurrency, saveItems, settingsRequired, signedMinor } from '../moneyOps';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
-/** Сумма в минимальных единицах: целое > 0 (или ≥ 0, если zero). */
-function minor(v: unknown, field: string, zero = false): number {
-  const n = Number(v);
-  if (!Number.isSafeInteger(n) || n < 0 || (!zero && n === 0)) throw new HttpError(400, `Неверная сумма: «${field}».`);
-  return n;
-}
-
-function signedMinor(v: unknown, field: string): number {
-  const n = Number(v ?? 0);
-  if (!Number.isSafeInteger(n)) throw new HttpError(400, `Неверная сумма: «${field}».`);
-  return n;
-}
-
-function currencyCode(v: unknown): string {
-  if (!isCurrency(v)) throw new HttpError(400, 'Неизвестная валюта.');
-  return v;
-}
-
-function currencyList(v: unknown): string[] {
-  if (!Array.isArray(v) || v.length > 60) throw new HttpError(400, 'Неверный список валют.');
-  return [...new Set(v.map(currencyCode))];
-}
-
-function settingsRequired(d: Ctx['d'], userId: string) {
-  const s = readMoneySettings(d, userId);
-  if (!s) throw new HttpError(409, 'Сначала выберите валюты.');
-  return s;
-}
-
-/** Своя категория нужного вида — её id, иначе null. */
-function ownCategory(d: Ctx['d'], userId: string, id: unknown, kind: 'expense' | 'income'): string | null {
-  if (id === null || id === undefined || id === '') return null;
-  const row = d.prepare('select id from money_categories where id = ? and user_id = ? and kind = ?').get(id, userId, kind) as { id: string } | undefined;
-  if (!row) throw new HttpError(400, 'Нет такой категории.');
-  return row.id;
-}
-
-/** Валюту стали использовать — добавить её в список человека. */
-function rememberCurrency(d: Ctx['d'], userId: string, code: string) {
-  const s = readMoneySettings(d, userId);
-  if (s && code !== s.base_currency && !s.currencies.includes(code)) {
-    d.prepare('update money_settings set currencies = ? where user_id = ?').run(JSON.stringify([...s.currencies, code]), userId);
-  }
-}
-
-interface ItemIn {
-  name: string;
-  qty: number;
-  unit: string | null;
-  price_minor: number | null;
-  total_minor: number;
-  category_id: string | null;
-}
-
-function items(d: Ctx['d'], userId: string, v: unknown): ItemIn[] {
-  if (v === undefined || v === null) return [];
-  if (!Array.isArray(v) || v.length > 300) throw new HttpError(400, 'Неверный список позиций.');
-  return v.map((raw) => {
-    const it = (raw ?? {}) as Record<string, unknown>;
-    const qty = it.qty === undefined || it.qty === null || it.qty === '' ? 1 : Number(it.qty);
-    if (!Number.isFinite(qty) || qty <= 0 || qty > 100000) throw new HttpError(400, 'Неверное количество в позиции.');
-    return {
-      name: text(it.name, 200, 'Позиция') as string,
-      qty,
-      unit: text(it.unit, 10, 'Единица', true),
-      price_minor: it.price_minor === undefined || it.price_minor === null ? null : minor(it.price_minor, 'Цена', true),
-      total_minor: minor(it.total_minor, 'Сумма позиции', true),
-      category_id: ownCategory(d, userId, it.category_id, 'expense'),
-    };
-  });
-}
-
-/** Поля операции из тела запроса — проверенные и с валютами счетов. */
-function opFields(d: Ctx['d'], userId: string, body: Record<string, unknown>, keepCategory: string | null = null) {
-  const kind = body.kind as OpKind;
-  if (!OP_KINDS.includes(kind)) throw new HttpError(400, 'Неверный тип операции.');
-  if (typeof body.day !== 'string' || !DAY_RE.test(body.day)) throw new HttpError(400, 'Неверная дата.');
-  const acc = visibleAccount(d, userId, body.account_id);
-  if (!acc) throw new HttpError(400, 'Нет такого счёта.');
-  const amount = minor(body.amount_minor, 'Сумма');
-  let to: { id: string; currency: string } | null = null;
-  let toAmount: number | null = null;
-  if (kind === 'transfer' || kind === 'exchange') {
-    const t = visibleAccount(d, userId, body.to_account_id);
-    if (!t) throw new HttpError(400, 'Выберите счёт, куда пришли деньги.');
-    if (t.id === acc.id) throw new HttpError(400, 'Счета «откуда» и «куда» должны быть разными.');
-    to = t;
-    if (kind === 'transfer') {
-      if (t.currency !== acc.currency) throw new HttpError(400, 'У счетов разные валюты — это обмен, а не перевод.');
-      toAmount = amount;
-    } else {
-      if (t.currency === acc.currency) throw new HttpError(400, 'У счетов одна валюта — это перевод, а не обмен.');
-      toAmount = minor(body.to_amount_minor, 'Получено');
-    }
-  }
-  let orig: { minor: number; currency: string } | null = null;
-  if ((kind === 'expense' || kind === 'income') && body.orig_currency && body.orig_currency !== acc.currency) {
-    orig = { minor: minor(body.orig_amount_minor, 'Сумма в валюте покупки'), currency: currencyCode(body.orig_currency) };
-  }
-  const catKind = kind === 'income' ? 'income' : 'expense';
-  return {
-    kind,
-    day: body.day,
-    account_id: acc.id,
-    amount_minor: amount,
-    currency: acc.currency,
-    to_account_id: to?.id ?? null,
-    to_amount_minor: toAmount,
-    to_currency: to?.currency ?? null,
-    orig_amount_minor: orig?.minor ?? null,
-    orig_currency: orig?.currency ?? null,
-    // Семейную операцию могут править все в семье — её категория может быть
-    // не своей: оставляем как есть.
-    category_id: kind === 'expense' || kind === 'income' ? (keepCategory && body.category_id === keepCategory ? keepCategory : ownCategory(d, userId, body.category_id, catKind)) : null,
-    payee: text(body.payee, 120, 'Где', true),
-    note: text(body.note, 2000, 'Заметка', true),
-  };
-}
-
-function saveItems(d: Ctx['d'], opId: string, list: ItemIn[]) {
-  d.prepare('delete from money_items where op_id = ?').run(opId);
-  const add = d.prepare(
-    'insert into money_items (id, op_id, position, name, norm_name, qty, unit, price_minor, total_minor, category_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  );
-  list.forEach((it, i) => add.run(randomUUID(), opId, i, it.name, normItem(it.name) || null, it.qty, it.unit, it.price_minor, it.total_minor, it.category_id));
+/** Последние 4 цифры карты для SMS: «1234» или пусто. */
+function last4(v: unknown): string | null {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v !== 'string' || !/^\d{4}$/.test(v.trim())) throw new HttpError(400, 'Последние цифры карты — ровно 4 цифры.');
+  return v.trim();
 }
 
 function monthRange(month: string): [string, string] {
@@ -185,6 +69,8 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     if (!MONTH_RE.test(month)) throw new HttpError(400, 'Неверный месяц.');
     // Курсы на сегодня — подождём недолго, иначе отдадим вчерашние.
     await Promise.race([refreshRates(d), new Promise((r) => setTimeout(r, 2500))]);
+    // Наступившие регулярные платежи «записывать сам» — до чтения операций.
+    if (readMoneySettings(d, userId)) processRecurring(d, userId, moscowDay());
     const { rates, day } = todayRates(d);
     const [from, to] = monthRange(month);
     const state: MoneyState = {
@@ -202,8 +88,21 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       budgets: [],
       month_parts: [],
       prev_spend: { mine: 0, family: 0 },
+      recurring: [],
+      debts: [],
+      goals: [],
+      sms_on: false,
     };
-    if (state.settings) Object.assign(state, { budgets: readBudgets(d, userId), ...monthFlow(d, userId, month) });
+    if (state.settings) {
+      Object.assign(state, {
+        budgets: readBudgets(d, userId),
+        ...monthFlow(d, userId, month),
+        recurring: readRecurring(d, userId),
+        debts: readDebts(d, userId),
+        goals: readGoals(d, userId),
+        sms_on: smsStatus(d, userId).on,
+      });
+    }
     return state;
   }
 
@@ -273,6 +172,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
         signedMinor(body.opening_minor, 'Остаток'),
         pos,
       );
+      if (body.card_last4) d.prepare('update money_accounts set card_last4 = ? where id = ?').run(last4(body.card_last4), aid);
       rememberCurrency(d, userId, cur);
       return { id: aid };
     }
@@ -281,6 +181,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     if (method === 'PATCH') {
       if (body.name !== undefined) d.prepare('update money_accounts set name = ? where id = ?').run(text(body.name, 60, 'Название счёта'), acc.id);
       if (body.kind !== undefined && ACCOUNT_KINDS.some((k) => k.id === body.kind)) d.prepare('update money_accounts set kind = ? where id = ?').run(body.kind, acc.id);
+      if (body.card_last4 !== undefined) d.prepare('update money_accounts set card_last4 = ? where id = ?').run(last4(body.card_last4), acc.id);
       if (body.opening_minor !== undefined) d.prepare('update money_accounts set opening_minor = ? where id = ?').run(signedMinor(body.opening_minor, 'Остаток'), acc.id);
       if (body.archived !== undefined) d.prepare('update money_accounts set archived = ? where id = ?').run(body.archived ? 1 : 0, acc.id);
       if (body.shared !== undefined) {
@@ -375,6 +276,27 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     }
   }
 
+  if (sub === 'recurring') {
+    settingsRequired(d, userId);
+    return recurring(d, userId, method, id, typeof body.do === 'string' ? body.do : undefined, body, moscowDay());
+  }
+  if (sub === 'debts') {
+    settingsRequired(d, userId);
+    return debts(d, userId, method, id, typeof body.do === 'string' ? body.do : undefined, body);
+  }
+  if (sub === 'goals') {
+    settingsRequired(d, userId);
+    return goals(d, userId, method, id, body);
+  }
+  if (sub === 'sms') {
+    settingsRequired(d, userId);
+    if (method === 'GET' && !id) return smsStatus(d, userId);
+    if (method === 'POST' && !id) return smsCreate(d, userId, body.account_id);
+    if (method === 'PATCH' && !id) return smsSetAccount(d, userId, body.account_id);
+    if (method === 'DELETE' && !id) return smsDelete(d, userId);
+    if (method === 'POST' && id === 'preview') return smsPreview(d, userId, body);
+  }
+
   if (sub === 'report' && method === 'GET') {
     settingsRequired(d, userId);
     const q = req.nextUrl.searchParams;
@@ -448,7 +370,7 @@ function commitImport(d: Ctx['d'], userId: string, body: Record<string, unknown>
       if (r.action === 'link') {
         const op = visibleOp(d, userId, r.link_id);
         if (!op) throw new HttpError(400, 'Операция для склейки не найдена — обновите импорт.');
-        d.prepare("update money_ops set import_key = ?, updated_at = datetime('now') where id = ? and import_key is null").run(key, op.id);
+        d.prepare("update money_ops set import_key = ?, updated_at = datetime('now') where id = ? and (import_key is null or source = 'sms')").run(key, op.id);
         linked++;
         continue;
       }

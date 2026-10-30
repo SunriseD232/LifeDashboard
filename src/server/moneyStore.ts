@@ -48,6 +48,7 @@ interface AccountRow {
   position: number;
   author: string | null;
   balance_minor: number;
+  card_last4: string | null;
 }
 
 export function readAccounts(d: Database.Database, userId: string): MoneyAccount[] {
@@ -76,6 +77,7 @@ export function readAccounts(d: Database.Database, userId: string): MoneyAccount
     mine: r.user_id === userId,
     author: r.user_id === userId ? null : r.author,
     balance_minor: r.balance_minor,
+    card_last4: r.card_last4,
   }));
 }
 
@@ -112,7 +114,7 @@ export function readOps(d: Database.Database, userId: string, from: string, to: 
   const rows = d
     .prepare(
       `select o.id, o.user_id, o.kind, o.day, o.account_id, o.amount_minor, o.currency, o.to_account_id, o.to_amount_minor,
-         o.to_currency, o.orig_amount_minor, o.orig_currency, o.category_id, c.name as category_name, o.payee, o.note, o.source,
+         o.to_currency, o.orig_amount_minor, o.orig_currency, o.category_id, c.name as category_name, o.payee, o.note, o.source, o.debt_id,
          u.login as author, (select count(*) from money_items i where i.op_id = o.id) as items_count
        from money_ops o
          join money_accounts a on a.id = o.account_id

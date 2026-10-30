@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react';
 import { money } from '@/lib/currencies';
 import { localDay } from '@/lib/dates';
 import { useMoney } from './MoneyShell';
-import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, type Scope } from './MoneyParts';
+import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shortDay, type Scope } from './MoneyParts';
+import { DueList } from './MoneyRecurring';
+import { useGoalProgress } from './MoneyGoals';
 
 /**
  * Главная «Денег»: сколько всего на счетах (в основной валюте), счета,
@@ -158,6 +160,11 @@ export default function MoneyHome() {
           </section>
         )}
 
+        {shown('recurring') && <DueList />}
+        {shown('recurring') && <Upcoming />}
+        {shown('goals') && <GoalsCard />}
+        {shown('debts') && <DebtsCard />}
+
         {ops.length > 0 && (
           <section className="m-card" style={{ gap: 0 }}>
             <div className="m-card-head" style={{ marginBottom: 4 }}>
@@ -174,5 +181,88 @@ export default function MoneyHome() {
       </main>
       <QuickBar />
     </>
+  );
+}
+
+/** Что спишется в ближайшие две недели. */
+function Upcoming() {
+  const { data } = useMoney();
+  const today = localDay();
+  const soon = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+  const list = data.recurring.filter((r) => r.active && r.next_day <= soon && !(r.mode === 'ask' && r.next_day <= today)).slice(0, 5);
+  if (!list.length) return null;
+  return (
+    <section className="m-card" style={{ gap: 0 }}>
+      <div className="m-card-head" style={{ marginBottom: 4 }}>
+        <h2 className="m-card-title">Скоро списания</h2>
+        <Link className="m-card-link" href="/money/recurring">
+          Все
+        </Link>
+      </div>
+      {list.map((r) => (
+        <div key={r.id} className="m-kv m-kv-row">
+          <span>
+            <span className="muted m-small">{shortDay(r.next_day, today)}</span> {r.payee}
+          </span>
+          <span className={`mono${r.kind === 'income' ? ' m-pos' : ''}`}>{money(r.amount_minor, r.currency, { trim: true })}</span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function GoalsCard() {
+  const { data } = useMoney();
+  const progress = useGoalProgress();
+  if (!data.goals.length) return null;
+  return (
+    <section className="m-card">
+      <div className="m-card-head">
+        <h2 className="m-card-title">Цели</h2>
+        <Link className="m-card-link" href="/money/goals">
+          Все
+        </Link>
+      </div>
+      {data.goals.slice(0, 3).map((g) => {
+        const p = progress(g);
+        return (
+          <div key={g.id} className="m-catbar">
+            <div className="m-row-between">
+              <span>{g.name}</span>
+              <span className="mono">
+                {money(p.have, g.currency, { trim: true })} <span className="muted">/ {money(g.target_minor, g.currency, { trim: true })}</span>
+              </span>
+            </div>
+            <div className="bar">
+              <i style={{ width: `${Math.max(2, Math.round(p.share * 100))}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** Итог по долгам в основной валюте: сколько должны мне и сколько я. */
+function DebtsCard() {
+  const { data, toBase } = useMoney();
+  const open = data.debts.filter((x) => !x.closed);
+  if (!open.length) return null;
+  const base = data.settings!.base_currency;
+  const sum = (dir: 'lent' | 'borrowed') => open.filter((x) => x.direction === dir).reduce((s, x) => s + (toBase(x.amount_minor - x.paid_minor, x.currency) ?? 0), 0);
+  const late = open.filter((x) => x.due_day && x.due_day < localDay()).length;
+  return (
+    <Link className="m-card m-debts" href="/money/debts">
+      <h2 className="m-card-title">Долги</h2>
+      <div className="m-row-between">
+        <span className="muted">Мне должны</span>
+        <span className="mono">{money(sum('lent'), base, { trim: true })}</span>
+      </div>
+      <div className="m-row-between">
+        <span className="muted">Я должен</span>
+        <span className="mono">{money(sum('borrowed'), base, { trim: true })}</span>
+      </div>
+      {late > 0 && <small className="m-up">Просрочено: {late}</small>}
+    </Link>
   );
 }

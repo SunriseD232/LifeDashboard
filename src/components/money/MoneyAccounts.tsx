@@ -96,6 +96,7 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
   const [opening, setOpening] = useState(account ? formatMinor(account.opening_minor, account.currency).replace(/ /g, '').replace('−', '-') : '');
   const [shared, setShared] = useState(account?.shared ?? false);
   const [archived, setArchived] = useState(account?.archived ?? false);
+  const [last4, setLast4] = useState(account?.card_last4 ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const readOnly = !!account && !account.mine;
@@ -107,7 +108,8 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
     const n = opening.trim() ? parseAmount(opening.replace(/^\s*[−-]/, ''), cur) : 0;
     if (n === null) return setError('Не понял остаток — введите число, например 15 000.');
     if (!name.trim()) return setError('Как назвать счёт?');
-    const body = { name: name.trim(), kind, currency: cur, opening_minor: neg ? -n : n, shared, archived };
+    if (last4.trim() && !/^\d{4}$/.test(last4.trim())) return setError('Последние цифры карты — ровно 4 цифры.');
+    const body = { name: name.trim(), kind, currency: cur, opening_minor: neg ? -n : n, shared, archived, card_last4: last4.trim() || null };
     setBusy(true);
     try {
       await (account ? api(`money/accounts/${account.id}`, 'PATCH', body) : api('money/accounts', 'POST', body));
@@ -182,6 +184,13 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
               <span className="label">{account ? 'Начальный остаток' : 'Сколько на нём сейчас'}</span>
               <input className="field" inputMode="decimal" placeholder="0" value={opening} onChange={(e) => setOpening(e.target.value)} />
             </label>
+            {shown('sms') && kind === 'card' && (
+              <label className="m-field">
+                <span className="label">Последние 4 цифры карты</span>
+                <input className="field mono" inputMode="numeric" maxLength={4} placeholder="1234" value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, ''))} />
+                <span className="muted m-small">По ним SMS от банка попадёт на этот счёт.</span>
+              </label>
+            )}
             {data.family && shown('family') && (
               <label className="m-check">
                 <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />

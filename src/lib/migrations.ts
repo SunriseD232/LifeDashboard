@@ -866,6 +866,80 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 18,
+    name: 'Деньги: регулярные платежи, долги, цели, SMS',
+    up: (db) =>
+      db.exec(`
+    -- Регулярный платёж: подписка, аренда, зарплата. next_day — когда
+    -- следующий; mode auto — запишется сам, ask — спросит. anchor_day —
+    -- исходное число месяца (31-е в феврале становится 28-м, а в марте снова 31-м).
+    create table money_recurring (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      account_id text not null references money_accounts(id) on delete cascade,
+      kind text not null check (kind in ('expense', 'income')),
+      amount_minor integer not null,
+      category_id text references money_categories(id) on delete set null,
+      payee text not null,
+      note text,
+      unit text not null check (unit in ('week', 'month', 'year')),
+      every integer not null default 1,
+      anchor_day integer not null,
+      next_day text not null,
+      mode text not null default 'ask' check (mode in ('auto', 'ask')),
+      active integer not null default 1,
+      created_at text not null default (datetime('now'))
+    );
+    create index money_recurring_user_idx on money_recurring (user_id, next_day);
+
+    -- Долг: дал в долг (lent) или взял (borrowed). Деньги через счёт —
+    -- обычные операции с debt_id: остаток счёта верный, а в отчёты о
+    -- тратах и доходах они не попадают.
+    create table money_debts (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      person text not null,
+      direction text not null check (direction in ('lent', 'borrowed')),
+      amount_minor integer not null,
+      currency text not null,
+      day text not null,
+      due_day text,
+      note text,
+      closed integer not null default 0,
+      created_at text not null default (datetime('now'))
+    );
+    alter table money_ops add column debt_id text references money_debts(id) on delete set null;
+    create index money_ops_debt_idx on money_ops (debt_id);
+
+    -- Цель накоплений: на счёте (прогресс — его остаток) или вручную (saved_minor).
+    create table money_goals (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      name text not null,
+      target_minor integer not null,
+      currency text not null,
+      account_id text references money_accounts(id) on delete set null,
+      saved_minor integer not null default 0,
+      due_day text,
+      archived integer not null default 0,
+      created_at text not null default (datetime('now'))
+    );
+
+    -- Ключ для «Команд» iOS: SMS банка → операция. Храним только хэш.
+    create table money_sms_tokens (
+      user_id text primary key references users(id) on delete cascade,
+      token_hash text not null unique,
+      account_id text references money_accounts(id) on delete set null,
+      created_at text not null default (datetime('now')),
+      last_used text,
+      used_today integer not null default 0,
+      used_day text
+    );
+    -- Последние 4 цифры карты — по ним SMS попадает на нужный счёт.
+    alter table money_accounts add column card_last4 text;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
