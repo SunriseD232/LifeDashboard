@@ -227,6 +227,19 @@ const PATHS: Record<string, JSX.Element> = {
   chat: <path d="M4 5h16v11H9l-5 4z" />,
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  wallet: (
+    <>
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10h18M16 14.5h2" />
+    </>
+  ),
+  exchange: <path d="M4 8h13l-3-3M20 16H7l3 3" />,
+  receipt: (
+    <>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+      <path d="M9 8h6M9 12h6" />
+    </>
+  ),
   logout: (
     <>
       <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />

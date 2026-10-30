@@ -718,6 +718,116 @@ export const MIGRATIONS: Migration[] = [
     alter table user_settings add column task_hidden text not null default '[]';
     `),
   },
+  {
+    version: 15,
+    name: 'Деньги: счета, операции, позиции чека, категории, курсы',
+    up: (db) =>
+      db.exec(`
+    -- «Деньги» (/money) — отдельный раздел со своими таблицами, с остальным
+    -- LifeDashboard общие только пользователи и семья. Суммы — целые числа в
+    -- минимальных единицах валюты (копейки, центы; у иены — сами иены, см.
+    -- src/lib/currencies.ts), чтобы не было ошибок округления.
+
+    -- Настройки человека: основная валюта, какими пользуется, что спрятано.
+    -- Нет строки — первый запуск ещё не пройден.
+    create table money_settings (
+      user_id text primary key references users(id) on delete cascade,
+      base_currency text not null,
+      currencies text not null default '[]',
+      hidden text not null default '[]',
+      created_at text not null default (datetime('now'))
+    );
+
+    -- Счета. household_id — семейный (видят все в семье), null — личный.
+    create table money_accounts (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      household_id text references households(id) on delete set null,
+      name text not null,
+      kind text not null default 'card',
+      currency text not null,
+      opening_minor integer not null default 0,
+      archived integer not null default 0,
+      position integer not null default 0,
+      created_at text not null default (datetime('now'))
+    );
+    create index money_accounts_user_idx on money_accounts (user_id);
+    create index money_accounts_hh_idx on money_accounts (household_id);
+
+    -- Категории — у каждого свои; kind: expense или income.
+    create table money_categories (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      kind text not null,
+      name text not null,
+      position integer not null default 0,
+      archived integer not null default 0
+    );
+    create index money_categories_user_idx on money_categories (user_id, kind, position);
+
+    -- Операции. kind: expense, income, transfer (между своими счетами в одной
+    -- валюте), exchange (обмен: две суммы в разных валютах). amount_minor —
+    -- всегда положительная, в валюте счёта; куда ушло — to_*. orig_* —
+    -- исходная сумма покупки, если платили в другой валюте (12 € с рублёвой
+    -- карты). Видна тем, кому виден её счёт (или счёт, куда пришли деньги).
+    create table money_ops (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      kind text not null,
+      day text not null,
+      account_id text not null references money_accounts(id) on delete cascade,
+      amount_minor integer not null,
+      currency text not null,
+      to_account_id text references money_accounts(id) on delete cascade,
+      to_amount_minor integer,
+      to_currency text,
+      orig_amount_minor integer,
+      orig_currency text,
+      category_id text references money_categories(id) on delete set null,
+      payee text,
+      note text,
+      source text not null default 'manual',
+      created_at text not null default (datetime('now')),
+      updated_at text not null default (datetime('now'))
+    );
+    create index money_ops_account_idx on money_ops (account_id, day);
+    create index money_ops_to_idx on money_ops (to_account_id);
+    create index money_ops_user_idx on money_ops (user_id, day);
+
+    -- Позиции чека: товар, количество, цена, своя категория. norm_name —
+    -- приведённое название («молоко»), по нему потом смотрим цены.
+    create table money_items (
+      id text primary key,
+      op_id text not null references money_ops(id) on delete cascade,
+      position integer not null default 0,
+      name text not null,
+      norm_name text,
+      qty real not null default 1,
+      unit text,
+      price_minor integer,
+      total_minor integer not null,
+      category_id text references money_categories(id) on delete set null
+    );
+    create index money_items_op_idx on money_items (op_id, position);
+
+    -- Курсы ЦБ: сколько рублей за 1 единицу валюты на день (src/server/moneyRates.ts).
+    create table money_rates (
+      day text not null,
+      currency text not null,
+      rate real not null,
+      primary key (day, currency)
+    );
+
+    -- Свой курс для валют, которых нет у ЦБ (USDT и т.п.): рублей за 1 единицу.
+    create table money_user_rates (
+      user_id text not null references users(id) on delete cascade,
+      currency text not null,
+      rate real not null,
+      updated_at text not null default (datetime('now')),
+      primary key (user_id, currency)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

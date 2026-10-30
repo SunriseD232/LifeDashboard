@@ -127,7 +127,18 @@ function shortDay(d: Date): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/**
+ * «Деньги» (/money) — отдельное приложение со своей оболочкой
+ * (src/components/money/MoneyShell.tsx): каркас LifeDashboard и его данные им
+ * не нужны.
+ */
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (pathname === '/money' || pathname.startsWith('/money/')) return <>{children}</>;
+  return <LdShell>{children}</LdShell>;
+}
+
+function LdShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [status, setStatus] = useState<Status>('loading');
   const [data, setData] = useState<AppData>(EMPTY);

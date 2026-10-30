@@ -1,0 +1,17 @@
+{
+  "name": "Деньги",
+  "short_name": "Деньги",
+  "description": "Траты, счета и валюты",
+  "id": "/task/money",
+  "start_url": "/task/money",
+  "scope": "/task/money",
+  "display": "standalone",
+  "background_color": "#eef3f2",
+  "theme_color": "#eef3f2",
+  "lang": "ru",
+  "icons": [
+    { "src": "/task/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/task/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/task/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

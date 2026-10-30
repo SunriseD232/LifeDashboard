@@ -8,6 +8,7 @@ import { household } from '@/server/api/household';
 import { notes } from '@/server/api/notes';
 import { items } from '@/server/api/items';
 import { kitchen } from '@/server/api/kitchen';
+import { money } from '@/server/api/money';
 import { push } from '@/server/api/push';
 import { reminders } from '@/server/api/reminders';
 import { search } from '@/server/api/search';
@@ -46,6 +47,7 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   notes,
   search,
   kitchen,
+  money,
   ai,
   support,
   workouts,
