@@ -852,6 +852,20 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 17,
+    name: 'Деньги: бюджеты по категориям',
+    up: (db) =>
+      db.exec(`
+    -- Сколько в месяц можно потратить на категорию — в основной валюте.
+    create table money_budgets (
+      user_id text not null references users(id) on delete cascade,
+      category_id text not null references money_categories(id) on delete cascade,
+      limit_minor integer not null,
+      primary key (user_id, category_id)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

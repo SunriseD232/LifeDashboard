@@ -55,6 +55,7 @@ type Status = 'loading' | 'guest' | 'forbidden' | 'ready' | 'error';
 const TABS = [
   { href: '/money', label: 'Главная', icon: 'home' },
   { href: '/money/ops', label: 'Операции', icon: 'list' },
+  { href: '/money/report', label: 'Отчёты', icon: 'chart' },
   { href: '/money/accounts', label: 'Счета', icon: 'wallet' },
   { href: '/money/settings', label: 'Ещё', icon: 'dots' },
 ];

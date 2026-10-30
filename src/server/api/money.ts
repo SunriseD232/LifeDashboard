@@ -20,6 +20,8 @@ import { refreshRates, todayRates } from '../moneyRates';
 import { aiConfigured } from '../ai';
 import { aiReceipt, aiText, aiVoice } from '../moneyAi';
 import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
+import { ask, monthFlow, prices, readBudgets, report, setBudget, type Scope } from '../moneyReport';
+import { PERIODS, type Period } from '@/lib/moneyReport';
 import { validMapping } from '@/lib/moneyImport';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
@@ -169,7 +171,9 @@ function monthRange(month: string): [string, string] {
  *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции;
  *  POST   import/start { kind: 'file', name, data } | { kind: 'screens', images } → { job };
  *  GET    import/job?id= → { status, result?, error? }; POST import/check { account_id, rows } — повторы;
- *  POST   import/commit { account_id, rows, signature?, mapping?, bank? } — записать выбранное.
+ *  POST   import/commit { account_id, rows, signature?, mapping?, bank? } — записать выбранное;
+ *  GET    report?period=week|month|year&day=&scope= — отчёт; PUT budgets { category_id, limit_minor|null };
+ *  GET    prices?q=|key= — цены товаров из чеков; POST ask { question, today } — вопрос ИИ о своих деньгах.
  * Пока раздел тестовый — только для MONEY_USERS (src/server/moneyStore.ts).
  */
 export async function money({ d, userId, method, body, id: sub, action: id, req }: Ctx): Promise<unknown> {
@@ -195,7 +199,11 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       family: !!householdOf(d, userId),
       login,
       ai: aiConfigured(),
+      budgets: [],
+      month_parts: [],
+      prev_spend: { mine: 0, family: 0 },
     };
+    if (state.settings) Object.assign(state, { budgets: readBudgets(d, userId), ...monthFlow(d, userId, month) });
     return state;
   }
 
@@ -365,6 +373,30 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       if (body.archived !== undefined) d.prepare('update money_categories set archived = ? where id = ?').run(body.archived ? 1 : 0, cat.id);
       return { ok: true };
     }
+  }
+
+  if (sub === 'report' && method === 'GET') {
+    settingsRequired(d, userId);
+    const q = req.nextUrl.searchParams;
+    const period = (PERIODS.includes(q.get('period') as Period) ? q.get('period') : 'month') as Period;
+    const anchor = q.get('day') ?? '';
+    if (!DAY_RE.test(anchor)) throw new HttpError(400, 'Неверная дата.');
+    const scope = (['mine', 'family', 'all'].includes(q.get('scope') ?? '') ? q.get('scope') : 'all') as Scope;
+    return report(d, userId, period, anchor, scope);
+  }
+  if (sub === 'budgets' && method === 'PUT') {
+    settingsRequired(d, userId);
+    return setBudget(d, userId, body);
+  }
+  if (sub === 'prices' && method === 'GET') {
+    settingsRequired(d, userId);
+    const q = req.nextUrl.searchParams;
+    return prices(d, userId, (q.get('q') ?? '').slice(0, 60), q.get('key'));
+  }
+  if (sub === 'ask' && method === 'POST') {
+    settingsRequired(d, userId);
+    if (!aiConfigured()) throw new HttpError(503, 'ИИ пока не подключён.');
+    return ask(d, userId, body);
   }
 
   if (sub === 'import') {

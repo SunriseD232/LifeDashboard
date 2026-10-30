@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { DEFAULT_CATEGORIES, type MoneyAccount, type MoneyCategory, type MoneyOp, type MoneySettings } from '@/lib/money';
+import type { PriceRow } from '@/lib/moneyReport';
 import { householdOf } from './household';
 
 /**
@@ -159,4 +160,21 @@ export function readItems(d: Database.Database, opId: string): MoneyItem[] {
 export function readUserRates(d: Database.Database, userId: string): Record<string, number> {
   const rows = d.prepare('select currency, rate from money_user_rates where user_id = ?').all(userId) as { currency: string; rate: number }[];
   return Object.fromEntries(rows.map((r) => [r.currency, r.rate]));
+}
+
+/**
+ * Позиции чеков за полтора года — для цен товаров. Видно то же, что и
+ * операции: свои и семейные счета. Валюта цены — валюта покупки.
+ */
+export function readItemPrices(d: Database.Database, userId: string): PriceRow[] {
+  const a = accountVisible(d, userId, 'a');
+  const since = new Date(Date.now() - 548 * 864e5).toISOString().slice(0, 10);
+  return d
+    .prepare(
+      `select i.norm_name, i.name, i.qty, i.unit, i.price_minor, i.total_minor, o.day, o.payee,
+         coalesce(o.orig_currency, o.currency) as currency
+       from money_items i join money_ops o on o.id = i.op_id join money_accounts a on a.id = o.account_id
+       where o.day >= ? and i.norm_name is not null and ${a.where}`,
+    )
+    .all(since, ...a.params) as PriceRow[];
 }

@@ -84,6 +84,12 @@ export interface MoneyState {
   login: string | null;
   /** ИИ подключён на сервере — есть голос, фото чеков и разбор фраз. */
   ai: boolean;
+  /** Бюджеты на месяц по категориям расходов, в основной валюте. */
+  budgets: { category_id: string; limit_minor: number }[];
+  /** Траты месяца по категориям в основной валюте (чек — по позициям). */
+  month_parts: { op_id: string; category_id: string | null; base_minor: number }[];
+  /** Траты прошлого месяца в основной валюте: по своим и семейным счетам. */
+  prev_spend: { mine: number; family: number };
 }
 
 /**
@@ -98,6 +104,8 @@ export const MODULES: { id: string; label: string; hint?: string }[] = [
   { id: 'voice', label: 'Ввод голосом' },
   { id: 'receipts', label: 'Фото чеков', hint: 'Позиции, категории, проверка по QR' },
   { id: 'import', label: 'Импорт выписок', hint: 'Файлы банков и скриншоты' },
+  { id: 'budgets', label: 'Бюджеты', hint: 'Лимиты на месяц по категориям' },
+  { id: 'prices', label: 'Цены из чеков', hint: 'Как дорожают продукты' },
 ];
 
 export const DEFAULT_CATEGORIES: { kind: 'expense' | 'income'; names: string[] }[] = [

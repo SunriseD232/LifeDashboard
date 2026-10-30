@@ -34,17 +34,25 @@ export default function MoneyHome() {
 
   const ids = new Set(accounts.map((a) => a.id));
   const ops = data.ops.filter((o) => ids.has(o.account_id) || (o.to_account_id && ids.has(o.to_account_id)));
-  const spent = new Map<string, number>();
+  // Траты месяца считает сервер: по курсу на день операции, чек — по категориям позиций.
+  const opById = new Map(data.ops.map((o) => [o.id, o]));
+  const catName = (id: string | null) => (id ? (data.categories.find((c) => c.id === id)?.name ?? data.ops.find((o) => o.category_id === id)?.category_name ?? 'Категория') : 'Без категории');
+  const spent = new Map<string | null, number>();
   let spentTotal = 0;
-  for (const o of ops) {
-    if (o.kind !== 'expense' || !ids.has(o.account_id)) continue;
-    const v = toBase(o.amount_minor, o.currency) ?? 0;
-    spentTotal += v;
-    const k = o.category_name ?? 'Без категории';
-    spent.set(k, (spent.get(k) ?? 0) + v);
+  for (const p of data.month_parts) {
+    const o = opById.get(p.op_id);
+    if (!o || !ids.has(o.account_id)) continue;
+    spentTotal += p.base_minor;
+    spent.set(p.category_id, (spent.get(p.category_id) ?? 0) + p.base_minor);
   }
   const top = [...spent.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const max = top[0]?.[1] ?? 1;
+  const prevSpend = scope === 'all' ? data.prev_spend.mine + data.prev_spend.family : data.prev_spend[scope];
+  const delta = prevSpend > 0 ? Math.round(((spentTotal - prevSpend) / prevSpend) * 100) : null;
+  // Бюджеты — про всё, что человек видит, а не про переключатель «Моё/Семья».
+  const allSpent = new Map<string | null, number>();
+  for (const p of data.month_parts) allSpent.set(p.category_id, (allSpent.get(p.category_id) ?? 0) + p.base_minor);
+  const budgets = shown('budgets') ? data.budgets.map((b) => ({ ...b, name: catName(b.category_id), spent: allSpent.get(b.category_id) ?? 0 })).sort((a, b) => b.spent / b.limit_minor - a.spent / a.limit_minor) : [];
 
   return (
     <>
@@ -96,12 +104,20 @@ export default function MoneyHome() {
         <section className="m-card">
           <div className="m-card-head">
             <h2 className="m-card-title">Траты за месяц</h2>
+            <Link className="m-card-link" href="/money/report">
+              Отчёт
+            </Link>
           </div>
           <div className="display m-sum">{money(spentTotal, base, { trim: true })}</div>
-          {top.map(([name, v]) => (
-            <div key={name} className="m-catbar">
+          {delta !== null && delta !== 0 && (
+            <div className="muted m-small" style={{ marginTop: -6 }}>
+              на {Math.abs(delta)}% {delta < 0 ? 'меньше' : 'больше'}, чем в прошлом месяце
+            </div>
+          )}
+          {top.map(([id, v]) => (
+            <div key={id ?? '-'} className="m-catbar">
               <div className="m-row-between">
-                <span>{name}</span>
+                <span>{catName(id)}</span>
                 <span className="mono">{money(v, base, { trim: true })}</span>
               </div>
               <div className="bar">
@@ -111,6 +127,36 @@ export default function MoneyHome() {
           ))}
           {!top.length && <p className="muted" style={{ margin: 0 }}>В этом месяце трат ещё нет. Напишите внизу, например «кофе 350».</p>}
         </section>
+
+        {budgets.length > 0 && (
+          <section className="m-card">
+            <div className="m-card-head">
+              <h2 className="m-card-title">Бюджеты</h2>
+              <Link className="m-card-link" href="/money/report#budgets">
+                Изменить
+              </Link>
+            </div>
+            {budgets.map((b) => {
+              const share = b.spent / b.limit_minor;
+              return (
+                <div key={b.category_id} className="m-catbar">
+                  <div className="m-row-between">
+                    <span>
+                      {b.name}
+                      {share >= 1 ? <span className="m-tag m-tag-warn">сверх</span> : share >= 0.9 ? <span className="m-tag m-tag-warn">почти всё</span> : null}
+                    </span>
+                    <span className="mono">
+                      {money(b.spent, base, { trim: true })} <span className="muted">/ {money(b.limit_minor, base, { trim: true })}</span>
+                    </span>
+                  </div>
+                  <div className={`bar${share >= 0.9 ? ' warm' : ''}`}>
+                    <i style={{ width: `${Math.min(100, Math.max(2, Math.round(share * 100)))}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         {ops.length > 0 && (
           <section className="m-card" style={{ gap: 0 }}>

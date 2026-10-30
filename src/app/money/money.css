@@ -291,7 +291,7 @@
   transform: translateX(-50%);
   width: min(560px, 100vw);
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: var(--surface);
@@ -822,4 +822,122 @@
   border: 1px solid var(--line-strong);
   background: var(--surface);
   box-shadow: 0 6px 24px var(--shadow);
+}
+
+/* отчёты */
+.m-up {
+  color: var(--warm);
+  font-weight: 600;
+}
+.m-down {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.m-delta {
+  margin-left: 6px;
+  font-size: calc(12px * var(--fs));
+}
+.m-tag-warn {
+  border-color: var(--warm-line);
+  color: var(--warm);
+  background: var(--warm-bg);
+}
+.m-link-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+}
+.m-bars {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+  height: 150px;
+  margin-top: 12px;
+}
+.m-barcol {
+  display: grid;
+  grid-template-rows: 18px 1fr 18px;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.m-barwrap {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
+}
+.m-barwrap i {
+  display: block;
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface));
+}
+.m-barcol.now .m-barwrap i,
+.m-barcol.on .m-barwrap i {
+  background: var(--accent);
+}
+.m-barval {
+  font-size: calc(11px * var(--fs));
+  color: var(--ink);
+  text-align: center;
+  white-space: nowrap;
+  overflow: visible;
+}
+.m-barlbl {
+  font-size: calc(11px * var(--fs));
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.m-barcol.on .m-barlbl {
+  color: var(--ink);
+  font-weight: 600;
+}
+.m-kv-row {
+  border-top: 1px solid var(--line);
+}
+.m-kv-row:first-of-type {
+  border-top: 0;
+}
+.m-budget-row {
+  gap: 12px;
+}
+.m-budget-row .field {
+  width: 120px;
+  text-align: right;
+}
+.m-price {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 6px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.m-answer {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--sel);
+}
+.m-answer p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
 }
