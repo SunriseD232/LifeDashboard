@@ -349,7 +349,8 @@ function SoonTile({ wide }: { wide: boolean }) {
         <span key={r.id} className="hub-li">
           <b>{r.title}</b>
           <small>
-            {shortDate(date, today)} · {r.times[0]}
+            {shortDate(date, today)}
+            {date.slice(0, 4) !== today.slice(0, 4) ? ` ${date.slice(0, 4)}` : ''} · {r.times[0]}
           </small>
         </span>
       ))}

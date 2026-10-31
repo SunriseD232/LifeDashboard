@@ -4037,3 +4037,27 @@ a.hub-tile:hover {
     background: var(--soft);
   }
 }
+
+/* Главная: на телефоне «Сегодня» всегда во всю ширину (в половине не
+   помещается неделя); на компьютере главная — на всю ширину окна. */
+@media (max-width: 860px) {
+  .hub-tile.today {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 861px) {
+  .page:has(> .hub) {
+    max-width: none;
+  }
+  .hub {
+    max-width: none;
+  }
+  .hub-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
+@media (min-width: 861px) {
+  .hub-tile.today {
+    grid-column: span 2;
+  }
+}

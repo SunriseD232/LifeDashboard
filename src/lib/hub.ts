@@ -50,7 +50,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'buy', label: 'Покупка', icon: 'cart' },
   { id: 'gym', label: 'Тренировка', icon: 'dumbbell' },
   { id: 'note', label: 'Заметка', icon: 'note' },
-  { id: 'list', label: 'Чек-листы', icon: 'list' },
+  { id: 'list', label: 'Чек-листы', icon: 'check' },
   { id: 'cook', label: 'Кухня', icon: 'pot' },
   { id: 'report', label: 'Отчёты', icon: 'chart', money: true },
   { id: 'ops', label: 'Операции', icon: 'list', money: true },

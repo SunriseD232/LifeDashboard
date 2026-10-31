@@ -181,16 +181,19 @@ function TilesCard({ p, save }: CardProps) {
               <button className="icon-btn bare" type="button" aria-label={`${t.label} ниже`} disabled={i === tiles.length - 1} onClick={() => set(swap(tiles, i, i + 1))}>
                 <Icon name="down" size={18} />
               </button>
-              <button
-                className="btn btn-ghost"
-                type="button"
-                style={small}
-                aria-label={`${t.label}: ${t.size === 'w' ? 'широкая' : 'маленькая'}, сменить размер`}
-                disabled={t.hidden}
-                onClick={() => set(tiles.map((x, j) => (j === i ? { ...x, size: x.size === 'w' ? 's' : 'w' } : x)))}
-              >
-                {t.size === 'w' ? 'Широкая' : 'Маленькая'}
-              </button>
+              {/* «Сегодня» всегда широкая: в половине не помещается неделя. */}
+              {t.id !== 'today' && (
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  style={small}
+                  aria-label={`${t.label}: ${t.size === 'w' ? 'широкая' : 'маленькая'}, сменить размер`}
+                  disabled={t.hidden}
+                  onClick={() => set(tiles.map((x, j) => (j === i ? { ...x, size: x.size === 'w' ? 's' : 'w' } : x)))}
+                >
+                  {t.size === 'w' ? 'Широкая' : 'Маленькая'}
+                </button>
+              )}
               <button className="btn btn-ghost" type="button" style={small} aria-pressed={!t.hidden} onClick={() => set(tiles.map((x, j) => (j === i ? { ...x, hidden: !x.hidden } : x)))}>
                 {t.hidden ? 'Показать' : 'Скрыть'}
               </button>
