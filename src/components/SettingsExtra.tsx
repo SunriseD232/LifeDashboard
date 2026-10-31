@@ -151,8 +151,12 @@ export function CalendarCard() {
   );
 }
 
-/** Тихие часы и вечерний итог — в «Основном». Время сохраняется само. */
-export function QuietCard() {
+/**
+ * «Ритм дня» — всё, что про время: во сколько напоминать по умолчанию,
+ * утренняя сводка, тихие часы, вечерний итог. Раньше это были три карточки.
+ * Время сохраняется само, когда уходишь из поля.
+ */
+export function RhythmCard() {
   const { data, reload, toast } = useApp();
   const s = data.settings;
   const save = async (body: Record<string, unknown>, ok?: string) => {
@@ -172,30 +176,52 @@ export function QuietCard() {
       <input id={id} className="field mono" type="time" defaultValue={value} onBlur={(e) => e.target.value && e.target.value !== value && onSave(e.target.value)} />
     </div>
   );
+  const hint = { margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' } as const;
   return (
-    <section className="card" aria-labelledby="set-quiet">
-      <h2 className="card-title display" id="set-quiet">
-        <Icon name="moon" />
-        Тишина и итог дня
+    <section className="card" aria-labelledby="set-rhythm">
+      <h2 className="card-title display" id="set-rhythm">
+        <Icon name="clock" />
+        Ритм дня
       </h2>
-      <label className="check" style={{ padding: 0 }}>
-        <input type="checkbox" checked={!!s.quiet_from} onChange={(e) => save(e.target.checked ? { quiet_from: '23:00', quiet_to: '07:00' } : { quiet_from: null, quiet_to: null })} />
-        <span className="check-text">Тихие часы — ночью без уведомлений</span>
-      </label>
-      {s.quiet_from && s.quiet_to && (
-        <>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {timeField('q-from', 'С', s.quiet_from, (v) => save({ quiet_from: v, quiet_to: s.quiet_to }, 'Сохранено'))}
-            {timeField('q-to', 'До', s.quiet_to, (v) => save({ quiet_from: s.quiet_from, quiet_to: v }, 'Сохранено'))}
-          </div>
-          <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Что пришлось на это время и не отмечено — придёт одним сообщением утром.</p>
-        </>
+
+      <div className="rhythm-row">
+        {timeField('set-time', 'Напоминать по умолчанию в', s.deadline_time, (v) => save({ deadline_time: v }, 'Сохранено'))}
+        <p style={hint}>Когда у задачи есть день, а время не указано: «Завтра» в окне задачи и свайпом, фраза без времени, задачи из заметки.</p>
+      </div>
+
+      {data.ai && (
+        <div className="rhythm-row">
+          <label className="check" style={{ padding: 0 }}>
+            <input type="checkbox" checked={!!s.summary_time} onChange={(e) => save({ summary_time: e.target.checked ? '08:00' : null }, e.target.checked ? 'Сводка в 08:00' : 'Сводка выключена')} />
+            <span className="check-text">Утренняя сводка от ИИ: сроки, напоминания, погода</span>
+          </label>
+          {s.summary_time && timeField('set-summary-time', 'Во сколько', s.summary_time, (v) => save({ summary_time: v }, 'Сохранено'))}
+        </div>
       )}
-      <label className="check" style={{ padding: 0 }}>
-        <input type="checkbox" checked={!!s.review_time} onChange={(e) => save({ review_time: e.target.checked ? '21:00' : null }, e.target.checked ? 'Итог дня в 21:00' : undefined)} />
-        <span className="check-text">Итог дня вечером — перенести несделанное на завтра</span>
-      </label>
-      {s.review_time && timeField('rev-time', 'Во сколько', s.review_time, (v) => save({ review_time: v }, 'Сохранено'))}
+
+      <div className="rhythm-row">
+        <label className="check" style={{ padding: 0 }}>
+          <input type="checkbox" checked={!!s.quiet_from} onChange={(e) => save(e.target.checked ? { quiet_from: '23:00', quiet_to: '07:00' } : { quiet_from: null, quiet_to: null })} />
+          <span className="check-text">Тихие часы: ночью без уведомлений</span>
+        </label>
+        {s.quiet_from && s.quiet_to && (
+          <>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {timeField('q-from', 'С', s.quiet_from, (v) => save({ quiet_from: v, quiet_to: s.quiet_to }, 'Сохранено'))}
+              {timeField('q-to', 'До', s.quiet_to, (v) => save({ quiet_from: s.quiet_from, quiet_to: v }, 'Сохранено'))}
+            </div>
+            <p style={hint}>Что пришлось на это время и не отмечено, придёт одним сообщением утром.</p>
+          </>
+        )}
+      </div>
+
+      <div className="rhythm-row">
+        <label className="check" style={{ padding: 0 }}>
+          <input type="checkbox" checked={!!s.review_time} onChange={(e) => save({ review_time: e.target.checked ? '21:00' : null }, e.target.checked ? 'Итог дня в 21:00' : undefined)} />
+          <span className="check-text">Итог дня вечером: перенести несделанное на завтра</span>
+        </label>
+        {s.review_time && timeField('rev-time', 'Во сколько', s.review_time, (v) => save({ review_time: v }, 'Сохранено'))}
+      </div>
     </section>
   );
 }

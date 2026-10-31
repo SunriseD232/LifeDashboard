@@ -28,7 +28,7 @@ import { useWeather } from './Weather';
 /**
  * Главная супер-аппа — и «Сегодня» «Дашборда»: плитки с самым важным из дел
  * и «Денег» и быстрые действия. Какие плитки, в каком порядке и какого
- * размера — Настройки → «Главная»; действия подбираются по тому, что человек
+ * размера — шестерёнка на главной (/settings/home); действия подбираются по тому, что человек
  * чаще нажимает в эту часть дня. Нажатие на плитку — в раздел; дела можно
  * отметить прямо тут.
  */
@@ -160,7 +160,7 @@ export default function Hub() {
             <b className="display">{temp(w.now.temp)}</b>
           </span>
         )}
-        <Link className="icon-btn bare" href="/settings?tab=home" aria-label="Настроить главную" title="Настроить главную">
+        <Link className="icon-btn bare" href="/settings/home" aria-label="Настроить главную" title="Настроить главную">
           <Icon name="edit" />
         </Link>
       </header>

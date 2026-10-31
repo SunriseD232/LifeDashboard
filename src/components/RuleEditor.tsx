@@ -89,6 +89,8 @@ interface Props {
   times: string[];
   today: string;
   onChange: (rule: Rule, times: string[]) => void;
+  /** Только повтор: без «Один раз» и дня — разовый день выбирают строкой «Когда». */
+  repeatOnly?: boolean;
 }
 
 /**
@@ -97,7 +99,7 @@ interface Props {
  * месяцев/лет, дни недели, «вторая суббота», конец повтора. Внизу —
  * подпись словами, чтобы было видно, что получилось.
  */
-export default function RuleEditor({ rule, times, today, onChange }: Props) {
+export default function RuleEditor({ rule, times, today, onChange, repeatOnly }: Props) {
   const [custom, setCustom] = useState(() => detect(rule) === 'custom');
   const preset = custom ? 'custom' : detect(rule);
   const set = (r: Rule) => onChange(r, r.kind === 'after' ? times.slice(0, 1) : times);
@@ -107,21 +109,14 @@ export default function RuleEditor({ rule, times, today, onChange }: Props) {
     set(fromPreset(p, today, rule));
   };
 
-  const setTime = (i: number, v: string) => onChange(rule, times.map((t, j) => (j === i ? v : t)));
-  const addTime = () => {
-    const last = times[times.length - 1] ?? '09:00';
-    const h = Math.min(23, Number(last.slice(0, 2)) + 3);
-    onChange(rule, [...times, `${String(h).padStart(2, '0')}:${last.slice(3, 5)}`]);
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <legend className="label" style={{ padding: 0, marginBottom: 8 }}>
+        <legend className={repeatOnly ? 'sr-only' : 'label'} style={{ padding: 0, marginBottom: 8 }}>
           Повторять
         </legend>
         <div style={row}>
-          {PRESETS.map((p) => (
+          {PRESETS.filter((p) => !repeatOnly || p.id !== 'once').map((p) => (
             <button key={p.id} type="button" className="chip" aria-pressed={preset === p.id} onClick={() => pick(p.id)}>
               {p.label}
             </button>
@@ -129,7 +124,7 @@ export default function RuleEditor({ rule, times, today, onChange }: Props) {
         </div>
       </fieldset>
 
-      {rule.kind === 'once' && (
+      {rule.kind === 'once' && !repeatOnly && (
         <Field label="День" id="rule-date">
           <input id="rule-date" className="field" type="date" min={today} value={rule.date} onChange={(e) => e.target.value && set({ ...rule, date: e.target.value })} />
         </Field>
@@ -163,31 +158,7 @@ export default function RuleEditor({ rule, times, today, onChange }: Props) {
 
       {rule.kind === 'repeat' && custom && <Advanced rule={rule} set={set} />}
 
-      <Field label={times.length > 1 ? 'Время' : 'Во сколько'} id="rule-time-0">
-        <div style={row}>
-          {times.map((t, i) => (
-            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-              {i > 0 && (
-                <label className="sr-only" htmlFor={`rule-time-${i}`}>
-                  Время {i + 1}
-                </label>
-              )}
-              <input id={`rule-time-${i}`} className="field mono" style={{ width: 120 }} type="time" required value={t} onChange={(e) => setTime(i, e.target.value)} />
-              {times.length > 1 && (
-                <button className="icon-btn bare" type="button" aria-label={`Убрать ${t}`} onClick={() => onChange(rule, times.filter((_, j) => j !== i))}>
-                  <Icon name="x" size={16} />
-                </button>
-              )}
-            </span>
-          ))}
-          {rule.kind !== 'after' && times.length < 8 && (
-            <button className="btn btn-ghost" type="button" onClick={addTime} style={{ minHeight: 44 }}>
-              <Icon name="plus" size={16} />
-              Ещё время
-            </button>
-          )}
-        </div>
-      </Field>
+      <TimesField times={times} multi={rule.kind !== 'after'} onChange={(t) => onChange(rule, t)} />
 
       <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
         <Icon name="repeat" size={16} />
@@ -197,6 +168,44 @@ export default function RuleEditor({ rule, times, today, onChange }: Props) {
         </span>
       </p>
     </div>
+  );
+}
+
+/** Во сколько: одно время или несколько («Ещё время»), у каждого — крестик. */
+export function TimesField({ times, multi = true, onChange, after }: { times: string[]; multi?: boolean; onChange: (times: string[]) => void; after?: React.ReactNode }) {
+  const setTime = (i: number, v: string) => onChange(times.map((t, j) => (j === i ? v : t)));
+  const addTime = () => {
+    const last = times[times.length - 1] ?? '09:00';
+    const h = Math.min(23, Number(last.slice(0, 2)) + 3);
+    onChange([...times, `${String(h).padStart(2, '0')}:${last.slice(3, 5)}`]);
+  };
+  return (
+    <Field label={times.length > 1 ? 'Время' : 'Во сколько'} id="rule-time-0">
+      <div style={row}>
+        {times.map((t, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+            {i > 0 && (
+              <label className="sr-only" htmlFor={`rule-time-${i}`}>
+                Время {i + 1}
+              </label>
+            )}
+            <input id={`rule-time-${i}`} className="field mono" style={{ width: 120 }} type="time" required value={t} onChange={(e) => setTime(i, e.target.value)} />
+            {times.length > 1 && (
+              <button className="icon-btn bare" type="button" aria-label={`Убрать ${t}`} onClick={() => onChange(times.filter((_, j) => j !== i))}>
+                <Icon name="x" size={16} />
+              </button>
+            )}
+          </span>
+        ))}
+        {multi && times.length < 8 && (
+          <button className="btn btn-ghost" type="button" onClick={addTime} style={{ minHeight: 44 }}>
+            <Icon name="plus" size={16} />
+            Ещё время
+          </button>
+        )}
+        {after}
+      </div>
+    </Field>
   );
 }
 
