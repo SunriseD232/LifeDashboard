@@ -10,6 +10,7 @@ import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
 import { readTags } from '../tagStore';
 import { readTasks } from '../taskStore';
+import { readVacations } from '../vacationStore';
 import { DAY_RE, HttpError, type Ctx } from '../http';
 
 /** Всё сразу: экран открывается одним запросом (GET /api/state?day=). */
@@ -45,6 +46,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
         exercises: readExercises(d, userId),
         templates: readTemplates(d, userId),
       },
+      vacations: readVacations(d, userId),
       settings: readSettings(d, userId),
       household: householdInfo(d, userId),
       login: userLogin(userId),

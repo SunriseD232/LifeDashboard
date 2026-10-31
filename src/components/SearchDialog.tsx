@@ -3,8 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { quickActions, type QuickAction } from '@/lib/quickActions';
 import { splitSnippet, type SearchHit, type SearchKind } from '@/lib/search';
-import { useApp } from './AppShell';
+import { useAppMaybe } from './AppShell';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
 
@@ -15,15 +16,42 @@ const KINDS: { id: SearchKind; label: string; icon: string }[] = [
   { id: 'item', label: 'В чек-листах', icon: 'check' },
   { id: 'reminder', label: 'Напоминания', icon: 'bell' },
   { id: 'recipe', label: 'Рецепты', icon: 'pot' },
+  { id: 'vacation', label: 'Отпуска', icon: 'suitcase' },
+  { id: 'workout', label: 'Тренировки', icon: 'dumbbell' },
+  { id: 'op', label: 'Операции', icon: 'wallet' },
+  { id: 'account', label: 'Счета', icon: 'receipt' },
+  { id: 'debt', label: 'Долги', icon: 'users' },
+  { id: 'goal', label: 'Цели', icon: 'flag' },
 ];
+
+type Item = { type: 'action'; a: QuickAction } | { type: 'hit'; h: SearchHit };
+const itemId = (x: Item) => (x.type === 'action' ? `sr-act-${x.a.id}` : `sr-${x.h.kind}-${x.h.id}`);
+
+/** Куда ведёт найденное (чек-листы — отдельно: их открывают через общий выбор). */
+const ROUTES: Partial<Record<SearchKind, (h: SearchHit) => string>> = {
+  note: (h) => `/notes?open=${h.id}`,
+  task: (h) => `/tasks?open=${h.id}`,
+  reminder: (h) => `/tasks?edit=${h.id}`,
+  recipe: (h) => `/kitchen/${h.id}`,
+  vacation: () => '/vacations',
+  workout: () => '/workouts',
+  op: (h) => `/money/ops?op=${h.id}${h.month ? `&month=${h.month}` : ''}`,
+  account: () => '/money/accounts',
+  debt: () => '/money/debts',
+  goal: () => '/money/goals',
+};
 
 /**
  * Поиск по всему (Ctrl K / ⌘K, кнопка «Поиск»): дела, заметки, чек-листы с
- * пунктами, напоминания — своё и общее семьи. ↑↓ — выбрать, Enter — открыть,
- * Esc — закрыть. Ищет по началу слов, «ё» = «е» (src/lib/search.ts).
+ * пунктами, напоминания, рецепты, отпуска, тренировки и «Деньги» — своё и
+ * общее семьи. Сверху — быстрые действия: «трата», «настройки», «отпуск».
+ * Работает и в «Деньгах» (там нет данных LifeDashboard — названия из ответа).
+ * ↑↓ — выбрать, Enter — открыть, Esc — закрыть. Ищет по началу слов, «ё» = «е».
  */
 export default function SearchDialog({ onClose }: { onClose: () => void }) {
-  const { data, setOpenList } = useApp();
+  const app = useAppMaybe();
+  const data = app?.data;
+  const [withMoney, setWithMoney] = useState(false);
   const router = useRouter();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -36,6 +64,10 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     inputRef.current?.focus();
+    // Пустой запрос — только узнать, открыты ли «Деньги» (быстрые действия про траты).
+    api<{ money?: boolean }>('search?q=')
+      .then((r) => setWithMoney(!!r.money))
+      .catch(() => undefined);
   }, []);
 
   // Запрос — через 150 мс после последней буквы; ответ на старый ввод не
@@ -64,12 +96,14 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
 
   // Названия — из своих данных (в индексе «ё» заменена на «е»).
   const titleOf = (h: SearchHit): string => {
+    if (!data) return h.title;
     if (h.kind === 'task') return data.tasks.find((t) => t.id === h.id)?.title ?? h.title;
     if (h.kind === 'note') return data.notes.find((n) => n.id === h.id)?.title || h.title || 'Без названия';
     if (h.kind === 'checklist') return data.checklists.find((c) => c.id === h.id)?.title ?? h.title;
     if (h.kind === 'item') return data.items.find((i) => i.id === h.id)?.title ?? h.title;
     if (h.kind === 'recipe') return data.kitchen.recipes.find((r) => r.id === h.id)?.title ?? h.title;
-    return data.reminders.find((r) => r.id === h.id)?.title ?? h.title;
+    if (h.kind === 'reminder') return data.reminders.find((r) => r.id === h.id)?.title ?? h.title;
+    return h.title;
   };
 
   const counts = useMemo(() => {
@@ -80,18 +114,22 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
   const shown = (hits ?? []).filter((h) => !kind || h.kind === kind);
   // Группы — в порядке KINDS; плоский список — для стрелок.
   const groups = KINDS.map((k) => ({ ...k, hits: shown.filter((h) => h.kind === k.id) })).filter((g) => g.hits.length);
-  const flat = groups.flatMap((g) => g.hits);
+  // Быстрые действия — над найденным; когда выбран раздел, не мешают.
+  const actions = kind ? [] : quickActions(q, withMoney);
+  const flat: Item[] = [...actions.map((a) => ({ type: 'action' as const, a })), ...groups.flatMap((g) => g.hits.map((h) => ({ type: 'hit' as const, h })))];
 
-  const open = (h: SearchHit) => {
+  const open = (x: Item) => {
     onClose();
-    if (h.kind === 'note') router.push(`/notes?open=${h.id}`);
-    else if (h.kind === 'task') router.push(`/tasks?open=${h.id}`);
-    else if (h.kind === 'reminder') router.push(`/tasks?edit=${h.id}`);
-    else if (h.kind === 'recipe') router.push(`/kitchen/${h.id}`);
-    else {
-      setOpenList(h.kind === 'item' ? h.parent?.id ?? null : h.id);
+    if (x.type === 'action') return router.push(x.a.href);
+    const h = x.h;
+    const to = ROUTES[h.kind];
+    if (to) return router.push(to(h));
+    // Чек-лист: в «Дашборде» — сразу открыть, из «Денег» — через адрес.
+    const list = h.kind === 'item' ? h.parent?.id ?? null : h.id;
+    if (app) {
+      app.setOpenList(list);
       router.push('/lists');
-    }
+    } else router.push(list ? `/lists?list=${list}` : '/lists');
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -124,12 +162,12 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Дела, заметки, чек-листы, рецепты…"
+            placeholder="Найти или перейти: дела, траты, настройки…"
             autoComplete="off"
             role="combobox"
             aria-expanded={!!flat.length}
             aria-controls="search-results"
-            aria-activedescendant={flat[active] ? `sr-${flat[active].kind}-${flat[active].id}` : undefined}
+            aria-activedescendant={flat[active] ? itemId(flat[active]) : undefined}
           />
           <button className="kbd-btn" type="button" onClick={onClose} aria-label="Закрыть поиск">
             Esc
@@ -153,9 +191,39 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
         <div className="sr-only" role="status" aria-live="polite">
           {hits ? (hits.length ? `Найдено: ${hits.length}` : 'Ничего не нашлось') : ''}
         </div>
-        {!q.trim() && <p className="search-empty">Начните печатать — ищу по началу слов везде сразу.</p>}
-        {hits && hits.length === 0 && <p className="search-empty">Ничего не нашлось.</p>}
+        {hits && hits.length === 0 && !actions.length && <p className="search-empty">Ничего не нашлось.</p>}
         <div className="search-results" id="search-results" role="listbox" aria-label="Результаты" ref={listRef}>
+          {actions.length > 0 && (
+            <div role="group" aria-labelledby="sr-g-actions">
+              <div id="sr-g-actions" className="group-title" style={{ padding: '10px 12px 4px' }}>
+                {q.trim() ? 'Перейти' : 'Часто нужное'}
+              </div>
+              {actions.map((a) => {
+                i++;
+                const idx = i;
+                return (
+                  <button
+                    key={a.id}
+                    id={`sr-act-${a.id}`}
+                    data-i={idx}
+                    role="option"
+                    aria-selected={idx === active}
+                    tabIndex={-1}
+                    type="button"
+                    className="search-hit"
+                    onMouseEnter={() => setActive(idx)}
+                    onClick={() => open({ type: 'action', a })}
+                  >
+                    <span className="list-icon" style={{ width: 36, height: 36 }}>
+                      <Icon name={a.icon} size={18} />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{a.label}</span>
+                    <Icon name="arrow" size={16} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {groups.map((g) => (
             <div key={g.id} role="group" aria-labelledby={`sr-g-${g.id}`}>
               <div id={`sr-g-${g.id}`} className="group-title" style={{ padding: '10px 12px 4px' }}>
@@ -176,7 +244,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
                     type="button"
                     className="search-hit"
                     onMouseEnter={() => setActive(idx)}
-                    onClick={() => open(h)}
+                    onClick={() => open({ type: 'hit', h })}
                   >
                     <span className="list-icon" style={{ width: 36, height: 36 }}>
                       <Icon name={g.icon} size={18} />
@@ -204,6 +272,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
           <span>
             <kbd>Enter</kbd> открыть
           </span>
+          <span>ищу по началу слов</span>
         </div>
       </div>
     </div>

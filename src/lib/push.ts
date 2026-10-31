@@ -7,6 +7,8 @@ import { readSettings } from '../server/settings';
 import { aiConfigured } from '../server/ai';
 import { daySummary } from '../server/summary';
 import { dueDay } from './recur';
+import { pausedOn } from './vacations';
+import { readVacationList } from '../server/vacationStore';
 import { inQuiet, outOfQuiet, quietMissed, quietOf, reviewItems } from './quiet';
 import { plural } from './dates';
 
@@ -159,7 +161,9 @@ async function tick(): Promise<void> {
     const st = readSettings(d, userId);
     const quiet = quietOf(st.quiet_from, st.quiet_to);
     const all = readReminders(d, userId);
-    const occ = occurrencesOn(all, lp.day, new Set(doneKeys(d, userId, lp.day)), snoozesOn(d, userId, lp.day));
+    // В отпуске с паузой повторяющиеся не шлём — только разовые, поставленные нарочно.
+    const paused = pausedOn(readVacationList(d, userId), lp.day);
+    const occ = occurrencesOn(all, lp.day, new Set(doneKeys(d, userId, lp.day)), snoozesOn(d, userId, lp.day)).filter((o) => !paused || o.reminder.rule.kind === 'once');
     const mark = (key: string, slot: string) => d.prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)').run(key, lp.day, slot).changes > 0;
     // В тихие часы напоминания и повторы не шлём (и не помечаем) — что
     // осталось неотмеченным, придёт одним сообщением, когда они кончатся.
@@ -221,7 +225,7 @@ async function tick(): Promise<void> {
     }
 
     // Итог дня: что не сделано — открыть экран и перенести на завтра.
-    if (st.review_time) {
+    if (st.review_time && !paused) {
       const late = lp.minutes - minutesOf(outOfQuiet(st.review_time, quiet));
       if (late >= 0 && late <= WINDOW_MIN) {
         const n = reviewItems(occ).length;

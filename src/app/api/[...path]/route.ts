@@ -17,6 +17,7 @@ import { settings } from '@/server/api/settings';
 import { state } from '@/server/api/state';
 import { tags } from '@/server/api/tags';
 import { tasks } from '@/server/api/tasks';
+import { vacations } from '@/server/api/vacations';
 import { weather } from '@/server/api/weather';
 import { workoutExercises, workouts, workoutSets, workoutTemplates } from '@/server/api/workouts';
 import { calendarFeed } from '@/server/calendar';
@@ -54,6 +55,7 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   ai,
   support,
   workouts,
+  vacations,
   'workout-exercises': workoutExercises,
   'workout-sets': workoutSets,
   'workout-templates': workoutTemplates,

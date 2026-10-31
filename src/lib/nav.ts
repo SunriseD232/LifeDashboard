@@ -27,6 +27,7 @@ export const MOVABLE: Section[] = [
   { href: '/tasks', label: 'Задачи', icon: 'tasks', phone: true },
   { href: '/notes', label: 'Заметки', icon: 'note', phone: true },
   { href: '/lists', label: 'Чек-листы', icon: 'list' },
+  { href: '/vacations', label: 'Отпуска', icon: 'suitcase' },
   { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом и спорт' },
   { href: '/workouts', label: 'Тренировки', icon: 'dumbbell', phone: true, short: 'Спорт' },
 ];

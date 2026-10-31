@@ -1120,3 +1120,10 @@ a.m-acc {
 .m-shell .side .nav-sep {
   padding-top: 10px;
 }
+
+/* Поиск в шапке — только на телефоне: на компьютере он в боковом меню. */
+@media (min-width: 861px) {
+  .m-search {
+    display: none;
+  }
+}

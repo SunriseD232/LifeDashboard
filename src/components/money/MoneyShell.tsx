@@ -20,6 +20,7 @@ import MoneySide from './MoneySide';
 import OpSheet, { type OpDraft } from './OpSheet';
 import ReceiptSheet from './ReceiptSheet';
 import VoiceSheet from './VoiceSheet';
+import SearchDialog from '../SearchDialog';
 
 /** Что открыто поверх экрана. */
 export type Sheet =
@@ -37,6 +38,8 @@ interface MoneyContext {
   toast: (message: string) => void;
   /** Рублей за 1 единицу: курс ЦБ или свой; нет — undefined. */
   rateOf: (code: string) => number | undefined;
+  /** Поиск по всему (Ctrl K) — тот же, что в LifeDashboard. */
+  openSearch: () => void;
   /** В основную валюту; нет курса — null. */
   toBase: (minor: number, code: string) => number | null;
   /** Модуль не спрятан (Настройки → Что показывать). */
@@ -85,6 +88,9 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
   const [toastText, setToastText] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [searching, setSearching] = useState(false);
+  // Из поиска: /money/ops?op=<id>&month=YYYY-MM — открыть этот месяц и операцию.
+  const [wantOp, setWantOp] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monthRef = useRef(month);
 
@@ -164,6 +170,37 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     };
   }, [reload, sync]);
 
+  // Ctrl K / ⌘K — поиск и отсюда.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK')) {
+        e.preventDefault();
+        setSearching(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'ready') return;
+    const p = new URLSearchParams(window.location.search);
+    const op = p.get('op');
+    if (!op) return;
+    const m = p.get('month');
+    setWantOp(op);
+    if (m && /^\d{4}-\d{2}$/.test(m) && m !== monthRef.current) setMonth(m);
+    router.replace(pathname);
+  }, [status, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!wantOp || !data) return;
+    const op = data.ops.find((o) => o.id === wantOp);
+    if (!op) return;
+    setWantOp(null);
+    setSheet({ type: 'op', op });
+  }, [wantOp, data]);
+
   // С главной: «Трата» (?new=op) и «Чек» (фото передано через takeReceipt) — сразу нужное окно.
   useEffect(() => {
     if (status !== 'ready' || !data?.settings) return;
@@ -233,6 +270,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
       return new Date(`${m}-15T12:00:00`).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', '');
     },
     open: setSheet,
+    openSearch: () => setSearching(true),
     aiOn: (m) => data.ai && (m ? !data.settings!.hidden.includes(m) : !data.settings!.hidden.includes('ai')),
   };
   const close = () => setSheet(null);
@@ -241,7 +279,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     <Ctx.Provider value={value}>
       <div className="shell m-shell">
       <SkipLink />
-      <MoneySide nav={data.nav} login={data.login} />
+      <MoneySide nav={data.nav} login={data.login} onSearch={() => setSearching(true)} />
       <div className="m-app">
         {(offlineAt || queued.length > 0) && (
           <div className="m-offline" role="status">
@@ -259,6 +297,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
       {sheet?.type === 'drafts' && <DraftsSheet ops={sheet.ops} said={sheet.said} onClose={close} />}
       {sheet?.type === 'voice' && <VoiceSheet onClose={close} />}
       {sheet?.type === 'receipt' && <ReceiptSheet file={sheet.file} op={sheet.op} onClose={close} />}
+      {searching && <SearchDialog onClose={() => setSearching(false)} />}
       {toastText && (
         <div className="toast m-toast" role="status">
           <span>{toastText}</span>
