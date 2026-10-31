@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { AiButton, compressImage, useAiReady } from './Ai';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { useSheet } from './useModalFocus';
 
 /**
  * ИИ на кухне: меню на неделю из своих рецептов и запасов и продукты с фото
@@ -216,6 +217,8 @@ export function PantryPhoto({ onAdd }: { onAdd: (names: string[]) => Promise<voi
  * (Wake Lock, где браузер позволяет).
  */
 export function StoreMode({ items, onToggle, onClose }: { items: ChecklistItem[]; onToggle: (i: ChecklistItem, done: boolean) => void; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  useSheet(box, onClose);
   useEffect(() => {
     type Lock = { release: () => Promise<void> };
     let lock: Lock | null = null;
@@ -229,14 +232,11 @@ export function StoreMode({ items, onToggle, onClose }: { items: ChecklistItem[]
     ask();
     const again = () => document.visibilityState === 'visible' && ask();
     document.addEventListener('visibilitychange', again);
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', esc);
     return () => {
       document.removeEventListener('visibilitychange', again);
-      window.removeEventListener('keydown', esc);
       lock?.release().catch(() => undefined);
     };
-  }, [onClose]);
+  }, []);
 
   const open = items.filter((i) => !i.done);
   const bought = items.filter((i) => i.done);
@@ -252,7 +252,7 @@ export function StoreMode({ items, onToggle, onClose }: { items: ChecklistItem[]
   );
 
   return (
-    <div className="store" role="dialog" aria-modal="true" aria-label="Режим магазина">
+    <div ref={box} className="store" role="dialog" aria-modal="true" aria-label="Режим магазина">
       <div className="store-head">
         <div style={{ flex: 1 }}>
           <div className="display" style={{ fontSize: 'calc(22px * var(--fs))', fontWeight: 700 }}>

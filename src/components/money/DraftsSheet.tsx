@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
 import { localDay } from '@/lib/dates';
 import { convert } from '@/lib/money';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
 
 const dayLabel = (day: string, today: string) => (day === today ? 'сегодня' : new Date(`${day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }));
@@ -71,9 +72,11 @@ export default function DraftsSheet({ ops: initial, said, onClose }: { ops: Mone
     }
   }
 
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose);
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label="Черновики операций">
+      <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label="Черновики операций">
         <div className="sheet-head">
           <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>
             Нашёл {ops.length} {ops.length === 1 ? 'операцию' : ops.length < 5 ? 'операции' : 'операций'}

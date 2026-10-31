@@ -202,24 +202,23 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
       }
     >
       <div className="task-row">
-        <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
-          <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
-          {/* Кружок — отметить; текст — открыть задачу (кнопка внутри label галочку не ставит). */}
-          {onOpen ? (
-            <button
-              type="button"
-              className="check-text task-open"
-              onClick={(e) => {
-                e.preventDefault();
-                onOpen(task);
-              }}
-            >
+        {/* Кружок — отметить; текст — открыть задачу. Кнопку в label не кладём:
+            диктор тогда путает, где галочка, а где «открыть». */}
+        {onOpen ? (
+          <div className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+            <label className="check-hit">
+              <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
+            </label>
+            <button type="button" className="check-text task-open" onClick={() => onOpen(task)}>
               {body}
             </button>
-          ) : (
+          </div>
+        ) : (
+          <label className={`check round${done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+            <input type="checkbox" checked={done} onChange={(e) => (e.target.checked ? complete(task) : undo(task))} aria-label={task.title} />
             <span className="check-text task-open">{body}</span>
-          )}
-        </label>
+          </label>
+        )}
       </div>
     </Swipe>
   );
@@ -264,19 +263,14 @@ export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { oc
     >
       <div className="task-row">
         {checkable ? (
-          <label className={`check round${occ.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
-            <input type="checkbox" checked={occ.done} onChange={(e) => rem.done(r, occ.slot, e.target.checked)} aria-label={r.title} />
-            <button
-              type="button"
-              className="check-text task-open"
-              onClick={(e) => {
-                e.preventDefault();
-                onOpen(r);
-              }}
-            >
+          <div className={`check round${occ.done ? ' done' : ''}`} style={{ flex: 1, minWidth: 0 }}>
+            <label className="check-hit">
+              <input type="checkbox" checked={occ.done} onChange={(e) => rem.done(r, occ.slot, e.target.checked)} aria-label={r.title} />
+            </label>
+            <button type="button" className="check-text task-open" onClick={() => onOpen(r)}>
               {body}
             </button>
-          </label>
+          </div>
         ) : (
           <button type="button" className="check future" style={{ flex: 1, minWidth: 0 }} onClick={() => onOpen(r)}>
             <span className="future-dot" aria-hidden="true">
@@ -288,7 +282,10 @@ export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { oc
         <span className="row-meta">
           {r.rule.kind !== 'once' && <Icon name="repeat" size={14} />}
           {!hideDate && (overdue || date > addDays(today, 1)) && <span>{shortDate(date, today)} ·</span>}
-          <span className={`mono row-time${late || overdue ? ' late' : ''}`}>{time}</span>
+          <span className={`mono row-time${late || overdue ? ' late' : ''}`}>
+            {time}
+            {(late || overdue) && <span className="sr-only">, просрочено</span>}
+          </span>
         </span>
       </div>
     </Swipe>

@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { arrangeTiles, BAR_CHOICES, DEFAULT_BAR, DEFAULT_HUB, parseHub, SHORTCUT_SLOTS, SHORTCUTS, type HubPrefs } from '@/lib/hub';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
+import { rovingKeys } from './roving';
 
 /**
  * Настройки → «Главная»: нижнее меню главной (четыре места вокруг «+»),
@@ -109,11 +110,11 @@ function ShortcutsCard({ p, save }: CardProps) {
         <Icon name="sparkles" />
         Быстрые действия
       </h2>
-      <div className="seg" role="radiogroup" aria-label="Как подбирать">
-        <button type="button" role="radio" aria-checked={p.auto} aria-pressed={p.auto} onClick={() => save({ ...p, auto: true })}>
+      <div className="seg" role="radiogroup" onKeyDown={rovingKeys} aria-label="Как подбирать">
+        <button type="button" role="radio" aria-checked={p.auto} tabIndex={p.auto ? 0 : -1} onClick={() => save({ ...p, auto: true })}>
           Подбирать сами
         </button>
-        <button type="button" role="radio" aria-checked={!p.auto} aria-pressed={!p.auto} onClick={() => save({ ...p, auto: false })}>
+        <button type="button" role="radio" aria-checked={!p.auto} tabIndex={!p.auto ? 0 : -1} onClick={() => save({ ...p, auto: false })}>
           Только мои
         </button>
       </div>

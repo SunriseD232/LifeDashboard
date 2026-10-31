@@ -7,6 +7,7 @@ import { localDay } from '@/lib/dates';
 import { convert, type MoneyOp } from '@/lib/money';
 import { mainCategory, parseFiscalQr, type DraftItem, type FiscalQr, type ReceiptDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
 import { findQr, loadPhoto } from './photo';
 
@@ -190,9 +191,11 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
     />
   );
 
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose, !busy && phase !== 'reading');
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && !busy && phase !== 'reading' && onClose()}>
-      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label="Чек">
+      <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label="Чек">
         {picker}
         <div className="sheet-head">
           <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>

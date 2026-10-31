@@ -74,23 +74,39 @@ export function WeekStrip({
           </button>
         )}
       </div>
-      <div className="cal-grid" role="grid">
+      {/* Дни — одна остановка Tab (выбранный день), дальше стрелками:
+          ←/→ на день, ↑/↓ на неделю. Иначе месяц — 35 нажатий Tab. */}
+      <div
+        className="cal-grid"
+        role="group"
+        aria-label="Дни"
+        onKeyDown={(e) => {
+          const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[e.key];
+          const btns = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('.cal-day')];
+          const i = btns.indexOf(e.target as HTMLButtonElement);
+          if (!step || i < 0) return;
+          e.preventDefault();
+          btns[Math.min(btns.length - 1, Math.max(0, i + step))].focus();
+        }}
+      >
         {WEEK.map((w) => (
-          <span key={w} className="cal-wd" role="columnheader">
+          <span key={w} className="cal-wd" aria-hidden="true">
             {w}
           </span>
         ))}
-        {rows.flat().map((day) => {
+        {rows.flat().map((day, i, all) => {
           const items = dots(day);
+          const stop = all.includes(sel) ? day === sel : all.includes(today) ? day === today : i === 0;
           return (
             <button
               key={day}
               type="button"
-              role="gridcell"
               className="cal-day"
               data-out={(month && firstOfMonth(day) !== month) || undefined}
               data-today={day === today || undefined}
-              aria-selected={day === sel}
+              aria-pressed={day === sel}
+              aria-current={day === today ? 'date' : undefined}
+              tabIndex={stop ? 0 : -1}
               aria-label={`${dayHead(day, today)}${items.length ? `, задач: ${items.length}` : ''}`}
               onClick={() => {
                 onPick(day);

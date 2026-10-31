@@ -73,8 +73,9 @@ function defaultTime(now: Date, setting: string): string {
 export function PriorityFlag({ p, size = 14 }: { p: Priority; size?: number }) {
   if (!p) return null;
   return (
-    <span className="prio" data-p={p} title={`Важность: ${PRIORITIES[p].short}`} aria-label={`Важность: ${PRIORITIES[p].short}`}>
+    <span className="prio" data-p={p} title={`Важность: ${PRIORITIES[p].short}`}>
       <Icon name="flag" size={size} />
+      <span className="sr-only">{`Важность: ${PRIORITIES[p].short}`}</span>
     </span>
   );
 }
@@ -206,8 +207,11 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   // Остальное, что ИИ нашёл во фразе: сохраним вместе с задачей, если отмечено.
   const [extras, setExtras] = useState<{ item: QuickItem; on: boolean }[]>([]);
   const [confirm, setConfirm] = useState(false);
+  // Пустое название: вместо молча неактивной кнопки — подсказка у поля.
+  const [titleErr, setTitleErr] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  useModalFocus(formRef);
+  // На телефоне форма лежит в Sheet, и фокусом с Esc ведает уже он.
+  useModalFocus(formRef, onClose, !phone);
 
   const editing = 'task' in target ? target.task : 'reminder' in target ? target.reminder : null;
   const wasKind: Kind | null = 'task' in target ? 'task' : 'reminder' in target ? 'rem' : null;
@@ -216,12 +220,6 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   const known = knownTags(data.tags, data.tasks, data.reminders);
   const show = (id: string) => !data.settings.task_hidden.includes(id);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !phone && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, phone]);
 
   /** «Разобрать»: фраза из поля названия → заполненная форма. */
   const parse = async () => {
@@ -251,7 +249,12 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!d.title.trim() || (d.kind === 'rem' && (d.times.length === 0 || d.times.some((t) => !t)))) return;
+    if (!d.title.trim()) {
+      setTitleErr(true);
+      document.getElementById('td-title')?.focus();
+      return;
+    }
+    if ((d.kind === 'rem' && (d.times.length === 0 || d.times.some((t) => !t)))) return;
     setBusy(true);
     const path = d.kind === 'task' ? 'tasks' : 'reminders';
     try {
@@ -289,9 +292,10 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
     onClose();
   };
 
-  if (confirm && editing) {
-    const r = 'reminder' in target ? target.reminder : null;
-    return (
+  // Подтверждение — поверх окна задачи, а не вместо: «Оставить» и Esc
+  // возвращают в окно с правками, фокус — на «Удалить».
+  const r = 'reminder' in target ? target.reminder : null;
+  const confirmEl = confirm && editing && (
       <Confirm
         title={`Удалить «${editing.title}»?`}
         text={r && r.rule.kind !== 'once' ? `Повтор «${describe(r.rule)}» удалится целиком, со всеми отметками.` : 'Задача удалится насовсем.'}
@@ -299,8 +303,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         onCancel={() => setConfirm(false)}
         onConfirm={remove}
       />
-    );
-  }
+  );
 
   const ai = !editing && !!data.ai;
   // «Ещё»: редкое — заметка, повтор push, общая для семьи.
@@ -321,7 +324,12 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
             autoFocus={!phone}
             placeholder={ai ? 'Например, «завтра в 9 позвонить врачу, срочно»' : 'Например, «Отнести куртку в химчистку»'}
             value={d.title}
-            onChange={(e) => set({ title: e.target.value })}
+            aria-invalid={titleErr || undefined}
+            aria-describedby={titleErr ? 'td-title-err' : undefined}
+            onChange={(e) => {
+              set({ title: e.target.value });
+              if (titleErr) setTitleErr(false);
+            }}
           />
           {ai && (
             <button className="btn btn-ai" type="button" disabled={parsing || !d.title.trim()} onClick={parse} title="Заполнить форму по фразе: дата, время, повтор, метки, важность">
@@ -330,6 +338,11 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
             </button>
           )}
         </div>
+        {titleErr && (
+          <p id="td-title-err" className="field-err">
+            Напишите, что сделать — без названия задачу не сохранить.
+          </p>
+        )}
       </div>
 
       {extras.length > 0 && (
@@ -444,7 +457,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         <button className="btn btn-ghost hide-phone" type="button" onClick={onClose}>
           Отмена
         </button>
-        <button className="btn btn-primary" type="submit" disabled={busy || parsing || !d.title.trim()}>
+        <button className="btn btn-primary" type="submit" disabled={busy || parsing}>
           <Icon name={editing ? 'check' : 'plus'} size={18} />
           {busy ? 'Сохраняем…' : editing ? 'Сохранить' : 'Добавить'}
         </button>
@@ -455,14 +468,18 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   const title = editing ? 'Задача' : 'Новая задача';
   if (phone) {
     return (
-      <Sheet title={title} onClose={onClose} actions={<FieldsMenu />}>
-        <form ref={formRef} onSubmit={save} className="task-dialog">
-          {fields}
-        </form>
-      </Sheet>
+      <>
+        <Sheet title={title} onClose={onClose} actions={<FieldsMenu />}>
+          <form ref={formRef} onSubmit={save} className="task-dialog">
+            {fields}
+          </form>
+        </Sheet>
+        {confirmEl}
+      </>
     );
   }
   return (
+    <>
     <div className="overlay" onClick={onClose}>
       <form ref={formRef} className="dialog task-dialog" role="dialog" aria-modal="true" aria-labelledby="td-head" style={{ width: 'min(560px, 100%)' }} onClick={(e) => e.stopPropagation()} onSubmit={save}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -474,5 +491,8 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         {fields}
       </form>
     </div>
+    {/* Рядом, а не внутри: клик мимо подтверждения не должен закрыть и окно задачи. */}
+    {confirmEl}
+    </>
   );
 }

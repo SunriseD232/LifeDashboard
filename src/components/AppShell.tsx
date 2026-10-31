@@ -24,6 +24,7 @@ import Tour from './Tour';
 import ThemeToggle from './ThemeToggle';
 import PhoneBar from './PhoneBar';
 import Composer, { type ComposerStart } from './Composer';
+import SkipLink from './SkipLink';
 
 export interface AppData {
   checklists: Checklist[];
@@ -161,12 +162,52 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const dayRef = useRef(localDay());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((message: string, undo?: () => void) => {
-    setToastUndo(() => undo ?? null);
-    setToastText(message);
+  const undoRef = useRef<(() => void) | null>(null);
+
+  /** Убрать сообщение через ms; пока на нём мышь или фокус — не убираем. */
+  const hideToastIn = useCallback((ms: number) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastText(null), undo ? 6000 : 4000);
+    toastTimer.current = setTimeout(() => {
+      setToastText(null);
+      undoRef.current = null;
+    }, ms);
   }, []);
+  const holdToast = () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  };
+
+  const toast = useCallback(
+    (message: string, undo?: () => void) => {
+      undoRef.current = undo ?? null;
+      setToastUndo(() => undo ?? null);
+      setToastText(message);
+      hideToastIn(undo ? 8000 : 4000);
+    },
+    [hideToastIn],
+  );
+
+  const runUndo = useCallback(() => {
+    const undo = undoRef.current;
+    if (!undo) return;
+    undoRef.current = null;
+    undo();
+    setToastText(null);
+  }, []);
+
+  // Ctrl+Z — «Отменить» последнего сообщения, пока оно на экране. В полях
+  // ввода не перехватываем: там Ctrl+Z отменяет набранный текст.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || (e.key.toLowerCase() !== 'z' && e.code !== 'KeyZ')) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (!undoRef.current) return;
+      e.preventDefault();
+      runUndo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [runUndo]);
 
   // Без сети: показываем сохранённые данные, изменения копятся в очереди
   // (src/lib/offline.ts) и уходят, когда сеть вернётся.
@@ -315,7 +356,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
 
   if (status === 'loading') {
     return (
-      <div aria-busy="true" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', color: 'var(--muted)' }}>
+      <div role="status" aria-busy="true" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', color: 'var(--muted)' }}>
         Загружаем…
       </div>
     );
@@ -372,6 +413,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
   return (
     <Ctx.Provider value={{ data, mutate, reload, toast, now, openList, setOpenList, logout }}>
       <div className="shell">
+        <SkipLink />
         <aside className="side">
           <Link className="brand display" href="/">
             <span className="brand-mark">
@@ -438,7 +480,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
             {pending > 0 && ` · ждут отправки: ${pending}`}
           </div>
         )}
-        <main key={pathname} className={`page ${slide.current.cls}`}>
+        <main key={pathname} id="main" className={`page ${slide.current.cls}`}>
           {children}
         </main>
 
@@ -475,18 +517,16 @@ function LdShell({ children }: { children: React.ReactNode }) {
       {/* Знакомство — только совсем новым: не прошли и ничего ещё не завели. */}
       {!data.settings.onboarded && data.tasks.length + data.reminders.length + data.checklists.length + data.notes.length === 0 && <Onboarding />}
 
+      {/* Область для диктора есть всегда: если создать её вместе с текстом,
+          NVDA и VoiceOver часто его не прочтут. */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {toastText ? (toastUndo ? `${toastText}. Отменить — Ctrl+Z` : toastText) : ''}
+      </div>
       {toastText && (
-        <div className="toast" role="status">
-          <span>{toastText}</span>
+        <div className="toast" onMouseEnter={holdToast} onMouseLeave={() => hideToastIn(4000)} onFocus={holdToast} onBlur={() => hideToastIn(4000)}>
+          <span aria-hidden="true">{toastText}</span>
           {toastUndo && (
-            <button
-              type="button"
-              className="toast-undo"
-              onClick={() => {
-                toastUndo();
-                setToastText(null);
-              }}
-            >
+            <button type="button" className="toast-undo" aria-keyshortcuts="Control+Z" title="Ctrl+Z" onClick={runUndo}>
               Отменить
             </button>
           )}

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import PushPanel from './PushPanel';
+import { useModalFocus } from './useModalFocus';
 import { CityPicker } from './Weather';
 
 const EXAMPLES = ['Позвонить маме', 'Записаться к врачу', 'Купить продукты'];
@@ -18,6 +19,11 @@ export default function Onboarding() {
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLHeadingElement>(null);
+  useModalFocus(box);
+  // Новый шаг — фокус на его заголовок: диктор прочтёт, о чём шаг.
+  useEffect(() => head.current?.focus(), [step]);
 
   const finish = async () => {
     try {
@@ -88,9 +94,10 @@ export default function Onboarding() {
 
   return (
     <div className="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title">
-      <div className="onboarding-box">
+      <div ref={box} className="onboarding-box">
         <div className="onboarding-top">
-          <div className="onboarding-dots" aria-label={`Шаг ${step + 1} из ${steps.length}`}>
+          <span className="sr-only">{`Шаг ${step + 1} из ${steps.length}`}</span>
+          <div className="onboarding-dots" aria-hidden="true">
             {steps.map((_, i) => (
               <i key={i} data-on={i <= step || undefined} />
             ))}
@@ -102,7 +109,7 @@ export default function Onboarding() {
         <span className="empty-icon" aria-hidden="true">
           <Icon name={s.icon} size={26} />
         </span>
-        <h1 id="ob-title" className="display" style={{ margin: 0, fontSize: 'calc(26px * var(--fs))' }}>
+        <h1 ref={head} id="ob-title" tabIndex={-1} className="display" style={{ margin: 0, fontSize: 'calc(26px * var(--fs))', outline: 'none' }}>
           {s.title}
         </h1>
         <p style={{ margin: 0, color: 'var(--muted)' }}>{s.text}</p>

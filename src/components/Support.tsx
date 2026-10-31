@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
+import { rovingKeys } from './roving';
 
 type Kind = 'idea' | 'bug' | 'question' | 'other';
 type Status = 'new' | 'in_progress' | 'done';
@@ -92,9 +93,9 @@ export default function Support() {
           <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
             Читаем всё. Нашли ошибку, не хватает функции или непонятно, как что-то сделать — расскажите. Сначала можно заглянуть в <Link href="/guide">«Как пользоваться»</Link>.
           </p>
-          <div role="radiogroup" aria-label="О чём" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div role="radiogroup" onKeyDown={rovingKeys} aria-label="О чём" style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {KINDS.map((k) => (
-              <button key={k.id} type="button" className="chip" role="radio" aria-checked={kind === k.id} aria-pressed={kind === k.id} onClick={() => setKind(k.id)}>
+              <button key={k.id} type="button" className="chip" role="radio" aria-checked={kind === k.id} tabIndex={kind === k.id ? 0 : -1} onClick={() => setKind(k.id)}>
                 {k.label}
               </button>
             ))}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ACCENT_COOKIE, ACCENTS, BG_COOKIE, BGS, isAccent, isBg, isSize, saveCookie, SIZE_COOKIE, SIZES, THEMES as ORDER, THEME_COOKIE, type Accent, type Bg, type Size, type Theme } from '@/lib/theme';
 import { Icon } from './icons';
+import { rovingKeys } from './roving';
 
 const LABEL: Record<Theme, string> = { system: 'как в системе', light: 'светлая', dark: 'тёмная' };
 const ICON: Record<Theme, string> = { system: 'monitor', light: 'sun', dark: 'moon' };
@@ -49,9 +50,9 @@ export function ThemePicker() {
     saveCookie(THEME_COOKIE, t);
   };
   return (
-    <div role="radiogroup" aria-label="Тема" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+    <div role="radiogroup" onKeyDown={rovingKeys} aria-label="Тема" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {ORDER.map((t) => (
-        <button key={t} type="button" className="chip" role="radio" aria-checked={theme === t} aria-pressed={theme === t} onClick={() => pick(t)}>
+        <button key={t} type="button" className="chip" role="radio" aria-checked={theme === t} tabIndex={theme === t ? 0 : -1} onClick={() => pick(t)}>
           <Icon name={ICON[t]} size={16} />
           {LABEL[t].charAt(0).toUpperCase() + LABEL[t].slice(1)}
         </button>
@@ -102,9 +103,9 @@ export function AppearancePicker() {
         <span className="label" id="accent-label">
           Цвет акцента
         </span>
-        <div className="swatches" role="radiogroup" aria-labelledby="accent-label">
+        <div className="swatches" role="radiogroup" onKeyDown={rovingKeys} aria-labelledby="accent-label">
           {ACCENTS.map((a) => (
-            <button key={a.id} type="button" className="swatch" role="radio" aria-checked={accent === a.id} aria-label={a.label} title={a.label} style={{ background: a.color }} onClick={() => pickAccent(a.id)}>
+            <button key={a.id} type="button" className="swatch" role="radio" aria-checked={accent === a.id} tabIndex={accent === a.id ? 0 : -1} aria-label={a.label} title={a.label} style={{ background: a.color }} onClick={() => pickAccent(a.id)}>
               {accent === a.id && <Icon name="check" size={18} strokeWidth={2.4} />}
             </button>
           ))}
@@ -114,14 +115,14 @@ export function AppearancePicker() {
         <span className="label" id="bg-label">
           Фон
         </span>
-        <div className="swatches" role="radiogroup" aria-labelledby="bg-label">
+        <div className="swatches" role="radiogroup" onKeyDown={rovingKeys} aria-labelledby="bg-label">
           {BGS.map((b) => (
             <button
               key={b.id}
               type="button"
               className="swatch swatch-bg"
               role="radio"
-              aria-checked={bg === b.id}
+              aria-checked={bg === b.id} tabIndex={bg === b.id ? 0 : -1}
               aria-label={b.label}
               title={b.label}
               style={{ '--bg-l1': b.light[0], '--bg-l2': b.light[1], '--bg-d1': b.dark[0], '--bg-d2': b.dark[1] } as React.CSSProperties}
@@ -136,9 +137,9 @@ export function AppearancePicker() {
         <span className="label" id="size-label">
           Размер текста
         </span>
-        <div className="seg seg-4" role="radiogroup" aria-labelledby="size-label">
+        <div className="seg seg-4" role="radiogroup" onKeyDown={rovingKeys} aria-labelledby="size-label">
           {SIZES.map((s) => (
-            <button key={s.id} type="button" role="radio" aria-checked={size === s.id} aria-pressed={size === s.id} onClick={() => pickSize(s.id)}>
+            <button key={s.id} type="button" role="radio" aria-checked={size === s.id} tabIndex={size === s.id ? 0 : -1} onClick={() => pickSize(s.id)}>
               {s.label}
             </button>
           ))}

@@ -94,7 +94,7 @@ export default function MoneyReport() {
 
         {!rep && !error && (
           // Место под отчёт, пока он считается, — чтобы карточки ниже не прыгали.
-          <section className="m-card m-reading" aria-busy="true" style={{ minHeight: 300, justifyContent: 'center' }}>
+          <section className="m-card m-reading" role="status" aria-busy="true" style={{ minHeight: 300, justifyContent: 'center' }}>
             <span className="m-spinner" aria-hidden="true" />
             <span className="muted">Считаю…</span>
           </section>
@@ -118,7 +118,7 @@ export default function MoneyReport() {
                   </>
                 )}
               </div>
-              <div className="m-bars" role="list" aria-label="Траты по периодам">
+              <div className="m-bars" role="group" aria-label="Траты по периодам">
                 {rep.bars.map((b, i) => {
                   const last = i === rep.bars.length - 1;
                   const on = picked === i || (picked === null && last);
@@ -126,10 +126,10 @@ export default function MoneyReport() {
                     <button
                       key={b.from}
                       type="button"
-                      role="listitem"
                       className={`m-barcol${last ? ' now' : ''}${on ? ' on' : ''}`}
-                      aria-label={`${b.short}: ${money(b.spend, base, { trim: true })}`}
-                      title={`${b.short}: ${money(b.spend, base, { trim: true })}`}
+                      aria-pressed={on}
+                      aria-label={`${b.short}: ${money(b.spend, base, { trim: true })}${on ? '. Нажмите ещё раз — траты по дням' : ''}`}
+                      title={`${b.short}: ${money(b.spend, base, { trim: true })}${on ? ' · ещё раз — по дням' : ''}`}
                       onClick={() => (picked === i ? setDay(b.from) : setPicked(i))}
                     >
                       <span className="m-barval mono">{on ? formatMinor(b.spend, base, { whole: true }) : ''}</span>

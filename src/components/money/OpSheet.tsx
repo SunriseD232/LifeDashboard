@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { currency, formatMinor, money, parseAmount } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
 import { convert, exchangeRate, type MoneyOp, type OpKind } from '@/lib/money';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
 
 /** Черновик новой операции — из быстрого ввода, голоса, ИИ или кнопки «+». */
@@ -168,9 +169,11 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
   }
 
   const sign = kind === 'income' ? '' : '−';
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose);
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={existing ? 'Операция' : 'Новая операция'}>
+      <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={existing ? 'Операция' : 'Новая операция'}>
         <div className="sheet-head">
           <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>
             {existing ? 'Операция' : 'Новая операция'}

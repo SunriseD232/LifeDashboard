@@ -10,6 +10,7 @@ import { registerOffline } from '@/lib/pushClient';
 import { takeReceipt } from '@/lib/audio';
 import { HUB_BAR, MONEY_BAR, slideClass, takeSlide } from '@/lib/superapp';
 import PhoneBar from '../PhoneBar';
+import SkipLink from '../SkipLink';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import Login from '../Login';
@@ -167,7 +168,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
 
   if (status === 'loading') {
     return (
-      <div aria-busy="true" className="m-center m-splash">
+      <div role="status" aria-busy="true" className="m-center m-splash">
         <span className="m-splash-icon" aria-hidden="true">
           <Icon name="wallet" size={34} />
         </span>
@@ -230,6 +231,7 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   return (
     <Ctx.Provider value={value}>
       <div className="shell m-shell">
+      <SkipLink />
       <MoneySide nav={data.nav} login={data.login} />
       <div className="m-app">
         {(offlineAt || queued.length > 0) && (

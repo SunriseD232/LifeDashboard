@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { localDay } from '@/lib/dates';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney, type Sheet } from './MoneyShell';
 
 const MAX_SECONDS = 60;
@@ -119,9 +120,11 @@ export default function VoiceSheet({ onClose }: { onClose: () => void }) {
     }
   }, [seconds, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose, phase !== 'busy');
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && phase !== 'busy' && onClose()}>
-      <section className="sheet m-sheet m-voice" role="dialog" aria-modal="true" aria-label="Ввод голосом">
+      <section ref={box} className="sheet m-sheet m-voice" role="dialog" aria-modal="true" aria-label="Ввод голосом">
         <div className={`m-voice-orb${phase === 'rec' ? ' on' : ''}`} aria-hidden="true">
           <Icon name="mic" size={34} />
         </div>

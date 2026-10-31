@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { currency, formatMinor, money, parseAmount } from '@/lib/currencies';
 import { ACCOUNT_KINDS, type AccountKind, type MoneyAccount } from '@/lib/money';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
 
 /** Счета: остатки, итог в основной валюте, добавить и поправить. */
@@ -137,9 +138,11 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
     }
   }
 
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose);
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={account ? 'Счёт' : 'Новый счёт'}>
+      <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={account ? 'Счёт' : 'Новый счёт'}>
         <div className="sheet-head">
           <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>
             {account ? account.name : 'Новый счёт'}

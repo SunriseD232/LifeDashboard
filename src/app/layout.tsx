@@ -16,7 +16,8 @@ import '@fontsource/jetbrains-mono/500.css';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LifeDashboard',
+  // У каждого раздела своё название вкладки: по нему диктор объявляет переход.
+  title: { default: 'LifeDashboard', template: '%s · LifeDashboard' },
   description: 'Дела, чек-листы и напоминания на каждый день',
   // Манифест и значок для экрана «Домой»: на iPhone push-уведомления
   // работают только у сайта, добавленного туда (см. src/lib/pushClient.ts).
@@ -31,9 +32,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  // iPhone (особенно с экрана «Домой») после поворота оставался приближенным.
-  // Свой зум пальцами iOS всё равно разрешает — это его правило доступности.
-  maximumScale: 1,
+  // maximumScale не ставим: Android тогда запрещает зум пальцами. Залипший
+  // после поворота зум на iPhone лечат text-size-adjust и overflow-x: clip.
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#eef3f2' },

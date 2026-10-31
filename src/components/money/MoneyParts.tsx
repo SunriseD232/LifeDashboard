@@ -9,6 +9,7 @@ import { addDays, localDay } from '@/lib/dates';
 import { quickParse, type MoneyAccount, type MoneyOp } from '@/lib/money';
 import { needsAi, type MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
+import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
 import { showDrafts } from './VoiceSheet';
 
@@ -205,9 +206,11 @@ export function ScopeSwitch({ scope, onChange }: { scope: Scope; onChange: (s: S
 
 /** Нижнее окно «Денег»: заголовок, крестик, закрытие по тапу мимо. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const box = useRef<HTMLElement>(null);
+  useSheet(box, onClose);
   return (
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <section className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
           <h2 className="display" style={{ margin: 0, fontSize: 'calc(18px * var(--fs))', flex: 1 }}>
             {title}
