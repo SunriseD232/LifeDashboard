@@ -20,20 +20,16 @@ export default function Confirm({
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  useModalFocus(boxRef);
+  useModalFocus(boxRef, onCancel);
 
   useEffect(() => {
     // Фокус на безопасной кнопке: случайный Enter ничего не удалит.
     cancelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  }, []);
 
   return (
-    <div className="overlay" onClick={onCancel}>
+    // Поверх всего, в том числе нижнего окна, из которого спросили.
+    <div className="overlay" style={{ zIndex: 70 }} onClick={onCancel}>
       <div
         ref={boxRef}
         className="dialog"

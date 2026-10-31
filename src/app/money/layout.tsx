@@ -6,7 +6,7 @@ import './money.css';
 // поэтому на iPhone «Деньги» — отдельная иконка, а не вкладка LifeDashboard.
 // Свой значок: белый кошелёк на глубокой бирюзе (public/money/).
 export const metadata: Metadata = {
-  title: 'Деньги',
+  title: { absolute: 'Деньги', template: '%s · Деньги' },
   description: 'Траты, счета и валюты',
   manifest: '/task/money/manifest.webmanifest',
   icons: { icon: '/task/money/favicon-32.png', apple: '/task/money/apple-touch-icon.png' },

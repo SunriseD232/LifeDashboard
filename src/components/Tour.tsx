@@ -113,12 +113,9 @@ function TourCard({
 }) {
   const cur = steps[step];
   const last = step === steps.length - 1;
-  useModalFocus(card);
+  useModalFocus(card, () => remember([section.id]));
   useEffect(() => {
     card.current?.querySelector<HTMLElement>('.btn-primary')?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && remember([section.id]);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

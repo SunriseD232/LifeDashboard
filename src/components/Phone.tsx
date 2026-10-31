@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons';
-import { useModalFocus } from './useModalFocus';
+import { focusInto, useModalFocus } from './useModalFocus';
 
 /**
  * Телефонный вид: на узком экране — только список, а формы открываются
@@ -43,18 +43,17 @@ export function Fab({ label, onClick }: { label: string; onClick: () => void }) 
 /** Окно снизу: заголовок, крестик, содержимое; Esc и тап мимо — закрыть. */
 export function Sheet({ title, onClose, children, actions }: { title: string; onClose: () => void; children: React.ReactNode; actions?: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  useModalFocus(ref);
+  useModalFocus(ref, onClose);
+  // Один раз при открытии: onClose у родителя часто новый на каждый рендер,
+  // и эффект с ним в зависимостях перескакивал бы курсором на первое поле.
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('input, textarea, select')?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
+    focusInto(ref.current, true);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className="sheet-scrim" onClick={onClose}>
       <div ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>

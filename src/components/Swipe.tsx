@@ -17,7 +17,8 @@ const ACTION_W = 76;
  * Свайп строки пальцем, как в Apple Напоминаниях: вправо — «Сделано»
  * (onRight), влево — открываются кнопки действий. Только касание: мышь и
  * прокрутка страницы не задевают (направление решаем по первым пикселям).
- * Всё то же есть и кнопками — свайп лишь короче.
+ * Всё то же есть и кнопками — свайп лишь короче. С клавиатуры те же кнопки
+ * открывает Shift+F10 (или клавиша меню) на строке, Esc — закрывает.
  */
 export default function Swipe({
   children,
@@ -106,8 +107,34 @@ export default function Swipe({
     setDx(open ? -width : 0);
   };
 
+  const openByKey = () => {
+    setOpenLeft(true);
+    setDx(-width);
+    // Кнопки станут видимыми только после перерисовки.
+    requestAnimationFrame(() => box.current?.querySelector<HTMLElement>('.swipe-btn')?.focus());
+  };
+  const closeByKey = () => {
+    setOpenLeft(false);
+    setDx(0);
+    box.current?.querySelector<HTMLElement>('.swipe-row button, .swipe-row input, .swipe-row a')?.focus();
+  };
+
   return (
-    <div ref={box} className="swipe">
+    <div
+      ref={box}
+      className="swipe"
+      onKeyDown={(e) => {
+        if (!actions.length) return;
+        if ((e.key === 'F10' && e.shiftKey) || e.key === 'ContextMenu') {
+          e.preventDefault();
+          openByKey();
+        } else if (e.key === 'Escape' && openLeft) {
+          e.preventDefault();
+          e.stopPropagation();
+          closeByKey();
+        }
+      }}
+    >
       {onRight && (
         <div className="swipe-under swipe-right" aria-hidden="true" style={{ opacity: dx > 0 ? Math.min(1, dx / DONE_AT) : 0 }}>
           <Icon name={rightIcon} size={20} />

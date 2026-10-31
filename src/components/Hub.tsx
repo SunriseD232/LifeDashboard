@@ -196,7 +196,7 @@ export default function Hub() {
         />
       )}
 
-      <nav className="hub-quick" aria-label="Быстрые действия">
+      <div className="hub-quick" role="group" aria-label="Быстрые действия">
         {shortcuts.map((s, i) => (
           <button key={s.id} type="button" className={`hub-sc${i === 0 ? ' main' : ''}`} onClick={() => press(s)}>
             <span className="hub-sc-i">
@@ -205,7 +205,7 @@ export default function Hub() {
             {s.label}
           </button>
         ))}
-      </nav>
+      </div>
 
       <div className="hub-grid">
         {tiles.map((t) => (
@@ -218,13 +218,14 @@ export default function Hub() {
 
 const cls = (wide: boolean, extra = '') => `hub-tile${wide ? ' wide' : ''}${extra}`;
 
+/** Подпись плитки — заголовок: диктор прыгает по плиткам клавишей H. */
 function Lbl({ icon, tone, children }: { icon: string; tone?: 'blue' | 'warm'; children: ReactNode }) {
   return (
     <>
-      <span className={`hub-ico${tone ? ` ${tone}` : ''}`}>
+      <span className={`hub-ico${tone ? ` ${tone}` : ''}`} aria-hidden="true">
         <Icon name={icon} size={16} />
       </span>
-      {children}
+      <h2 className="hub-h">{children}</h2>
     </>
   );
 }

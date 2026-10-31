@@ -149,14 +149,18 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        <div className="search-results" id="search-results" role="listbox" ref={listRef}>
-          {!q.trim() && <p className="search-empty">Начните печатать — ищу по началу слов везде сразу.</p>}
-          {hits && hits.length === 0 && <p className="search-empty">Ничего не нашлось.</p>}
+        {/* Сколько нашлось — диктору; сам список он видит через стрелки. */}
+        <div className="sr-only" role="status" aria-live="polite">
+          {hits ? (hits.length ? `Найдено: ${hits.length}` : 'Ничего не нашлось') : ''}
+        </div>
+        {!q.trim() && <p className="search-empty">Начните печатать — ищу по началу слов везде сразу.</p>}
+        {hits && hits.length === 0 && <p className="search-empty">Ничего не нашлось.</p>}
+        <div className="search-results" id="search-results" role="listbox" aria-label="Результаты" ref={listRef}>
           {groups.map((g) => (
-            <div key={g.id} role="presentation">
-              <h3 className="group-title" style={{ padding: '10px 12px 4px' }}>
+            <div key={g.id} role="group" aria-labelledby={`sr-g-${g.id}`}>
+              <div id={`sr-g-${g.id}`} className="group-title" style={{ padding: '10px 12px 4px' }}>
                 {g.label}
-              </h3>
+              </div>
               {g.hits.map((h) => {
                 i++;
                 const idx = i;
@@ -168,6 +172,7 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
                     data-i={idx}
                     role="option"
                     aria-selected={idx === active}
+                    tabIndex={-1}
                     type="button"
                     className="search-hit"
                     onMouseEnter={() => setActive(idx)}

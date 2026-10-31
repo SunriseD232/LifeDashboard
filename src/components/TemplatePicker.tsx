@@ -32,14 +32,11 @@ export default function TemplatePicker({ onClose, onCreated }: { onClose: () => 
   const [purpose, setPurpose] = useState('');
   const [thinking, setThinking] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
-  useModalFocus(boxRef);
+  useModalFocus(boxRef, onClose);
 
   useEffect(() => {
     boxRef.current?.querySelector<HTMLElement>('button, input')?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, pick]);
+  }, [pick]);
 
   const choose = (t: ChecklistTemplate) => {
     setPick(t);

@@ -27,6 +27,7 @@ export default function RecipeEditor({ id }: { id?: string }) {
   const r = id ? data.kitchen.recipes.find((x) => x.id === id) : undefined;
 
   const [title, setTitle] = useState(r?.title ?? '');
+  const [titleErr, setTitleErr] = useState(false);
   const [category, setCategory] = useState<Category>(r?.category ?? 'dinner');
   const [minutes, setMinutes] = useState(r?.minutes ? String(r.minutes) : '');
   const [servings, setServings] = useState(String(r?.servings ?? 2));
@@ -77,7 +78,11 @@ export default function RecipeEditor({ id }: { id?: string }) {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      setTitleErr(true);
+      document.getElementById('re-title')?.focus();
+      return;
+    }
     setBusy(true);
     const body = {
       title: title.trim(),
@@ -147,7 +152,25 @@ export default function RecipeEditor({ id }: { id?: string }) {
           <label className="label" htmlFor="re-title">
             Название
           </label>
-          <input id="re-title" className="field" maxLength={120} required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например, «Гречка с грибами»" />
+          <input
+            id="re-title"
+            className="field"
+            maxLength={120}
+            value={title}
+            aria-required="true"
+            aria-invalid={titleErr || undefined}
+            aria-describedby={titleErr ? 're-title-err' : undefined}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (titleErr) setTitleErr(false);
+            }}
+            placeholder="Например, «Гречка с грибами»"
+          />
+          {titleErr && (
+            <p id="re-title-err" className="field-err">
+              Напишите название рецепта.
+            </p>
+          )}
         </div>
         <div className="task-fields">
           <div className="fld">
@@ -217,7 +240,7 @@ export default function RecipeEditor({ id }: { id?: string }) {
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary" type="submit" disabled={busy || !title.trim()}>
+          <button className="btn btn-primary" type="submit" disabled={busy}>
             <Icon name="check" size={18} />
             Сохранить
           </button>

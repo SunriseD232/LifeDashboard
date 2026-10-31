@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from './AppShell';
+import { rovingKeys } from './roving';
 import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import { Icon } from './icons';
@@ -59,14 +60,24 @@ export default function Settings() {
       <div className="page-head">
         <h1 className="h1 display">Настройки</h1>
       </div>
-      <div className="tabs-row" role="tablist" aria-label="Группы настроек" style={{ marginBottom: 16 }}>
+      <div className="tabs-row" role="tablist" aria-label="Группы настроек" style={{ marginBottom: 16 }} onKeyDown={rovingKeys}>
         {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} aria-pressed={tab === t.id} onClick={() => router.replace(t.id === 'main' ? '/settings' : `/settings?tab=${t.id}`)}>
+          <button
+            key={t.id}
+            id={`set-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls="set-panel"
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => router.replace(t.id === 'main' ? '/settings' : `/settings?tab=${t.id}`)}
+          >
             {t.label}
           </button>
         ))}
       </div>
 
+      <div role="tabpanel" id="set-panel" aria-labelledby={`set-tab-${tab}`}>
       {tab === 'main' && (
       <div className="settings-col">
         <section className="card" aria-labelledby="set-weather">
@@ -282,6 +293,8 @@ export default function Settings() {
           </section>
         </div>
       )}
+
+      </div>
 
       {leaving && me && (
         <Confirm

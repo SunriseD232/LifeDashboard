@@ -135,7 +135,7 @@ export default function MoneyHome() {
             <div className="m-card-head">
               <h2 className="m-card-title">Бюджеты</h2>
               <Link className="m-card-link" href="/money/report#budgets">
-                Изменить
+                Изменить<span className="sr-only"> бюджеты</span>
               </Link>
             </div>
             {budgets.map((b) => {
@@ -170,7 +170,7 @@ export default function MoneyHome() {
             <div className="m-card-head" style={{ marginBottom: 4 }}>
               <h2 className="m-card-title">Последние</h2>
               <Link className="m-card-link" href="/money/ops">
-                Все
+                Все<span className="sr-only"> операции</span>
               </Link>
             </div>
             {ops.slice(0, 5).map((o) => (
@@ -196,7 +196,7 @@ function Upcoming() {
       <div className="m-card-head" style={{ marginBottom: 4 }}>
         <h2 className="m-card-title">Скоро списания</h2>
         <Link className="m-card-link" href="/money/recurring">
-          Все
+          Все<span className="sr-only"> списания</span>
         </Link>
       </div>
       {list.map((r) => (
@@ -220,7 +220,7 @@ function GoalsCard() {
       <div className="m-card-head">
         <h2 className="m-card-title">Цели</h2>
         <Link className="m-card-link" href="/money/goals">
-          Все
+          Все<span className="sr-only"> цели</span>
         </Link>
       </div>
       {data.goals.slice(0, 3).map((g) => {

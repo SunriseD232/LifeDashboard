@@ -18,7 +18,9 @@
   --field: #ffffff;
   --seg: #e2e9e7;
   --track: #dde6e4;
-  --box: #8fa29f;
+  /* Рамки чекбоксов и полей — не светлее 3:1 к фону (WCAG 1.4.11). */
+  --box: #738581;
+  --field-line: #7d8f8c;
   --box-done: #9fb0ad;
   --accent: #0e7c7b;
   --accent-hover: #0b6564;
@@ -55,7 +57,8 @@
   --field: #111b1a;
   --seg: #0a1110;
   --track: #263634;
-  --box: #5d716e;
+  --box: #6f8582;
+  --field-line: #5d716e;
   --box-done: #5d716e;
   --accent-hover: #12908f;
   --accent-ink: #5cc8c4;
@@ -88,7 +91,8 @@
     --field: #111b1a;
     --seg: #0a1110;
     --track: #263634;
-    --box: #5d716e;
+    --box: #6f8582;
+    --field-line: #5d716e;
     --box-done: #5d716e;
     --accent-hover: #12908f;
     --accent-ink: #5cc8c4;
@@ -148,6 +152,39 @@ a {
 :focus-visible {
   outline: 2px solid var(--accent-ink);
   outline-offset: 2px;
+}
+
+/* «К содержимому»: за краем, пока не придёт фокус с клавиатуры. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 20px -6px rgb(0 0 0 / 0.35);
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus-visible {
+  transform: none;
+}
+/* Сюда фокус ставим программно (ссылка «К содержимому», окна), кольцо вокруг
+   всей страницы или окна только мешает. */
+main:focus,
+[role='dialog'][tabindex='-1']:focus,
+[role='alertdialog'][tabindex='-1']:focus {
+  outline: none;
+}
+
+/* Подсказка в поле — приглушённым цветом темы: серый браузера в тёмной
+   теме не дотягивал до 4.5:1. */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 .sr-only {
@@ -255,20 +292,34 @@ a {
   min-width: 0;
   min-height: 44px;
   padding: 10px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--field-line);
   border-radius: 12px;
   background: var(--field);
 }
 .field:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(14 124 123 / 0.15);
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 1px;
+  border-color: var(--accent-ink);
+}
+.field[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.field-err {
+  margin: 0;
+  color: var(--danger);
+  font-size: calc(13px * var(--fs));
+  font-weight: 500;
 }
 .label {
   font-size: calc(13px * var(--fs));
   font-weight: 600;
 }
 
+@media (pointer: coarse) {
+  .chip {
+    min-height: 36px;
+  }
+}
 .chip {
   white-space: nowrap;
   display: inline-flex;
@@ -287,7 +338,8 @@ a {
 .chip:hover {
   border-color: var(--accent);
 }
-.chip[aria-pressed='true'] {
+.chip[aria-pressed='true'],
+.chip[aria-checked='true'] {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -630,7 +682,8 @@ a {
   font-size: calc(13px * var(--fs));
   cursor: pointer;
 }
-.seg button[aria-pressed='true'] {
+.seg button[aria-pressed='true'],
+.seg button[aria-checked='true'] {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 0 0 1px var(--line);
@@ -673,6 +726,16 @@ a {
 }
 .check.round input {
   border-radius: 99px;
+}
+/* Кружок отдельно от кнопки «открыть»: поле нажатия 44×44 вокруг 22px. */
+.check-hit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin: -11px;
+  padding: 11px;
+  border-radius: 99px;
+  cursor: pointer;
 }
 .fld {
   display: flex;
@@ -868,6 +931,19 @@ input[type='time'].field::-webkit-date-and-time-value {
 .note-title:focus-visible,
 .note-body:focus-visible {
   outline: none;
+}
+/* Поля заметки без рамки: в фокусе — акцентная черта слева от текста. */
+.note-title:focus-visible,
+.note-body:focus-visible {
+  box-shadow: -10px 0 0 -8px var(--accent-ink);
+}
+.search-input:focus-within {
+  box-shadow: inset 0 -2px 0 var(--accent-ink);
+}
+.sbar-say:focus-within,
+.cmp-compose:focus-within {
+  border-color: var(--accent-ink);
+  box-shadow: 0 0 0 1px var(--accent-ink);
 }
 .note-meta {
   display: flex;
@@ -1076,7 +1152,7 @@ input[type='time'].field::-webkit-date-and-time-value {
   justify-content: flex-end;
   gap: 4px;
   min-width: 0;
-  font-size: calc(10px * var(--fs));
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
 }
 .bar-col i {
@@ -1241,6 +1317,9 @@ mark {
   padding: 18px 12px;
   color: var(--muted);
 }
+.search-box > .search-empty {
+  padding-inline: 20px;
+}
 .search-hit {
   display: flex;
   align-items: center;
@@ -1300,7 +1379,8 @@ mark {
   white-space: nowrap;
   cursor: pointer;
 }
-.tabs-row button[aria-pressed='true'] {
+.tabs-row button[aria-pressed='true'],
+.tabs-row button[aria-selected='true'] {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line);
@@ -2010,6 +2090,12 @@ mark {
   padding: 32px 16px;
   text-align: center;
 }
+/* Длинная подпись кнопки в пустом состоянии переносится, а не уезжает за край. */
+.empty .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-wrap: balance;
+}
 .empty-icon {
   display: grid;
   place-items: center;
@@ -2215,9 +2301,11 @@ mark {
   font: inherit;
   cursor: pointer;
 }
+/* Дни соседнего месяца — приглушённым цветом, без прозрачности: они
+   нажимаются, и номер должен читаться (≥4.5:1). */
 .cal-day[data-out] {
   color: var(--muted);
-  opacity: 0.55;
+  font-weight: 400;
 }
 .cal-day:hover {
   background: var(--soft);
@@ -2234,7 +2322,7 @@ mark {
   color: var(--accent-ink);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-.cal-day[aria-selected='true'] .cal-num {
+.cal-day[aria-pressed='true'] .cal-num {
   background: var(--accent);
   color: #fff;
   box-shadow: none;
@@ -2500,8 +2588,9 @@ button.task-open:hover > span:first-child {
 }
 .toast-undo {
   flex: none;
-  min-height: 32px;
-  padding: 4px 10px;
+  min-height: 44px;
+  margin: -8px -10px -8px 0;
+  padding: 4px 14px;
   border: 0;
   border-radius: 8px;
   background: rgb(255 255 255 / 0.14);
@@ -2739,6 +2828,11 @@ button.task-open:hover > span:first-child {
   }
   .task-filters .chip-scroll {
     flex-wrap: nowrap;
+  }
+  /* Справа от меток стоит важность: лента не должна заезжать под неё. */
+  .task-filters:has(.prio-select) .chip-scroll {
+    margin-right: 0;
+    padding-right: 0;
   }
   .prio-select {
     flex: none;
@@ -3210,7 +3304,7 @@ button.task-open:hover > span:first-child {
   min-width: 0;
   min-height: 52px;
   border-radius: 12px;
-  font-size: calc(11px * min(var(--fs), 1.1));
+  font-size: calc(12px * min(var(--fs), 1.1));
   font-weight: 600;
   color: var(--muted);
   text-decoration: none;
@@ -3218,9 +3312,9 @@ button.task-open:hover > span:first-child {
     transform 0.38s cubic-bezier(0.3, 0.7, 0.2, 1),
     opacity 0.3s ease;
 }
-/* Шесть кнопок: подписи 10px, как в меню iPhone, — «Операции» влезает и на 360px. */
+/* Шесть кнопок: подписи 11px — «Операции» ещё влезает на 360px, а мельче уже не читается. */
 .six .sbar-btn {
-  font-size: calc(10px * min(var(--fs), 1.1));
+  font-size: calc(11px * min(var(--fs), 1.1));
 }
 .sbar-label {
   max-width: 100%;
@@ -3695,6 +3789,12 @@ a.hub-tile:hover {
   color: var(--muted);
   text-decoration: none;
 }
+.hub-h {
+  margin: 0;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+}
 .hub-ico {
   flex: none;
   display: grid;
@@ -3740,15 +3840,22 @@ a.hub-tile:hover {
   border-top: 0;
 }
 .hub-box {
+  position: relative;
   flex: none;
   width: 24px;
   height: 24px;
   margin-top: 1px;
   padding: 0;
-  border: 2px solid var(--line-strong);
+  border: 2px solid var(--box);
   border-radius: 7px;
   background: transparent;
   cursor: pointer;
+}
+/* Квадратик 24px, а нажимать можно в 44px вокруг (вправо — до отступа). */
+.hub-box::before {
+  content: '';
+  position: absolute;
+  inset: -10px -8px -10px -10px;
 }
 .hub-box:hover {
   border-color: var(--accent);
@@ -3756,8 +3863,10 @@ a.hub-tile:hover {
 .hub-tt {
   flex: 1;
   min-width: 0;
+  min-height: 26px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
   color: var(--ink);
   text-decoration: none;
@@ -4010,6 +4119,7 @@ a.hub-tile:hover {
   .hub-cat small {
     flex: none;
     color: var(--muted);
+    font-size: calc(12px * var(--fs));
   }
   .hub-quick {
     flex-wrap: wrap;
