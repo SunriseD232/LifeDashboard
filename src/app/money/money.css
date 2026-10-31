@@ -1095,8 +1095,9 @@ a.m-acc {
     max-width: 760px;
     padding-bottom: 96px;
   }
-  .m-shell .m-qbar,
-  .m-shell .m-import-go {
+  /* Они рисуются прямо в body (см. Fixed) — сдвигаем на ширину бокового меню. */
+  .m-qbar,
+  .m-import-go {
     left: calc(50% + 124px);
     bottom: 20px;
     width: min(728px, calc(100vw - 248px - 48px));

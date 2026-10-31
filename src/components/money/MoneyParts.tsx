@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
@@ -17,6 +18,17 @@ import { showDrafts } from './VoiceSheet';
  * суммами («продукты 1200 и кофе 350») — разбирает ИИ. Рядом — голос и
  * фото чека, если включены.
  */
+/**
+ * Закреплённое у края окна (строка ввода, кнопки импорта). Рисуем прямо в
+ * body: экран при переходе едет через transform, а fixed внутри такого
+ * родителя считается от него — строка сначала оказывалась сверху и падала вниз.
+ */
+export function Fixed({ children }: { children: React.ReactNode }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  return ready ? createPortal(children, document.body) : null;
+}
+
 export function QuickBar() {
   const { data, openOp, open, aiOn, toast } = useMoney();
   const [text, setText] = useState('');
@@ -68,6 +80,7 @@ export function QuickBar() {
 
   const typed = !!text.trim();
   return (
+    <Fixed>
     <form className="m-qbar" onSubmit={submit} aria-label="Быстрый ввод" aria-busy={busy}>
       <label htmlFor="m-quick" className="sr-only">
         Что потратили
@@ -100,6 +113,7 @@ export function QuickBar() {
         {busy ? <span className="m-spinner m-spinner-light" aria-hidden="true" /> : <Icon name={typed ? 'arrow' : 'plus'} size={22} />}
       </button>
     </form>
+    </Fixed>
   );
 }
 

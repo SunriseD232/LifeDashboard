@@ -665,7 +665,8 @@ function RatesTile({ wide, m }: { wide: boolean; m: MoneyState }) {
   const cur = m.settings!.currencies.filter((c) => c !== base && m.rates[c]).slice(0, wide ? 4 : 3);
   if (!cur.length || base !== 'RUB') return null;
   return (
-    <Link className={cls(wide)} href="/money/settings">
+    // Отдельного экрана курсов нет — плитка только показывает.
+    <section className={cls(wide)} aria-label="Курсы ЦБ">
       <span className="hub-lbl">
         <Lbl icon="exchange">Курсы ЦБ</Lbl>
       </span>
@@ -677,6 +678,6 @@ function RatesTile({ wide, m }: { wide: boolean; m: MoneyState }) {
         </span>
       ))}
       {m.rates_day && <span className="hub-sub">на {new Date(`${m.rates_day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</span>}
-    </Link>
+    </section>
   );
 }
