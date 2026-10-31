@@ -264,7 +264,7 @@ function TodayTile({ wide }: { wide: boolean }) {
   };
 
   return (
-    <section className={cls(wide)} aria-label="Сегодня">
+    <section className={cls(wide, ' today')} aria-label="Сегодня">
       <Link className="hub-lbl" href="/tasks">
         <Lbl icon="tasks" tone="blue">
           {day === today ? 'Сегодня' : dayHead(day, today)}
@@ -508,6 +508,10 @@ function SpendTile({ wide, m }: { wide: boolean; m: MoneyState }) {
   const spend = m.month_parts.reduce((s, p) => s + p.base_minor, 0);
   const prev = m.prev_spend.mine + m.prev_spend.family;
   const delta = prev > 0 ? Math.round(((spend - prev) / prev) * 100) : null;
+  // На компьютере места больше — три главные категории.
+  const byCat = new Map<string | null, number>();
+  for (const p of m.month_parts) byCat.set(p.category_id, (byCat.get(p.category_id) ?? 0) + p.base_minor);
+  const top = [...byCat].sort((a, b) => b[1] - a[1]).slice(0, 3);
   return (
     <Link className={cls(wide)} href="/money/report">
       <span className="hub-lbl">
@@ -515,6 +519,21 @@ function SpendTile({ wide, m }: { wide: boolean; m: MoneyState }) {
       </span>
       <span className="hub-big">{money(spend, base, { whole: true })}</span>
       <span className="hub-sub">{delta === null ? 'за этот месяц' : delta === 0 ? 'как в прошлом месяце' : `на ${Math.abs(delta)}% ${delta < 0 ? 'меньше' : 'больше'}, чем в прошлом`}</span>
+      {top.length > 0 && (
+        <span className="hub-desk">
+          {top.map(([id, sum]) => (
+            <span key={id ?? '-'} className="hub-cat">
+              <span>
+                <b>{m.categories.find((c) => c.id === id)?.name ?? 'Без категории'}</b>
+                <small className="mono">{money(sum, base, { whole: true })}</small>
+              </span>
+              <span className="bar">
+                <i style={{ width: `${Math.max(2, Math.round((sum / top[0][1]) * 100))}%` }} />
+              </span>
+            </span>
+          ))}
+        </span>
+      )}
     </Link>
   );
 }
@@ -531,13 +550,18 @@ function BalanceTile({ wide, m }: { wide: boolean; m: MoneyState }) {
         <Lbl icon="wallet">На счетах</Lbl>
       </span>
       <span className="hub-big">{money(total, base, { whole: true })}</span>
-      {wide
-        ? live.slice(0, 3).map((a) => (
-            <span key={a.id} className="hub-sub">
-              {a.name} · {money(a.balance_minor, a.currency, { whole: true })}
+      {foreign.length > 0 && <span className="hub-sub hub-phone">в т.ч. {foreign.slice(0, 2).map((a) => money(a.balance_minor, a.currency, { whole: true })).join(' и ')}</span>}
+      {/* На компьютере — счета списком. */}
+      <span className="hub-desk">
+        {live.slice(0, 4).map((a) => (
+          <span key={a.id} className="hub-cat">
+            <span>
+              <b>{a.name}</b>
+              <small className="mono">{money(a.balance_minor, a.currency, { whole: true })}</small>
             </span>
-          ))
-        : foreign.length > 0 && <span className="hub-sub">в т.ч. {foreign.slice(0, 2).map((a) => money(a.balance_minor, a.currency, { whole: true })).join(' и ')}</span>}
+          </span>
+        ))}
+      </span>
     </Link>
   );
 }

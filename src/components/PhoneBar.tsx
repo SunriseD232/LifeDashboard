@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { activeIndex, type BarItem, type Context } from '@/lib/superapp';
+import { activeIndex, wasPop, type BarItem, type Context } from '@/lib/superapp';
 import { Icon } from './icons';
 
 /**
@@ -38,7 +38,8 @@ export default function PhoneBar({ ctx, items, plus, badges, className }: { ctx:
   useEffect(() => {
     const prev = lastShown;
     lastShown = { ctx, items };
-    if (!prev || prev.ctx === ctx) return;
+    // «Назад» жестом — меню просто сменилось, без второго проезда.
+    if (!prev || prev.ctx === ctx || wasPop()) return;
     // Вглубь (дальше от главной) — старое уезжает влево, новое приезжает справа.
     const deeper = RANK[ctx] > RANK[prev.ctx];
     setLeaving({ ...prev, to: deeper ? 'left' : 'right' });

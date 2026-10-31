@@ -1086,3 +1086,27 @@ a.m-acc {
   color: #fff;
   background: var(--accent-hover);
 }
+
+/* Компьютер: слева меню LifeDashboard с раскрытыми «Деньгами», справа —
+   колонка пошире; нижнего меню нет, строка ввода — внизу колонки. */
+@media (min-width: 861px) {
+  .m-shell .m-app {
+    width: 100%;
+    max-width: 760px;
+    padding-bottom: 96px;
+  }
+  .m-shell .m-qbar,
+  .m-shell .m-import-go {
+    left: calc(50% + 124px);
+    bottom: 20px;
+    width: min(728px, calc(100vw - 248px - 48px));
+  }
+}
+/* Пунктов больше, чем у LifeDashboard, — чуть плотнее, чтобы влезли без прокрутки. */
+.m-shell .side .nav {
+  min-height: 38px;
+  padding: 6px 12px;
+}
+.m-shell .side .nav-sep {
+  padding-top: 10px;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseHub } from '../hub';
-import { activeIndex, contextOf, dashBar, HUB_BAR, hubBar, MONEY_BAR, slideClass, slideFrom, takeSlide, resetSlide, type Context } from '../superapp';
+import { activeIndex, contextOf, dashBar, HUB_BAR, hubBar, MONEY_BAR, slideClass, slideFrom, takeSlide, resetSlide, simulatePop, wasPop, type Context } from '../superapp';
 
 const dash = dashBar([
   { href: '/tasks', label: 'Задачи', icon: 'tasks' },
@@ -57,5 +57,16 @@ describe('супер-апп: меню и переходы', () => {
     expect(slideClass(takeSlide('/money/ops', bar))).toBe('slide-tab-right');
     expect(slideClass(takeSlide('/', bar))).toBe('slide-ctx-left');
     expect(slideClass(takeSlide('/', bar))).toBe('');
+  });
+
+  it('«назад» жестом — без своей анимации, следующий переход — как обычно', () => {
+    resetSlide();
+    takeSlide('/', bar);
+    takeSlide('/money/ops', bar);
+    simulatePop();
+    expect(takeSlide('/', bar)).toBeNull();
+    expect(wasPop()).toBe(true);
+    expect(slideClass(takeSlide('/money', bar))).toBe('slide-ctx-right');
+    expect(wasPop()).toBe(false);
   });
 });

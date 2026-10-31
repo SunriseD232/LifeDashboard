@@ -1,3 +1,4 @@
+import type { NavPref } from './nav';
 import { currency, isCurrency, parseAmount } from './currencies';
 import type { MoneyDebt, MoneyGoal, MoneyRecurring } from './moneyPlans';
 
@@ -87,6 +88,8 @@ export interface MoneyState {
   /** Состоит ли в семье — тогда можно заводить семейные счета. */
   family: boolean;
   login: string | null;
+  /** Порядок разделов LifeDashboard — для бокового меню на компьютере. */
+  nav?: NavPref[] | null;
   /** ИИ подключён на сервере — есть голос, фото чеков и разбор фраз. */
   ai: boolean;
   /** Бюджеты на месяц по категориям расходов, в основной валюте. */

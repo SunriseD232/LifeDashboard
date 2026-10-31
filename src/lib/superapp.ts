@@ -91,7 +91,26 @@ export function slideFrom(from: string | null, to: string, bar: (ctx: Context) =
  * приложение, модуль живёт, пока открыта вкладка).
  */
 let lastPath: string | null = null;
+
+/**
+ * «Назад» и «вперёд» браузера (на iPhone — свайп от края): экран уже
+ * приехал жестом системы, своя анимация поверх — второй раз. Такие переходы
+ * не анимируем ни экран, ни меню.
+ */
+let popPending = false;
+let lastWasPop = false;
+if (typeof window !== 'undefined') window.addEventListener('popstate', () => (popPending = true));
+export function wasPop(): boolean {
+  return lastWasPop;
+}
+
 export function takeSlide(to: string, bar: (ctx: Context) => BarItem[]): { dir: 'right' | 'left'; cross: boolean } | null {
+  lastWasPop = popPending;
+  popPending = false;
+  if (lastWasPop) {
+    lastPath = to;
+    return null;
+  }
   const dir = slideFrom(lastPath, to, bar);
   const cross = !!lastPath && contextOf(lastPath) !== contextOf(to);
   lastPath = to;
@@ -102,7 +121,13 @@ export function takeSlide(to: string, bar: (ctx: Context) => BarItem[]): { dir: 
 export function slideClass(s: { dir: 'right' | 'left'; cross: boolean } | null): string {
   return s ? `slide-${s.cross ? 'ctx' : 'tab'}-${s.dir}` : '';
 }
+/** Для тестов: как будто нажали «назад». */
+export function simulatePop() {
+  popPending = true;
+}
 /** Для тестов. */
 export function resetSlide() {
   lastPath = null;
+  popPending = false;
+  lastWasPop = false;
 }

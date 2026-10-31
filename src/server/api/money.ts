@@ -1,3 +1,4 @@
+import { readSettings } from '../settings';
 import { randomUUID } from 'node:crypto';
 import { userLogin } from '@/lib/auth';
 import { isCurrency } from '@/lib/currencies';
@@ -84,6 +85,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       user_rates: readUserRates(d, userId),
       family: !!householdOf(d, userId),
       login,
+      nav: readSettings(d, userId).nav,
       ai: aiConfigured(),
       budgets: [],
       month_parts: [],
