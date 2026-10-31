@@ -1,5 +1,6 @@
-import Home from '@/components/Home';
+import { redirect } from 'next/navigation';
 
-export default function Page() {
-  return <Home />;
+/** «Сегодня» теперь на главной супер-аппа; старые ссылки и закладки ведём туда. */
+export default function TodayPage() {
+  redirect('/');
 }

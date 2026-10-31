@@ -1,8 +1,10 @@
+import { DEFAULT_HUB, hubBarChoices, type HubPrefs } from './hub';
 import { PHONE_SLOTS, type Section } from './nav';
 
 /**
  * Супер-апп: главная (хаб) и разделы — «Дашборд» (дела, заметки, кухня…) и
- * «Деньги». У каждого своё нижнее меню на телефоне. Переходы едут: вглубь и
+ * «Деньги». Отдельной главной у «Дашборда» нет — всё на сегодня на главной.
+ * У каждого своё нижнее меню на телефоне. Переходы едут: вглубь и
  * вправо по меню — справа налево, назад к главной и влево — слева направо.
  */
 
@@ -16,17 +18,13 @@ export interface BarItem {
 
 /** Главная (хаб) — первая кнопка везде. */
 export const HUB_ITEM: BarItem = { href: '/', label: 'Главная', icon: 'home' };
-/** Главная «Дашборда» — то, что раньше было главной LifeDashboard. */
-export const TODAY_ITEM: BarItem = { href: '/today', label: 'Сегодня', icon: 'sun' };
 export const MONEY_HOME: BarItem = { href: '/money', label: 'Деньги', icon: 'wallet' };
 
-/** Меню главной: две кнопки, «+» посередине, две кнопки. */
-export const HUB_BAR: [BarItem, BarItem, BarItem, BarItem] = [
-  HUB_ITEM,
-  { href: '/today', label: 'Дашборд', icon: 'tasks' },
-  MONEY_HOME,
-  { href: '/settings', label: 'Настройки', icon: 'settings' },
-];
+/** Меню главной: две кнопки, «+» посередине, две кнопки — свои в Настройки → «Главная». */
+export function hubBar(p: HubPrefs = DEFAULT_HUB, hasMoney = true): BarItem[] {
+  return hubBarChoices(p, hasMoney).map(({ href, label, icon }) => ({ href, label, icon }));
+}
+export const HUB_BAR = hubBar();
 
 /** Меню «Денег»: главная, обзор и разделы. */
 export const MONEY_BAR: BarItem[] = [
@@ -40,9 +38,9 @@ export const MONEY_BAR: BarItem[] = [
 
 export const MORE_ITEM: BarItem = { href: '/more', label: 'Ещё', icon: 'dots' };
 
-/** Меню «Дашборда»: главная, «Сегодня», три раздела из своего порядка, «Ещё». */
+/** Меню «Дашборда»: главная, четыре раздела из своего порядка, «Ещё». */
 export function dashBar(phone: Section[]): BarItem[] {
-  return [HUB_ITEM, TODAY_ITEM, ...phone.slice(0, PHONE_SLOTS).map((s) => ({ href: s.href, label: s.short ?? s.label, icon: s.icon })), MORE_ITEM];
+  return [HUB_ITEM, ...phone.slice(0, PHONE_SLOTS).map((s) => ({ href: s.href, label: s.short ?? s.label, icon: s.icon })), MORE_ITEM];
 }
 
 /** Где мы: главная и её настройки — хаб, /money — «Деньги», остальное — «Дашборд». */

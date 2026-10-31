@@ -4,6 +4,7 @@ import { convert } from '@/lib/money';
 import { parseDrafts, type AiContext, type MoneyDraft } from '@/lib/moneyAi';
 import { weekday } from '@/lib/recur';
 import { aiConfigured, askJson, audioModel, type Part } from '../ai';
+import { bumpUsage, SHORTCUTS } from '@/lib/hub';
 import { DAY_RE, HttpError, text, type Ctx } from '../http';
 import { habits, moneyContext } from '../moneyAi';
 import { moneyAllowed, readAccounts, readMoneySettings, readUserRates } from '../moneyStore';
@@ -26,7 +27,8 @@ import { tasks } from './tasks';
  * в чужой валюте пересчитывается по курсу ЦБ.
  *
  *  POST hub/parse { text, today } · hub/voice { audio, today } → { said?, items };
- *  POST hub/save { items, money_account? } → { saved }.
+ *  POST hub/save { items, money_account? } → { saved };
+ *  POST hub/use { id, hour } — нажали быстрое действие: по частоте их и подбираем.
  */
 
 /** Дело или напоминание — с описанием и подзадачами (их нет в обычном быстром вводе). */
@@ -112,6 +114,15 @@ const AUDIO: Record<string, string> = { mp4: 'm4a', 'x-m4a': 'm4a', m4a: 'm4a', 
 export async function hub(ctx: Ctx): Promise<unknown> {
   const { d, userId, method, body, id } = ctx;
   if (method !== 'POST') return undefined;
+
+  if (id === 'use') {
+    const sc = String(body.id ?? '');
+    const hour = Number(body.hour);
+    if (!SHORTCUTS.some((s) => s.id === sc) || !Number.isInteger(hour) || hour < 0 || hour > 23) throw new HttpError(400, 'Неизвестное действие.');
+    const next = bumpUsage(readSettings(d, userId).hub_usage, sc, hour);
+    d.prepare("insert into user_settings (user_id, hub_usage) values (?, ?) on conflict (user_id) do update set hub_usage = excluded.hub_usage").run(userId, JSON.stringify(next));
+    return { ok: true };
+  }
 
   if (id === 'parse' || id === 'voice') {
     if (!aiConfigured()) throw new HttpError(503, 'ИИ пока не подключён.');

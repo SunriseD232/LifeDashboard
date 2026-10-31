@@ -11,18 +11,21 @@ import { Icon } from './icons';
 import { CityPicker } from './Weather';
 import { AppearancePicker } from './ThemeToggle';
 import { CalendarCard, NavEditor, QuietCard } from './SettingsExtra';
+import HubSettings from './HubSettings';
 
-type Tab = 'main' | 'menu' | 'family' | 'account';
+type Tab = 'main' | 'home' | 'menu' | 'family' | 'account';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'main', label: 'Основное' },
+  { id: 'home', label: 'Главная' },
   { id: 'menu', label: 'Меню' },
   { id: 'family', label: 'Семья' },
   { id: 'account', label: 'Аккаунт' },
 ];
 
 /**
- * Настройки — четыре коротких группы вкладками: «Основное» (город, тема,
- * уведомления, сроки, сводка), «Меню и календарь», «Семья», «Аккаунт».
+ * Настройки — короткие группы вкладками: «Основное» (город, тема,
+ * уведомления, сроки, сводка), «Главная» (плитки, нижнее меню, быстрые
+ * действия), «Меню и календарь», «Семья», «Аккаунт».
  * Вкладка — в адресе (?tab=), чтобы на неё можно было сослаться.
  */
 export default function Settings() {
@@ -161,6 +164,12 @@ export default function Settings() {
           <AppearancePicker />
         </section>
       </div>
+      )}
+
+      {tab === 'home' && (
+        <div className="settings-col">
+          <HubSettings />
+        </div>
       )}
 
       {tab === 'menu' && (

@@ -940,6 +940,17 @@ export const MIGRATIONS: Migration[] = [
     alter table money_accounts add column card_last4 text;
     `),
   },
+  {
+    version: 19,
+    name: 'Главная супер-аппа: плитки, меню и частые действия',
+    up: (db) =>
+      db.exec(`
+    -- Настройки главной (src/lib/hub.ts) — JSON; null — как по умолчанию.
+    alter table user_settings add column hub text;
+    -- Сколько раз нажимали быстрые действия по частям дня: {"op":[ночь,утро,день,вечер]}.
+    alter table user_settings add column hub_usage text not null default '{}';
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

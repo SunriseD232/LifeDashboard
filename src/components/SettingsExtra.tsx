@@ -40,7 +40,7 @@ export function NavEditor() {
         <Icon name="list" />
         Разделы меню
       </h2>
-      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Переставьте и скройте ненужное. На телефоне внизу — Главная и первые {PHONE_SLOTS} раздела, остальные — в «Ещё».</p>
+      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Переставьте и скройте ненужное. На телефоне в меню «Дашборда» — Главная и первые {PHONE_SLOTS} раздела, остальные — в «Ещё».</p>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         {items.map((s, i) => {
           const onPhone = nav.phone.some((x) => x.href === s.href);

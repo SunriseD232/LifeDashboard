@@ -3848,3 +3848,113 @@ a.hub-tile:hover {
     display: none;
   }
 }
+
+/* Главная: неделя в плитке «Сегодня», сводка, плитки-кнопки. */
+.hub-week {
+  margin: 4px -4px 2px;
+}
+.hub-summary {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--soft);
+  font-size: calc(14px * var(--fs));
+  line-height: 1.5;
+}
+.hub-tile.warm {
+  background: var(--warm-bg);
+  border-color: var(--warm-line);
+}
+.hub-li-btn {
+  gap: 4px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hub-li-btn .bar {
+  width: 100%;
+}
+
+/* Настройки → «Главная». */
+.hubset-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.hubset-preview span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: calc(11px * min(var(--fs), 1.1));
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hubset-preview b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+}
+.hubset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hubset-tile small {
+  display: block;
+  font-size: calc(12px * var(--fs));
+  color: var(--muted);
+}
+.hubset-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.hubset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hubset-chips .chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: calc(13px * var(--fs));
+}
+.hubset-chips .chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (max-width: 560px) {
+  .hubset-tile {
+    flex-wrap: wrap;
+  }
+  .hubset-tile > span:first-of-type {
+    flex-basis: calc(100% - 30px);
+  }
+  .hubset-ctl {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

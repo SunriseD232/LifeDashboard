@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { activeIndex, contextOf, dashBar, HUB_BAR, MONEY_BAR, slideClass, slideFrom, takeSlide, resetSlide, type Context } from '../superapp';
+import { parseHub } from '../hub';
+import { activeIndex, contextOf, dashBar, HUB_BAR, hubBar, MONEY_BAR, slideClass, slideFrom, takeSlide, resetSlide, type Context } from '../superapp';
 
 const dash = dashBar([
   { href: '/tasks', label: 'Задачи', icon: 'tasks' },
@@ -7,7 +8,7 @@ const dash = dashBar([
   { href: '/kitchen', label: 'Кухня', icon: 'pot' },
   { href: '/workouts', label: 'Тренировки', icon: 'dumbbell' },
 ]);
-const bar = (c: Context) => (c === 'hub' ? [...HUB_BAR] : c === 'money' ? MONEY_BAR : dash);
+const bar = (c: Context) => (c === 'hub' ? HUB_BAR : c === 'money' ? MONEY_BAR : dash);
 
 describe('супер-апп: меню и переходы', () => {
   it('раздел по адресу', () => {
@@ -15,33 +16,36 @@ describe('супер-апп: меню и переходы', () => {
     expect(contextOf('/settings')).toBe('hub');
     expect(contextOf('/money')).toBe('money');
     expect(contextOf('/money/ops')).toBe('money');
-    expect(contextOf('/today')).toBe('dash');
+    expect(contextOf('/tasks')).toBe('dash');
     expect(contextOf('/kitchen/new')).toBe('dash');
   });
 
-  it('меню дашборда: главная, сегодня, три раздела, ещё', () => {
-    expect(dash.map((b) => b.label)).toEqual(['Главная', 'Сегодня', 'Задачи', 'Заметки', 'Кухня', 'Ещё']);
+  it('меню дашборда: главная, четыре раздела, ещё; у главной — свои четыре', () => {
+    expect(dash.map((b) => b.label)).toEqual(['Главная', 'Задачи', 'Заметки', 'Кухня', 'Тренировки', 'Ещё']);
     expect(MONEY_BAR.map((b) => b.label)).toEqual(['Главная', 'Обзор', 'Операции', 'Отчёты', 'Счета', 'Ещё']);
-    expect(HUB_BAR.map((b) => b.label)).toEqual(['Главная', 'Дашборд', 'Деньги', 'Настройки']);
+    expect(HUB_BAR.map((b) => b.label)).toEqual(['Главная', 'Дела', 'Деньги', 'Настройки']);
+    expect(hubBar(parseHub({ bar: ['money', 'home', 'notes', 'tasks'] })).map((b) => b.href)).toEqual(['/money', '/', '/notes', '/tasks']);
+    // Без «Денег» денежные кнопки меняются на свободные.
+    expect(hubBar(parseHub({ bar: ['money', 'home', 'report', 'tasks'] }), false).map((b) => b.href)).toEqual(['/', '/tasks', '/notes', '/settings']);
   });
 
   it('активная кнопка — самое длинное совпадение', () => {
     expect(activeIndex(MONEY_BAR, '/money')).toBe(1);
     expect(activeIndex(MONEY_BAR, '/money/ops')).toBe(2);
     expect(activeIndex(MONEY_BAR, '/money/recurring')).toBe(1);
-    expect(activeIndex(dash, '/kitchen/new')).toBe(4);
-    expect(activeIndex(dash, '/workouts')).toBe(-1);
-    expect(activeIndex([...HUB_BAR], '/')).toBe(0);
+    expect(activeIndex(dash, '/kitchen/new')).toBe(3);
+    expect(activeIndex(dash, '/lists')).toBe(-1);
+    expect(activeIndex(HUB_BAR, '/')).toBe(0);
   });
 
   it('вглубь и вправо — справа, назад и влево — слева', () => {
     expect(slideFrom('/', '/money', bar)).toBe('right');
     expect(slideFrom('/money/ops', '/', bar)).toBe('left');
-    expect(slideFrom('/today', '/money', bar)).toBe('right');
-    expect(slideFrom('/money', '/today', bar)).toBe('left');
+    expect(slideFrom('/tasks', '/money', bar)).toBe('right');
+    expect(slideFrom('/money', '/tasks', bar)).toBe('left');
     expect(slideFrom('/money', '/money/report', bar)).toBe('right');
     expect(slideFrom('/money/report', '/money/ops', bar)).toBe('left');
-    expect(slideFrom('/today', '/workouts', bar)).toBe('right');
+    expect(slideFrom('/tasks', '/workouts', bar)).toBe('right');
     expect(slideFrom(null, '/', bar)).toBeNull();
   });
 

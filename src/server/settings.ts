@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { parseHub, parseUsage, DEFAULT_HUB, type HubPrefs, type HubUsage } from '@/lib/hub';
 import { parseNav, type NavPref } from '@/lib/nav';
 
 export interface Settings {
@@ -26,6 +27,10 @@ export interface Settings {
   tour_seen: string[];
   /** Поля, спрятанные в окне задачи (шестерёнка). */
   task_hidden: TaskField[];
+  /** Главная супер-аппа: плитки, нижнее меню, быстрые действия. */
+  hub: HubPrefs;
+  /** Сколько раз нажимали быстрые действия — по частям дня. */
+  hub_usage: HubUsage;
 }
 
 export const TASK_FIELDS = ['tags', 'priority', 'checklist', 'note'] as const;
@@ -41,11 +46,11 @@ const list = (raw: string | null | undefined, allowed?: readonly string[]): stri
 };
 export const cleanList = list;
 
-export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: false, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [] };
+export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: false, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [], hub: DEFAULT_HUB, hub_usage: {} };
 
 export function readSettings(d: Database.Database, userId: string): Settings {
-  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time, tour_seen, task_hidden from user_settings where user_id = ?').get(userId) as
-    | (Omit<Settings, 'nav' | 'onboarded' | 'tour_seen' | 'task_hidden'> & { nav: string | null; onboarded: number; tour_seen: string; task_hidden: string })
+  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time, tour_seen, task_hidden, hub, hub_usage from user_settings where user_id = ?').get(userId) as
+    | (Omit<Settings, 'nav' | 'onboarded' | 'tour_seen' | 'task_hidden' | 'hub' | 'hub_usage'> & { nav: string | null; onboarded: number; tour_seen: string; task_hidden: string; hub: string | null; hub_usage: string })
     | undefined;
   if (!row) return { ...DEFAULT_SETTINGS };
   let nav: NavPref[] | null = null;
@@ -54,5 +59,13 @@ export function readSettings(d: Database.Database, userId: string): Settings {
   } catch {
     nav = null;
   }
-  return { ...row, nav, onboarded: !!row.onboarded, tour_seen: list(row.tour_seen), task_hidden: list(row.task_hidden, TASK_FIELDS) as TaskField[] };
+  return { ...row, nav, onboarded: !!row.onboarded, tour_seen: list(row.tour_seen), task_hidden: list(row.task_hidden, TASK_FIELDS) as TaskField[], hub: parseHub(json(row.hub)), hub_usage: parseUsage(json(row.hub_usage)) };
+}
+
+function json(raw: string | null): unknown {
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
