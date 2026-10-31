@@ -3422,6 +3422,17 @@ button.task-open:hover > span:first-child {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* «Главная» в разделах отделена чертой: выход из раздела, а не его часть */
+.sbar-btn.sbar-home::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 1px;
+  height: 32px;
+  transform: translateY(-50%);
+  background: var(--line-strong);
+}
 .sbar-btn[aria-current='page'] {
   color: var(--accent-ink);
 }
