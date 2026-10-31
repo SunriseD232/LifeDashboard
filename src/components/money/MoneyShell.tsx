@@ -15,6 +15,7 @@ import { Icon } from '../icons';
 import Login from '../Login';
 import DraftsSheet from './DraftsSheet';
 import MoneyOnboarding from './MoneyOnboarding';
+import MoneySide from './MoneySide';
 import OpSheet, { type OpDraft } from './OpSheet';
 import ReceiptSheet from './ReceiptSheet';
 import VoiceSheet from './VoiceSheet';
@@ -228,6 +229,8 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
 
   return (
     <Ctx.Provider value={value}>
+      <div className="shell m-shell">
+      <MoneySide nav={data.nav} login={data.login} />
       <div className="m-app">
         {(offlineAt || queued.length > 0) && (
           <div className="m-offline" role="status">
@@ -238,7 +241,8 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
         <div key={pathname} className={slide.current.cls}>
           {children}
         </div>
-        <PhoneBar ctx="money" items={MONEY_BAR} className="always" />
+        <PhoneBar ctx="money" items={MONEY_BAR} />
+      </div>
       </div>
       {sheet?.type === 'op' && <OpSheet op={sheet.op} onClose={close} />}
       {sheet?.type === 'drafts' && <DraftsSheet ops={sheet.ops} said={sheet.said} onClose={close} />}
