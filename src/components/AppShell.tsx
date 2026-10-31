@@ -143,6 +143,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return <LdShell>{children}</LdShell>;
 }
 
+// Последние данные — на уровне модуля: при переходе в «Деньги» оболочка
+// выгружается, и без этого возврат на главную снова ждал бы сервер.
+// С ними экран сразу на месте, а свежие данные подтягиваются фоном.
+let memo: AppData | null = null;
+
 function LdShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -152,8 +157,11 @@ function LdShell({ children }: { children: React.ReactNode }) {
   useEffect(() => setPlusOpen(false), [pathname]);
   // Откуда приехал экран — считаем один раз на адрес.
   const slide = useRef<{ path: string; cls: string } | null>(null);
-  const [status, setStatus] = useState<Status>('loading');
-  const [data, setData] = useState<AppData>(EMPTY);
+  const [status, setStatus] = useState<Status>(memo ? 'ready' : 'loading');
+  const [data, setData] = useState<AppData>(memo ?? EMPTY);
+  useEffect(() => {
+    if (status === 'ready') memo = data;
+  }, [status, data]);
   const [openList, setOpenList] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [toastUndo, setToastUndo] = useState<(() => void) | null>(null);
@@ -243,7 +251,13 @@ function LdShell({ children }: { children: React.ReactNode }) {
         setStatus('error');
         return;
       }
-      setStatus((e as { status?: number }).status === 401 ? 'guest' : 'error');
+      if ((e as { status?: number }).status === 401) {
+        memo = null;
+        setStatus('guest');
+        return;
+      }
+      // Экран уже показан из памяти — оставляем его, не пугаем ошибкой.
+      if (statusRef.current !== 'ready') setStatus('error');
     }
   }, []);
 
@@ -350,6 +364,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await api('auth/logout', 'POST').catch(() => undefined);
     clearOffline();
+    memo = null;
     setData(EMPTY);
     setStatus('guest');
   };

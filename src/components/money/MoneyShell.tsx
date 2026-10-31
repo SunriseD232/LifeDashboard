@@ -66,6 +66,10 @@ type Status = 'loading' | 'guest' | 'forbidden' | 'ready' | 'error';
 /** Для направления переходов: меню «Денег» и главной (меню «Дашборда» тут не нужно). */
 const barOf = (c: string) => (c === 'money' ? MONEY_BAR : c === 'hub' ? [...HUB_BAR] : []);
 
+// Последние данные текущего месяца — на уровне модуля: с главной сюда
+// оболочка монтируется заново, и экран сразу на месте, свежее — фоном.
+let memo: MoneyState | null = null;
+
 /**
  * Оболочка «Денег»: вход (тот же, что у LifeDashboard), проверка доступа
  * (пока раздел тестовый), первый запуск, данные одним запросом и нижнее
@@ -74,8 +78,8 @@ const barOf = (c: string) => (c === 'money' ? MONEY_BAR : c === 'hub' ? [...HUB_
 export default function MoneyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [status, setStatus] = useState<Status>('loading');
-  const [data, setData] = useState<MoneyState | null>(null);
+  const [status, setStatus] = useState<Status>(memo ? 'ready' : 'loading');
+  const [data, setData] = useState<MoneyState | null>(memo);
   const slide = useRef<{ path: string; cls: string } | null>(null);
   if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
@@ -99,7 +103,10 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
       setData(fresh);
       setOfflineAt(null);
       setStatus('ready');
-      if (monthRef.current === localDay().slice(0, 7)) saveCache(fresh);
+      if (monthRef.current === localDay().slice(0, 7)) {
+        memo = fresh;
+        saveCache(fresh);
+      }
     } catch (e) {
       if ((e as { offline?: boolean }).offline) {
         // Без сети — что уже на экране, иначе сохранённая копия.
@@ -110,7 +117,9 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
         return;
       }
       const code = (e as { status?: number }).status;
-      setStatus(code === 401 ? 'guest' : code === 403 ? 'forbidden' : 'error');
+      if (code === 401 || code === 403) memo = null;
+      // Экран уже показан из памяти — сбой фонового обновления не прячет его.
+      setStatus((s) => (code === 401 ? 'guest' : code === 403 ? 'forbidden' : s === 'ready' ? 'ready' : 'error'));
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

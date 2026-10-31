@@ -84,7 +84,8 @@ function Row({ ctx, items, path, plus, badges }: { ctx: Context; items: BarItem[
       )}
     </Link>
   );
-  if (ctx !== 'hub') return <>{items.map((it, i) => link(it, i))}</>;
+  // В разделах первая — «Главная»: она ведёт из раздела, остальные — внутри него.
+  if (ctx !== 'hub') return <>{items.map((it, i) => link(it, i, i === 0 ? ' sbar-home' : ''))}</>;
   return (
     <>
       {link(items[0], 0, ' h1')}
