@@ -44,14 +44,14 @@ describe('разделы меню', () => {
   it('по умолчанию — как было', () => {
     const a = arrange(null);
     expect(a.custom).toBe(false);
-    expect(a.phone.map((s) => s.href)).toEqual(['/tasks', '/kitchen', '/workouts']);
+    expect(a.phone.map((s) => s.href)).toEqual(['/tasks', '/notes', '/kitchen', '/workouts']);
   });
   it('свой порядок, скрытые, неизвестные отброшены, новые в конце', () => {
     const a = arrange([{ href: '/notes' }, { href: '/tasks', hidden: true }, { href: '/evil' }, { href: '/notes' }]);
     expect(a.all[0].href).toBe('/notes');
     expect(a.all).toHaveLength(5);
     expect(a.visible.some((s) => s.href === '/tasks')).toBe(false);
-    expect(a.phone).toHaveLength(3);
+    expect(a.phone).toHaveLength(4);
     expect(parseNav('мусор')).toBeNull();
   });
 });

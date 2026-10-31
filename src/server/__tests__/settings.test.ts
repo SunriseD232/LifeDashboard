@@ -24,9 +24,27 @@ describe('подсказки и поля окна задачи', () => {
     patch(d, { deadline_time: '08:00' });
     expect(readSettings(d, 'me')).toMatchObject({ deadline_time: '08:00', tour_seen: ['home', 'tasks'] });
   });
+  it('главная: настройки и счётчики действий', async () => {
+    const d = setup();
+    expect(readSettings(d, 'me')).toMatchObject({ hub: { bar: null, tiles: null, auto: true, pins: [] }, hub_usage: {} });
+    patch(d, { hub: { bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w' }, { id: 'evil' }], pins: ['op'] } });
+    expect(readSettings(d, 'me').hub).toEqual({ bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w', hidden: false }], auto: true, pins: ['op'] });
+    // Другие настройки главную не трогают; null — как было.
+    patch(d, { deadline_time: '10:00' });
+    expect(readSettings(d, 'me').hub.pins).toEqual(['op']);
+    patch(d, { hub: null });
+    expect(readSettings(d, 'me').hub.bar).toBeNull();
+
+    const { hub } = await import('../api/hub');
+    const use = (body: Record<string, unknown>) => hub({ d, userId: 'me', method: 'POST', id: 'use', body } as unknown as Ctx);
+    await use({ id: 'gym', hour: 8 });
+    await use({ id: 'gym', hour: 20 });
+    expect(readSettings(d, 'me').hub_usage).toEqual({ gym: [0, 1, 0, 1] });
+    await expect(use({ id: 'hack', hour: 8 })).rejects.toMatchObject({ status: 400 });
+    await expect(use({ id: 'gym', hour: 24 })).rejects.toMatchObject({ status: 400 });
+  });
   it('раздел по адресу — только главные экраны', () => {
-    // Прежняя главная — «Сегодня»; на главной супер-аппа подсказок нет.
-    expect(tourFor('/today')?.id).toBe('home');
+    // На главной супер-аппа подсказок нет.
     expect(tourFor('/')).toBeNull();
     expect(tourFor('/tasks')?.id).toBe('tasks');
     expect(tourFor('/kitchen/new')).toBeNull();

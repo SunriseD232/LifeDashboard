@@ -10,7 +10,8 @@ import { clearOffline, flush, loadState, onOutboxChange, outbox, saveState, type
 import { dayTitle, localDay } from '@/lib/dates';
 import type { Product, Recipe } from '@/lib/kitchen';
 import { arrange, HELP, HOME, type NavPref, type Section } from '@/lib/nav';
-import { contextOf, dashBar, HUB_BAR, MONEY_BAR, slideClass, takeSlide, TODAY_ITEM, MONEY_HOME } from '@/lib/superapp';
+import { parseHub, type HubPrefs, type HubUsage } from '@/lib/hub';
+import { contextOf, dashBar, hubBar, MONEY_BAR, slideClass, takeSlide, MONEY_HOME } from '@/lib/superapp';
 import type { Task } from '@/lib/tasks';
 import { leftToday, timeline } from '@/lib/timeline';
 import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
@@ -41,7 +42,7 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[] };
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
@@ -352,7 +353,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const ctx = contextOf(pathname);
-  const barOf = (c: typeof ctx) => (c === 'hub' ? [...HUB_BAR] : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
+  const barOf = (c: typeof ctx) => (c === 'hub' ? hubBar(parseHub(data.settings.hub)) : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
   if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const counts: Record<string, [number, string]> = {
     '/tasks': [left, 'на сегодня'],
@@ -388,7 +389,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
             <kbd>Ctrl K</kbd>
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {([HOME, TODAY_ITEM, ...nav.visible, MONEY_HOME, ...HELP] as Section[]).map((s) => (
+            {([HOME, ...nav.visible, MONEY_HOME, ...HELP] as Section[]).map((s) => (
               <Fragment key={s.href}>
                 {s.group && (!nav.custom || HELP.includes(s)) && <div className="nav-sep">{s.group}</div>}
                 <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
@@ -416,7 +417,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
         {/* На главной супер-аппа своя шапка с датой, а настройки — в нижнем меню. */}
         {pathname !== '/' && (
           <header className="mtop">
-            <Link href="/today" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 'calc(15px * var(--fs))', color: 'inherit', textDecoration: 'none' }}>
+            <Link href="/" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 'calc(15px * var(--fs))', color: 'inherit', textDecoration: 'none' }}>
               {dayTitle(now)}
             </Link>
             <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">
@@ -444,7 +445,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
         <PhoneBar
           ctx={ctx}
           items={barOf(ctx)}
-          badges={{ '/tasks': left, '/today': left }}
+          badges={{ '/tasks': left }}
           plus={
             ctx === 'hub'
               ? {

@@ -1,7 +1,7 @@
 /**
  * Разделы меню и их порядок. Главная всегда первая; остальные человек
  * может переставить и скрыть (Настройки → «Разделы меню»). На телефоне в
- * нижней панели — Главная и первые три видимых, остальное — в «Ещё».
+ * нижней панели «Дашборда» — Главная и первые четыре видимых, остальное — в «Ещё».
  */
 
 export interface Section {
@@ -25,7 +25,7 @@ export const HOME: Section = { href: '/', label: 'Главная', icon: 'home',
 
 export const MOVABLE: Section[] = [
   { href: '/tasks', label: 'Задачи', icon: 'tasks', phone: true },
-  { href: '/notes', label: 'Заметки', icon: 'note' },
+  { href: '/notes', label: 'Заметки', icon: 'note', phone: true },
   { href: '/lists', label: 'Чек-листы', icon: 'list' },
   { href: '/kitchen', label: 'Кухня', icon: 'pot', phone: true, group: 'Дом и спорт' },
   { href: '/workouts', label: 'Тренировки', icon: 'dumbbell', phone: true, short: 'Спорт' },
@@ -37,7 +37,7 @@ export const HELP: Section[] = [
   { href: '/support', label: 'Поддержка', icon: 'chat' },
 ];
 
-export const PHONE_SLOTS = 3;
+export const PHONE_SLOTS = 4;
 
 /** Сохранённое → чистый список: только известные разделы, без повторов, новые — в конец. */
 export function parseNav(raw: unknown): NavPref[] | null {
