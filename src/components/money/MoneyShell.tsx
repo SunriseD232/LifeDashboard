@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, apiDirect } from '@/lib/api';
@@ -8,6 +7,9 @@ import { localDay } from '@/lib/dates';
 import { convert, opEffect, type MoneyOp, type MoneyState } from '@/lib/money';
 import { flush, onOutboxChange, outbox, type Queued } from '@/lib/offline';
 import { registerOffline } from '@/lib/pushClient';
+import { takeReceipt } from '@/lib/audio';
+import { HUB_BAR, MONEY_BAR, slideClass, takeSlide } from '@/lib/superapp';
+import PhoneBar from '../PhoneBar';
 import type { MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import Login from '../Login';
@@ -59,13 +61,8 @@ export function useMoney(): MoneyContext {
 
 type Status = 'loading' | 'guest' | 'forbidden' | 'ready' | 'error';
 
-const TABS = [
-  { href: '/money', label: 'Главная', icon: 'home' },
-  { href: '/money/ops', label: 'Операции', icon: 'list' },
-  { href: '/money/report', label: 'Отчёты', icon: 'chart' },
-  { href: '/money/accounts', label: 'Счета', icon: 'wallet' },
-  { href: '/money/settings', label: 'Ещё', icon: 'dots' },
-];
+/** Для направления переходов: меню «Денег» и главной (меню «Дашборда» тут не нужно). */
+const barOf = (c: string) => (c === 'money' ? MONEY_BAR : c === 'hub' ? [...HUB_BAR] : []);
 
 /**
  * Оболочка «Денег»: вход (тот же, что у LifeDashboard), проверка доступа
@@ -77,6 +74,8 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const [status, setStatus] = useState<Status>('loading');
   const [data, setData] = useState<MoneyState | null>(null);
+  const slide = useRef<{ path: string; cls: string } | null>(null);
+  if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
   const [toastText, setToastText] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -154,6 +153,17 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     };
   }, [reload, sync]);
 
+  // С главной: «Трата» (?new=op) и «Чек» (фото передано через takeReceipt) — сразу нужное окно.
+  useEffect(() => {
+    if (status !== 'ready' || !data?.settings) return;
+    const f = takeReceipt();
+    if (f) setSheet({ type: 'receipt', file: f });
+    else if (new URLSearchParams(window.location.search).get('new') === 'op') {
+      setSheet({ type: 'op', op: null });
+      router.replace(pathname);
+    }
+  }, [status, !!data?.settings]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (status === 'loading') {
     return (
       <div aria-busy="true" className="m-center m-splash">
@@ -215,7 +225,6 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
     aiOn: (m) => data.ai && (m ? !data.settings!.hidden.includes(m) : !data.settings!.hidden.includes('ai')),
   };
   const close = () => setSheet(null);
-  const active = (href: string) => (href === '/money' ? pathname === '/money' : pathname.startsWith(href));
 
   return (
     <Ctx.Provider value={value}>
@@ -226,15 +235,10 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
             {queued.length > 0 && ` · ждут отправки: ${queued.length}`}
           </div>
         )}
-        {children}
-        <nav className="m-tabbar" aria-label="Разделы">
-          {TABS.map((t) => (
-            <Link key={t.href} href={t.href} aria-current={active(t.href) ? 'page' : undefined}>
-              <Icon name={t.icon} size={22} />
-              {t.label}
-            </Link>
-          ))}
-        </nav>
+        <div key={pathname} className={slide.current.cls}>
+          {children}
+        </div>
+        <PhoneBar ctx="money" items={MONEY_BAR} className="always" />
       </div>
       {sheet?.type === 'op' && <OpSheet op={sheet.op} onClose={close} />}
       {sheet?.type === 'drafts' && <DraftsSheet ops={sheet.ops} said={sheet.said} onClose={close} />}

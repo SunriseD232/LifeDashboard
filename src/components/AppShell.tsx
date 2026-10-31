@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { api, apiDirect, OfflineError } from '@/lib/api';
 import { guessDept } from '@/lib/kitchenSeed';
@@ -9,7 +9,8 @@ import { registerOffline } from '@/lib/pushClient';
 import { clearOffline, flush, loadState, onOutboxChange, outbox, saveState, type Queued } from '@/lib/offline';
 import { dayTitle, localDay } from '@/lib/dates';
 import type { Product, Recipe } from '@/lib/kitchen';
-import { arrange, HELP, HOME, type NavPref } from '@/lib/nav';
+import { arrange, HELP, HOME, type NavPref, type Section } from '@/lib/nav';
+import { contextOf, dashBar, HUB_BAR, MONEY_BAR, slideClass, takeSlide, TODAY_ITEM, MONEY_HOME } from '@/lib/superapp';
 import type { Task } from '@/lib/tasks';
 import { leftToday, timeline } from '@/lib/timeline';
 import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
@@ -20,6 +21,8 @@ import Onboarding from './Onboarding';
 import SearchDialog from './SearchDialog';
 import Tour from './Tour';
 import ThemeToggle from './ThemeToggle';
+import PhoneBar from './PhoneBar';
+import Composer, { type ComposerStart } from './Composer';
 
 export interface AppData {
   checklists: Checklist[];
@@ -140,6 +143,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
 function LdShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  // «+» на главной и окно «Записать».
+  const [plusOpen, setPlusOpen] = useState(false);
+  const [composer, setComposer] = useState<ComposerStart | null>(null);
+  useEffect(() => setPlusOpen(false), [pathname]);
+  // Откуда приехал экран — считаем один раз на адрес.
+  const slide = useRef<{ path: string; cls: string } | null>(null);
   const [status, setStatus] = useState<Status>('loading');
   const [data, setData] = useState<AppData>(EMPTY);
   const [openList, setOpenList] = useState<string | null>(null);
@@ -341,6 +351,9 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const left = leftToday(timeline(data.tasks, data.reminders, localDay(now), new Set(data.done), data.snoozed));
   const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  const ctx = contextOf(pathname);
+  const barOf = (c: typeof ctx) => (c === 'hub' ? [...HUB_BAR] : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
+  if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const counts: Record<string, [number, string]> = {
     '/tasks': [left, 'на сегодня'],
   };
@@ -375,7 +388,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
             <kbd>Ctrl K</kbd>
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {[HOME, ...nav.visible, ...HELP].map((s) => (
+            {([HOME, TODAY_ITEM, ...nav.visible, MONEY_HOME, ...HELP] as Section[]).map((s) => (
               <Fragment key={s.href}>
                 {s.group && (!nav.custom || HELP.includes(s)) && <div className="nav-sep">{s.group}</div>}
                 <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
@@ -400,17 +413,22 @@ function LdShell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
-        <header className="mtop">
-          <Link href="/" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 'calc(15px * var(--fs))', color: 'inherit', textDecoration: 'none' }}>
-            {dayTitle(now)}
-          </Link>
-          <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">
-            <Icon name="search" />
-          </button>
-          <Link className="icon-btn bare" href="/settings" aria-label="Настройки (там же тема и выход)" aria-current={isActive('/settings') ? 'page' : undefined}>
-            <Icon name="settings" />
-          </Link>
-        </header>
+        {/* На главной супер-аппа своя шапка с датой, а настройки — в нижнем меню. */}
+        {pathname !== '/' && (
+          <header className="mtop">
+            <Link href="/today" style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 'calc(15px * var(--fs))', color: 'inherit', textDecoration: 'none' }}>
+              {dayTitle(now)}
+            </Link>
+            <button className="icon-btn bare" type="button" onClick={() => setSearching(true)} aria-label="Поиск">
+              <Icon name="search" />
+            </button>
+            {ctx !== 'hub' && (
+              <Link className="icon-btn bare" href="/settings" aria-label="Настройки (там же тема и выход)" aria-current={isActive('/settings') ? 'page' : undefined}>
+                <Icon name="settings" />
+              </Link>
+            )}
+          </header>
+        )}
 
         {(offline || pending > 0) && (
           <div className="offline-bar" role="status">
@@ -419,22 +437,36 @@ function LdShell({ children }: { children: React.ReactNode }) {
             {pending > 0 && ` · ждут отправки: ${pending}`}
           </div>
         )}
-        <main className="page">{children}</main>
+        <main key={pathname} className={`page ${slide.current.cls}`}>
+          {children}
+        </main>
 
-        <nav className="tabbar" aria-label="Разделы">
-          {[HOME, ...nav.phone].map((s) => (
-            <Link key={s.href} href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>
-              <Icon name={s.icon} size={22} />
-              {s.short ?? s.label}
-              {badge(s.href)}
-            </Link>
-          ))}
-          <Link href="/more" aria-current={isActive('/more') || [...nav.visible, ...HELP].some((s) => !nav.phone.includes(s) && isActive(s.href)) ? 'page' : undefined}>
-            <Icon name="dots" size={22} />
-            Ещё
-          </Link>
-        </nav>
+        <PhoneBar
+          ctx={ctx}
+          items={barOf(ctx)}
+          badges={{ '/tasks': left, '/today': left }}
+          plus={
+            ctx === 'hub'
+              ? {
+                  open: plusOpen,
+                  setOpen: setPlusOpen,
+                  onSubmit: (text) => setComposer({ text }),
+                  onVoice: () => setComposer({ voice: true }),
+                }
+              : undefined
+          }
+        />
       </div>
+      {composer && (
+        <Composer
+          start={composer}
+          onClose={(saved) => {
+            setComposer(null);
+            if (saved) setPlusOpen(false);
+          }}
+          onOpenMoney={() => router.push('/money')}
+        />
+      )}
 
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       <Tour />

@@ -4,7 +4,7 @@
   "description": "Траты, счета и валюты",
   "id": "/task/money",
   "start_url": "/task/money",
-  "scope": "/task/money",
+  "scope": "/task",
   "display": "standalone",
   "background_color": "#eef3f2",
   "theme_color": "#eef3f2",

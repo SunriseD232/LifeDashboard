@@ -30,7 +30,7 @@ function image(v: unknown): Part {
 }
 
 /** Правило повтора — словами, для подсказки модели (как в src/lib/recur.ts). */
-const RULE_DOC = `RULE — одно из:
+export const RULE_DOC = `RULE — одно из:
 {"kind":"once","date":"ГГГГ-ММ-ДД"}
 {"kind":"repeat","unit":"day|week|month|year","every":N,"start":"ГГГГ-ММ-ДД","weekdays":[дни 0-6, 0=воскресенье] (только для week),"monthly":{"type":"day","day":1-31 или -1 последний} или {"type":"nth","nth":1-5 или -1,"weekday":0-6} (только для month),"end":{"type":"until","date":"ГГГГ-ММ-ДД"} или {"type":"count","count":N} (необязательно)}
 {"kind":"after","unit":"day|week|month","every":N,"start":"ГГГГ-ММ-ДД"} — «через N после того, как сделал» (стирка, полив)`;

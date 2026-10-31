@@ -77,7 +77,7 @@ export function CityPicker({ onPicked }: { onPicked?: () => void }) {
 }
 
 /** Прогноз для города из настроек; обновляется раз в 30 минут. */
-function useWeather(): { city: string | null; w: Weather | null; error: string | null } {
+export function useWeather(): { city: string | null; w: Weather | null; error: string | null } {
   const { data } = useApp();
   const city = data.settings.city;
   const [w, setW] = useState<Weather | null>(null);

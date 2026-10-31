@@ -14,7 +14,7 @@ const MAX_IMAGE = 3_000_000;
 const MAX_AUDIO = 3_000_000;
 const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 
-function context(d: Database.Database, userId: string, today: unknown): AiContext {
+export function moneyContext(d: Database.Database, userId: string, today: unknown): AiContext {
   if (typeof today !== 'string' || !DAY_RE.test(today)) throw new HttpError(400, 'Неверная дата.');
   const s = readMoneySettings(d, userId);
   if (!s) throw new HttpError(409, 'Сначала выберите валюты.');
@@ -27,7 +27,7 @@ function context(d: Database.Database, userId: string, today: unknown): AiContex
 }
 
 /** Где человек обычно что покупает: «Пятёрочка → Продукты» — подсказка модели. */
-function habits(d: Database.Database, userId: string): string[] {
+export function habits(d: Database.Database, userId: string): string[] {
   const rows = d
     .prepare(
       `select o.payee, c.name from money_ops o join money_categories c on c.id = o.category_id
@@ -59,7 +59,7 @@ function opsPrompt(ctx: AiContext, d: Database.Database, userId: string): string
 
 /** Фраза → черновики операций. */
 export async function aiText(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ ops: MoneyDraft[] }> {
-  const ctx = context(d, userId, body.today);
+  const ctx = moneyContext(d, userId, body.today);
   const phrase = text(body.text, 1000, 'Фраза') as string;
   const raw = await askJson(d, userId, { system: opsPrompt(ctx, d, userId), user: phrase, maxTokens: 1500 });
   const ops = parseDrafts(raw, ctx, phrase);
@@ -71,7 +71,7 @@ const AUDIO_FORMATS: Record<string, string> = { mp4: 'm4a', 'x-m4a': 'm4a', m4a:
 
 /** Запись голоса → что сказал и черновики операций, одним запросом к модели со звуком. */
 export async function aiVoice(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ said: string; ops: MoneyDraft[] }> {
-  const ctx = context(d, userId, body.today);
+  const ctx = moneyContext(d, userId, body.today);
   const m = typeof body.audio === 'string' ? /^data:audio\/([\w.+-]+)(?:;[^,]*)?;base64,(.+)$/.exec(body.audio) : null;
   const format = m ? AUDIO_FORMATS[m[1].toLowerCase()] : undefined;
   if (!m || !format || (body.audio as string).length > MAX_AUDIO) throw new HttpError(400, 'Запись не подошла — попробуйте сказать короче.');
@@ -105,7 +105,7 @@ function itemHistory(d: Database.Database, userId: string): (name: string) => st
 
 /** Фото чека → магазин, дата, итог и позиции с категориями. */
 export async function aiReceipt(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ receipt: ReceiptDraft }> {
-  const ctx = context(d, userId, body.today);
+  const ctx = moneyContext(d, userId, body.today);
   const img = body.image;
   if (typeof img !== 'string' || !/^data:image\/(jpeg|png|webp);base64,/.test(img) || img.length > MAX_IMAGE) {
     throw new HttpError(400, 'Нужна фотография чека (JPEG, PNG или WebP) поменьше.');

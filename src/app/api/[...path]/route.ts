@@ -24,6 +24,7 @@ import { findChecklist, readItems } from '@/server/checklistStore';
 import { checklistXlsx, groupForXlsx, xlsxFileName } from '@/lib/xlsx';
 import { HttpError, type Ctx } from '@/server/http';
 import { smsIncoming } from '@/server/moneySms';
+import { hub } from '@/server/api/hub';
 
 /**
  * API LifeDashboard — одна точка входа на все маршруты /task/api/…: здесь
@@ -49,6 +50,7 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   search,
   kitchen,
   money,
+  hub,
   ai,
   support,
   workouts,

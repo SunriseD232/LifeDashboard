@@ -25,7 +25,9 @@ describe('подсказки и поля окна задачи', () => {
     expect(readSettings(d, 'me')).toMatchObject({ deadline_time: '08:00', tour_seen: ['home', 'tasks'] });
   });
   it('раздел по адресу — только главные экраны', () => {
-    expect(tourFor('/')?.id).toBe('home');
+    // Прежняя главная — «Сегодня»; на главной супер-аппа подсказок нет.
+    expect(tourFor('/today')?.id).toBe('home');
+    expect(tourFor('/')).toBeNull();
     expect(tourFor('/tasks')?.id).toBe('tasks');
     expect(tourFor('/kitchen/new')).toBeNull();
     expect(tourFor('/settings')).toBeNull();

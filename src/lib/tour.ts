@@ -97,6 +97,7 @@ export const TOUR: Record<string, TourSection> = {
 /** Раздел по адресу; подсказки — только на главных экранах разделов. */
 export function tourFor(pathname: string): TourSection | null {
   const p = pathname.replace(/\/+$/, '') || '/';
-  const id = p === '/' ? 'home' : p.slice(1);
+  // Прежняя главная теперь «Сегодня» (/today); на главной супер-аппа подсказок нет.
+  const id = p === '/today' ? 'home' : p === '/' ? 'hub' : p.slice(1);
   return TOUR[id] ?? null;
 }
