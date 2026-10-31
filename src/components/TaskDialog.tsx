@@ -4,20 +4,21 @@ import { useEffect, useRef, useState } from 'react';
 import type { QuickItem } from '@/lib/aiParse';
 import { api } from '@/lib/api';
 import { localDay } from '@/lib/dates';
-import { describe, type Rule } from '@/lib/recur';
+import { addDays, describe, type Rule } from '@/lib/recur';
 import { knownTags, PRIORITIES, shortDate, type Task } from '@/lib/tasks';
 import type { Priority, Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import { Icon } from './icons';
 import { Sheet, useIsPhone } from './Phone';
-import RuleEditor from './RuleEditor';
+import RuleEditor, { TimesField } from './RuleEditor';
 import { useModalFocus } from './useModalFocus';
 
 /**
- * Окно «Задача» — одно на создание и правку. Вид: без напоминания (просто
- * список) или с напоминанием (день, время, повтор — RuleEditor). У обоих —
- * метки, важность, чек-лист и заметка; лишнее прячется шестерёнкой.
+ * Окно «Задача» — одно на создание и правку. Сразу видно только название и
+ * «Когда»: без срока — просто в списке, с днём — напоминание (время
+ * подставится само). Повтор, метки, важность, чек-лист, заметка — кнопками
+ * «+ …» под формой: пустое не занимает места, заполненное видно всегда.
  *
  * Название — одно поле. С ИИ рядом кнопка «Разобрать»: не нажали — задача
  * сохраняется как написано; нажали — форма заполняется по фразе (ничего не
@@ -41,13 +42,8 @@ interface Draft {
 
 export type DialogTarget = { task: Task } | { reminder: Reminder } | { day?: string; title?: string; time?: string } | null;
 
-/** Поля, которые можно спрятать шестерёнкой (user_settings.task_hidden). */
-export const OPTIONAL_FIELDS: { id: string; label: string }[] = [
-  { id: 'tags', label: 'Метки' },
-  { id: 'priority', label: 'Важность' },
-  { id: 'checklist', label: 'Чек-лист' },
-  { id: 'note', label: 'Заметка' },
-];
+/** Необязательные части окна: появляются кнопкой «+ …» или когда заполнены. */
+type Extra = 'repeat' | 'tags' | 'priority' | 'checklist' | 'note' | 'nag';
 
 function draftOf(target: NonNullable<DialogTarget>, today: string, at: string): Draft {
   const base: Draft = { kind: 'task', title: '', note: '', tags: [], priority: 0, checklist_id: '', shared: false, rule: { kind: 'once', date: today }, times: [at], nag: 0 };
@@ -166,35 +162,6 @@ export function PriorityPicker({ value, onChange }: { value: Priority; onChange:
   );
 }
 
-/** Шестерёнка: какие поля показывать в окне задачи. Хранится в настройках. */
-function FieldsMenu() {
-  const { data, mutate } = useApp();
-  const hidden = data.settings.task_hidden;
-  const toggle = (id: string) => {
-    const next = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id];
-    mutate(
-      (d) => ({ ...d, settings: { ...d.settings, task_hidden: next } }),
-      () => api('settings', 'PATCH', { task_hidden: next }),
-    );
-  };
-  return (
-    <details className="menu td-gear">
-      <summary className="icon-btn bare" aria-label="Какие поля показывать" title="Какие поля показывать">
-        <Icon name="settings" size={18} />
-      </summary>
-      <div className="menu-list" role="group" aria-label="Поля в окне задачи">
-        <span className="menu-head">Показывать в окне</span>
-        {OPTIONAL_FIELDS.map((f) => (
-          <label key={f.id} className="check" style={{ padding: '6px 10px', minHeight: 0 }}>
-            <input type="checkbox" checked={!hidden.includes(f.id)} onChange={() => toggle(f.id)} />
-            <span className="check-text">{f.label}</span>
-          </label>
-        ))}
-      </div>
-    </details>
-  );
-}
-
 export default function TaskDialog({ target, onClose }: { target: NonNullable<DialogTarget>; onClose: () => void }) {
   const { data, reload, toast, now, mutate } = useApp();
   const today = localDay(now);
@@ -218,8 +185,58 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   // Чужую общую задачу нельзя удалить — значит, и перевести в напоминание.
   const foreign = 'task' in target && !!target.task.author;
   const known = knownTags(data.tags, data.tasks, data.reminders);
-  const show = (id: string) => !data.settings.task_hidden.includes(id);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
+
+  // «Когда»: без срока — задача, день — разовое напоминание. Время само:
+  // сегодня — ближайший час, другой день — время по умолчанию из Настроек.
+  const tomorrow = addDays(today, 1);
+  const repeating = d.kind === 'rem' && d.rule.kind !== 'once';
+  const onceDate = d.kind === 'rem' && d.rule.kind === 'once' ? d.rule.date : null;
+  const [pickDate, setPickDate] = useState(() => !!onceDate && onceDate !== today && onceDate !== tomorrow);
+  // Время уже выбрано (правка или поменяли руками) — смена дня его не трогает.
+  const [timeTouched, setTimeTouched] = useState(!!editing);
+  // «Ставить по умолчанию» — только если время поменяли в этом окне.
+  const [timeEdited, setTimeEdited] = useState(false);
+  const when = (day: string | null) => {
+    if (!day) {
+      setPickDate(false);
+      return set({ kind: 'task' });
+    }
+    set({ kind: 'rem', rule: { kind: 'once', date: day }, times: timeTouched && d.kind === 'rem' ? d.times : [day === today ? at : data.settings.deadline_time] });
+  };
+  const setDefaultTime = (t: string) => {
+    mutate(
+      (x) => ({ ...x, settings: { ...x.settings, deadline_time: t } }),
+      () => api('settings', 'PATCH', { deadline_time: t }),
+    );
+    toast(`Теперь по умолчанию — ${t}`);
+  };
+
+  const filled: Record<Extra, boolean> = {
+    repeat: repeating,
+    tags: d.tags.length > 0,
+    priority: d.priority > 0,
+    checklist: !!d.checklist_id,
+    note: !!d.note,
+    nag: d.kind === 'rem' && d.nag > 0,
+  };
+  const [opened, setOpened] = useState<Extra[]>([]);
+  const [focusExtra, setFocusExtra] = useState<Extra | null>(null);
+  const shown = (x: Extra) => filled[x] || opened.includes(x);
+  const open = (x: Extra) => {
+    setOpened((o) => [...o, x]);
+    setFocusExtra(x);
+  };
+  const drop = (x: Extra, patch: Partial<Draft>) => {
+    setOpened((o) => o.filter((y) => y !== x));
+    set(patch);
+  };
+  // Открыли «+ Метка» и т. п. — фокус сразу в новое поле.
+  useEffect(() => {
+    if (!focusExtra) return;
+    formRef.current?.querySelector<HTMLElement>(`[data-extra="${focusExtra}"] :is(input, select, textarea, button:not(.td-drop))`)?.focus();
+    setFocusExtra(null);
+  }, [focusExtra]);
 
   /** «Разобрать»: фраза из поля названия → заполненная форма. */
   const parse = async () => {
@@ -306,9 +323,6 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   );
 
   const ai = !editing && !!data.ai;
-  // «Ещё»: редкое — заметка, повтор push, общая для семьи.
-  const moreParts = [show('note') && 'заметка', d.kind === 'rem' && 'повтор, если не отметили', d.kind === 'task' && data.household && 'общая для семьи'].filter(Boolean) as string[];
-
   const fields = (
     <>
       <div className="fld">
@@ -367,37 +381,102 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         </div>
       )}
 
-      <div className="seg seg-2" role="group" aria-label="Вид задачи">
-        <button type="button" aria-pressed={d.kind === 'task'} disabled={foreign} onClick={() => set({ kind: 'task' })}>
-          <Icon name="tasks" size={16} />
-          Без напоминания
-        </button>
-        <button type="button" aria-pressed={d.kind === 'rem'} disabled={foreign} onClick={() => set({ kind: 'rem' })}>
-          <Icon name="bell" size={16} />С напоминанием
-        </button>
-      </div>
+      {!repeating && (
+        <fieldset className="td-when" disabled={foreign}>
+          <legend className="label">Когда</legend>
+          <div className="td-chips">
+            <button type="button" className="chip" aria-pressed={!onceDate} onClick={() => when(null)}>
+              Без срока
+            </button>
+            <button
+              type="button"
+              className="chip"
+              aria-pressed={!pickDate && onceDate === today}
+              onClick={() => {
+                setPickDate(false);
+                when(today);
+              }}
+            >
+              Сегодня
+            </button>
+            <button
+              type="button"
+              className="chip"
+              aria-pressed={!pickDate && onceDate === tomorrow}
+              onClick={() => {
+                setPickDate(false);
+                when(tomorrow);
+              }}
+            >
+              Завтра
+            </button>
+            <button
+              type="button"
+              className="chip"
+              aria-pressed={pickDate}
+              onClick={() => {
+                setPickDate(true);
+                if (!onceDate) when(addDays(today, 2));
+                setTimeout(() => document.getElementById('td-date')?.focus(), 0);
+              }}
+            >
+              <Icon name="calendar" size={14} />
+              Дата…
+            </button>
+          </div>
+          {onceDate && (
+            <div className="td-when-detail">
+              {pickDate && (
+                <div className="fld">
+                  <label className="label" htmlFor="td-date">
+                    День
+                  </label>
+                  <input id="td-date" className="field" type="date" min={today} value={onceDate} onChange={(e) => e.target.value && when(e.target.value)} />
+                </div>
+              )}
+              <TimesField
+                times={d.times}
+                onChange={(times) => {
+                  setTimeTouched(true);
+                  setTimeEdited(true);
+                  set({ times });
+                }}
+                after={
+                  timeEdited &&
+                  d.times.length === 1 &&
+                  !!d.times[0] &&
+                  d.times[0] !== data.settings.deadline_time && (
+                    <button type="button" className="td-link" onClick={() => setDefaultTime(d.times[0])}>
+                      Ставить {d.times[0]} по умолчанию
+                    </button>
+                  )
+                }
+              />
+            </div>
+          )}
+        </fieldset>
+      )}
 
-      {d.kind === 'rem' && <RuleEditor key={ruleKey} rule={d.rule} times={d.times} today={today} onChange={(rule, times) => set({ rule, times })} />}
+      {repeating && (
+        <ExtraBlock id="repeat" label="Повтор" onDrop={() => drop('repeat', { rule: { kind: 'once', date: d.rule.kind === 'once' ? d.rule.date : d.rule.start >= today ? d.rule.start : today } })}>
+          <RuleEditor key={ruleKey} repeatOnly rule={d.rule} times={d.times} today={today} onChange={(rule, times) => set({ rule, times })} />
+        </ExtraBlock>
+      )}
 
-      {show('tags') && (
-        <div className="fld">
-          <span className="label">Метки</span>
+      {shown('tags') && (
+        <ExtraBlock id="tags" label="Метки" onDrop={() => drop('tags', { tags: [] })}>
           <TagPicker value={d.tags} onChange={(tags) => set({ tags })} known={known} />
-        </div>
+        </ExtraBlock>
       )}
 
-      {show('priority') && (
-        <div className="fld">
-          <span className="label">Важность</span>
+      {shown('priority') && (
+        <ExtraBlock id="priority" label="Важность" onDrop={() => drop('priority', { priority: 0 })}>
           <PriorityPicker value={d.priority} onChange={(priority) => set({ priority })} />
-        </div>
+        </ExtraBlock>
       )}
 
-      {show('checklist') && (
-        <div className="fld">
-          <label className="label" htmlFor="td-list">
-            Чек-лист
-          </label>
+      {shown('checklist') && (
+        <ExtraBlock id="checklist" label="Чек-лист" htmlFor="td-list" onDrop={() => drop('checklist', { checklist_id: '' })}>
           <select id="td-list" className="field" value={d.checklist_id} onChange={(e) => set({ checklist_id: e.target.value })}>
             <option value="">Без чек-листа</option>
             {data.checklists.map((c) => (
@@ -406,43 +485,51 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
               </option>
             ))}
           </select>
-        </div>
+        </ExtraBlock>
       )}
 
-      {moreParts.length > 0 && (
-        <details className="more-opts" open={(show('note') && !!d.note) || undefined}>
-          <summary>Ещё: {moreParts.join(', ')}</summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>
-            {show('note') && (
-              <div className="fld">
-                <label className="label" htmlFor="td-note">
-                  Заметка
-                </label>
-                <textarea id="td-note" className="field" rows={3} maxLength={2000} value={d.note} onChange={(e) => set({ note: e.target.value })} />
-              </div>
-            )}
-            {d.kind === 'rem' && (
-              <div className="fld">
-                <label className="label" htmlFor="td-nag">
-                  Если не отметили «Сделано»
-                </label>
-                <select id="td-nag" className="field" value={d.nag} onChange={(e) => set({ nag: Number(e.target.value) })}>
-                  <option value={0}>Не повторять</option>
-                  <option value={15}>Напомнить ещё раз через 15 минут</option>
-                  <option value={30}>Напомнить ещё раз через 30 минут</option>
-                  <option value={60}>Напомнить ещё раз через час</option>
-                </select>
-              </div>
-            )}
-            {d.kind === 'task' && data.household && (
-              <label className="check" style={{ padding: 0 }}>
-                <input type="checkbox" checked={d.shared} disabled={foreign} onChange={(e) => set({ shared: e.target.checked })} />
-                <span className="check-text">Общая для семьи</span>
-              </label>
-            )}
-          </div>
-        </details>
+      {shown('note') && (
+        <ExtraBlock id="note" label="Заметка" htmlFor="td-note" onDrop={() => drop('note', { note: '' })}>
+          <textarea id="td-note" className="field" rows={3} maxLength={2000} value={d.note} onChange={(e) => set({ note: e.target.value })} />
+        </ExtraBlock>
       )}
+
+      {d.kind === 'rem' && shown('nag') && (
+        <ExtraBlock id="nag" label="Если не отметили «Сделано»" htmlFor="td-nag" onDrop={() => drop('nag', { nag: 0 })}>
+          <select id="td-nag" className="field" value={d.nag} onChange={(e) => set({ nag: Number(e.target.value) })}>
+            <option value={0}>Не повторять</option>
+            <option value={15}>Напомнить ещё раз через 15 минут</option>
+            <option value={30}>Напомнить ещё раз через 30 минут</option>
+            <option value={60}>Напомнить ещё раз через час</option>
+          </select>
+        </ExtraBlock>
+      )}
+
+      <AddChips
+        items={[
+          !repeating && !foreign && { id: 'repeat', label: 'Повтор' },
+          !shown('tags') && { id: 'tags', label: 'Метка' },
+          !shown('priority') && { id: 'priority', label: 'Важность' },
+          !shown('checklist') && data.checklists.length > 0 && { id: 'checklist', label: 'Чек-лист' },
+          !shown('note') && { id: 'note', label: 'Заметка' },
+          d.kind === 'rem' && !shown('nag') && { id: 'nag', label: 'Напомнить снова' },
+        ]}
+        onAdd={(x) => {
+          if (x === 'repeat') {
+            // Повтор — это напоминание: с выбранного дня или с сегодня, время прежнее.
+            set({ kind: 'rem', rule: { kind: 'repeat', unit: 'day', every: 1, start: onceDate ?? today }, times: d.kind === 'rem' ? d.times : [at] });
+            setRuleKey((k) => k + 1);
+          }
+          open(x);
+        }}
+      >
+        {d.kind === 'task' && data.household && (
+          <button type="button" className="chip" aria-pressed={d.shared} disabled={foreign} onClick={() => set({ shared: !d.shared })}>
+            <Icon name="users" size={14} />
+            Общая для семьи
+          </button>
+        )}
+      </AddChips>
 
       {foreign && <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Общая задача, завёл(а) {(target as { task: Task }).task.author}.</p>}
 
@@ -469,7 +556,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   if (phone) {
     return (
       <>
-        <Sheet title={title} onClose={onClose} actions={<FieldsMenu />}>
+        <Sheet title={title} onClose={onClose}>
           <form ref={formRef} onSubmit={save} className="task-dialog">
             {fields}
           </form>
@@ -486,7 +573,6 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
           <h2 id="td-head" className="display" style={{ margin: 0, fontSize: 'calc(20px * var(--fs))', flex: 1 }}>
             {title}
           </h2>
-          <FieldsMenu />
         </div>
         {fields}
       </form>
@@ -494,5 +580,45 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
     {/* Рядом, а не внутри: клик мимо подтверждения не должен закрыть и окно задачи. */}
     {confirmEl}
     </>
+  );
+}
+
+/** Необязательная часть окна: подпись, крестик «убрать» и само поле. */
+function ExtraBlock({ id, label, htmlFor, onDrop, children }: { id: Extra; label: string; htmlFor?: string; onDrop: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fld" data-extra={id}>
+      <div className="td-extra-head">
+        {htmlFor ? (
+          <label className="label" htmlFor={htmlFor}>
+            {label}
+          </label>
+        ) : (
+          <span className="label">{label}</span>
+        )}
+        <button type="button" className="icon-btn bare td-drop" aria-label={`Убрать: ${label.toLowerCase()}`} title="Убрать" onClick={onDrop}>
+          <Icon name="x" size={16} />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+type AddItem = { id: Extra; label: string };
+
+/** «+ Повтор», «+ Метка»… — то, чего в окне пока нет. */
+function AddChips({ items, onAdd, children }: { items: (false | AddItem)[]; onAdd: (x: Extra) => void; children?: React.ReactNode }) {
+  const list = items.filter((x): x is AddItem => !!x);
+  if (!list.length && !children) return null;
+  return (
+    <div className="td-chips td-add" role="group" aria-label="Добавить в задачу">
+      {list.map((x) => (
+        <button key={x.id} type="button" className="chip chip-add" onClick={() => onAdd(x.id)}>
+          <Icon name="plus" size={14} />
+          {x.label}
+        </button>
+      ))}
+      {children}
+    </div>
   );
 }

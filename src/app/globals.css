@@ -1668,7 +1668,13 @@ mark {
   border-radius: 10px;
   background: var(--soft);
 }
+/* Скрытый раздел или плитка — приглушённым цветом, а не прозрачностью:
+   подписи должны читаться (≥4.5:1). */
 .nav-edit[data-hidden] {
+  color: var(--muted);
+}
+.nav-edit[data-hidden] .list-icon,
+.nav-edit[data-hidden] svg {
   opacity: 0.6;
 }
 
@@ -1958,13 +1964,63 @@ mark {
     flex: 1 1 100% !important;
   }
 }
-.more-opts > summary {
-  min-height: 40px;
+/* Окно задачи: «Когда», необязательные поля и кнопки «+ …» */
+.td-when {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.td-when > legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.td-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.td-chips .chip {
+  min-height: 36px;
+}
+.td-when-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.td-extra-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+}
+.td-drop {
+  margin: -8px -8px -8px 0;
+}
+.chip-add {
+  border-style: dashed;
+  border-color: var(--field-line);
+  background: transparent;
+  color: var(--muted);
+}
+.chip-add:hover {
+  color: var(--ink);
+  border-color: var(--accent-ink);
+}
+.td-link {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: inherit;
   font-size: calc(14px * var(--fs));
   font-weight: 600;
-  color: var(--muted);
   cursor: pointer;
 }
 @media (max-width: 860px) {
@@ -2040,6 +2096,55 @@ mark {
 }
 
 /* настройки: одна колонка коротких групп */
+/* «Ритм дня»: строки через тонкую черту */
+.rhythm-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.card-title + .rhythm-row {
+  padding-top: 0;
+  border-top: 0;
+}
+/* «Настраивается на месте»: строки-ссылки */
+.set-links {
+  display: flex;
+  flex-direction: column;
+}
+.set-links a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  color: inherit;
+  text-decoration: none;
+}
+.set-links a:first-child {
+  border-top: 0;
+}
+.set-links span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.set-links small {
+  color: var(--muted);
+  font-size: calc(13px * var(--fs));
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-weight: 600;
+  font-size: calc(14px * var(--fs));
+  text-decoration: none;
+}
 .settings-col {
   display: flex;
   flex-direction: column;
@@ -2878,12 +2983,6 @@ button.task-open:hover > span:first-child {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-/* шестерёнка в окне задачи */
-.td-gear .menu-list {
-  right: 0;
-  left: auto;
-  min-width: 200px;
 }
 .menu-head {
   padding: 6px 10px 2px;

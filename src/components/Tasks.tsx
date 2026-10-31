@@ -554,9 +554,9 @@ export default function Tasks() {
   };
 
   const tags = knownTags(data.tags, data.tasks, data.reminders);
-  // Спрятали поле шестерёнкой в окне задачи — прячем и его фильтр.
-  const useTags = !data.settings.task_hidden.includes('tags');
-  const usePrio = !data.settings.task_hidden.includes('priority');
+  // Фильтр — только когда есть по чему: метки завели, важность где-то стоит.
+  const useTags = tags.length > 0;
+  const usePrio = data.tasks.some((t) => t.priority > 0) || data.reminders.some((r) => r.priority > 0);
   const tag = useTags && filter.tag && tags.includes(filter.tag) ? filter.tag : null;
   const prio = usePrio ? filter.prio : 0;
   const pass = (x: { tags: string[]; priority: Priority }) => (!tag || x.tags.includes(tag)) && x.priority >= prio;

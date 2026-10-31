@@ -26,6 +26,13 @@ export default function More() {
             <Icon name="arrow" size={18} />
           </Link>
         ))}
+        <Link className="list-card" href="/settings/menu" style={card}>
+          <span className="list-icon">
+            <Icon name="list" />
+          </span>
+          <span style={{ flex: 1, fontWeight: 600 }}>Изменить меню</span>
+          <Icon name="arrow" size={18} />
+        </Link>
         <Link className="list-card" href="/settings" style={card}>
           <span className="list-icon">
             <Icon name="settings" />

@@ -2,42 +2,40 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useApp } from './AppShell';
-import { rovingKeys } from './roving';
 import Confirm from './Confirm';
 import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
 import { AppearancePicker } from './ThemeToggle';
-import { CalendarCard, NavEditor, QuietCard } from './SettingsExtra';
-import HubSettings from './HubSettings';
+import { CalendarCard, RhythmCard } from './SettingsExtra';
 
-type Tab = 'main' | 'home' | 'menu' | 'family' | 'account';
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'main', label: 'Основное' },
-  { id: 'home', label: 'Главная' },
-  { id: 'menu', label: 'Меню' },
-  { id: 'family', label: 'Семья' },
-  { id: 'account', label: 'Аккаунт' },
-];
+// Старые ссылки на вкладки (?tab=…): «Главная» и «Меню» переехали на свои
+// страницы, остальное — разделы этой.
+const OLD_TABS: Record<string, string> = { home: '/settings/home', menu: '/settings/menu', family: '/settings#set-family', account: '/settings#set-account' };
 
 /**
- * Настройки — короткие группы вкладками: «Основное» (город, тема,
- * уведомления, сроки, сводка), «Главная» (плитки, нижнее меню, быстрые
- * действия), «Меню и календарь», «Семья», «Аккаунт».
- * Вкладка — в адресе (?tab=), чтобы на неё можно было сослаться.
+ * Настройки — одна страница, без вкладок: то, что нельзя поменять на месте.
+ * Плитки и нижнее меню главной — кнопкой на главной (/settings/home),
+ * разделы меню — в «Ещё» (/settings/menu), время по умолчанию можно
+ * поставить и прямо в окне задачи.
  */
 export default function Settings() {
   const { data, reload, toast, logout } = useApp();
   const s = data.settings;
   const hh = data.household;
   const [changingCity, setChangingCity] = useState(!s.city);
-  const [time, setTime] = useState(s.deadline_time);
   const [hhName, setHhName] = useState('Семья');
   const [login, setLogin] = useState('');
   const [leaving, setLeaving] = useState(false);
+  const params = useSearchParams();
+  const router = useRouter();
+  const old = params.get('tab');
+  useEffect(() => {
+    if (old && OLD_TABS[old]) router.replace(OLD_TABS[old]);
+  }, [old, router]);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
     try {
@@ -50,36 +48,25 @@ export default function Settings() {
   };
 
   const me = hh?.members.find((m) => m.me)?.login;
-  const params = useSearchParams();
-  const router = useRouter();
-  const q = params.get('tab');
-  const tab: Tab = TABS.some((t) => t.id === q) ? (q as Tab) : 'main';
+  const hint = { margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' } as const;
 
   return (
     <>
       <div className="page-head">
         <h1 className="h1 display">Настройки</h1>
       </div>
-      <div className="tabs-row" role="tablist" aria-label="Группы настроек" style={{ marginBottom: 16 }} onKeyDown={rovingKeys}>
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            id={`set-tab-${t.id}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            aria-controls="set-panel"
-            tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => router.replace(t.id === 'main' ? '/settings' : `/settings?tab=${t.id}`)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
-      <div role="tabpanel" id="set-panel" aria-labelledby={`set-tab-${tab}`}>
-      {tab === 'main' && (
       <div className="settings-col">
+        <section className="card" aria-labelledby="set-push">
+          <h2 className="card-title display" id="set-push">
+            <Icon name="bell" />
+            Уведомления
+          </h2>
+          <PushPanel toast={toast} />
+        </section>
+
+        <RhythmCard />
+
         <section className="card" aria-labelledby="set-weather">
           <h2 className="card-title display" id="set-weather">
             <Icon name="partly" />
@@ -99,99 +86,15 @@ export default function Settings() {
           )}
         </section>
 
-        <section className="card" aria-labelledby="set-push">
-          <h2 className="card-title display" id="set-push">
-            <Icon name="bell" />
-            Уведомления
-          </h2>
-          <PushPanel toast={toast} />
-        </section>
-
-        <section className="card" aria-labelledby="set-deadline">
-          <h2 className="card-title display" id="set-deadline">
-            <Icon name="bell" />
-            Время напоминания по умолчанию
-          </h2>
-          <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
-            Подставляется, когда день у задачи есть, а время не указано: свайп «Завтра» у задачи без даты, фраза для ИИ без времени («завтра купить хлеб»), задачи,
-            найденные в заметке.
-          </p>
-          <div className="fld" style={{ maxWidth: 160 }}>
-            <label className="label" htmlFor="set-time">
-              Во сколько
-            </label>
-            <input
-              id="set-time"
-              className="field mono"
-              type="time"
-              required
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              onBlur={() => time && time !== s.deadline_time && run(() => api('settings', 'PATCH', { deadline_time: time }), 'Сохранено')}
-            />
-          </div>
-        </section>
-
-        <QuietCard />
-
-        {data.ai && (
-          <section className="card ai-card" aria-labelledby="set-summary">
-            <h2 className="card-title display" id="set-summary">
-              <Icon name="sparkles" />
-              Сводка дня
-            </h2>
-            <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Каждое утро — push от ИИ: сроки, напоминания, погода, что взять с собой.</p>
-            <label className="check" style={{ padding: 0 }}>
-              <input
-                type="checkbox"
-                checked={!!s.summary_time}
-                onChange={(e) => run(() => api('settings', 'PATCH', { summary_time: e.target.checked ? '08:00' : null }), e.target.checked ? 'Сводка в 08:00' : 'Сводка выключена')}
-              />
-              <span className="check-text">Присылать сводку</span>
-            </label>
-            {s.summary_time && (
-              <div className="fld">
-                <label className="label" htmlFor="set-summary-time">
-                  Во сколько
-                </label>
-                <input
-                  id="set-summary-time"
-                  className="field mono"
-                  type="time"
-                  defaultValue={s.summary_time}
-                  onBlur={(e) => e.target.value && e.target.value !== s.summary_time && run(() => api('settings', 'PATCH', { summary_time: e.target.value }), 'Сохранено')}
-                />
-              </div>
-            )}
-          </section>
-        )}
-
         <section className="card" aria-labelledby="set-theme">
           <h2 className="card-title display" id="set-theme">
             <Icon name="moon" />
             Оформление
           </h2>
-          <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>Только на этом устройстве: на телефоне и компьютере можно по-разному.</p>
+          <p style={hint}>Только на этом устройстве: на телефоне и компьютере можно по-разному.</p>
           <AppearancePicker />
         </section>
-      </div>
-      )}
 
-      {tab === 'home' && (
-        <div className="settings-col">
-          <HubSettings />
-        </div>
-      )}
-
-      {tab === 'menu' && (
-        <div className="settings-col">
-          <NavEditor />
-          <CalendarCard />
-        </div>
-      )}
-
-      {tab === 'family' && (
-      <div className="settings-col">
         <section className="card" aria-labelledby="set-family">
           <h2 className="card-title display" id="set-family">
             <Icon name="users" />
@@ -199,9 +102,7 @@ export default function Settings() {
           </h2>
           {!hh ? (
             <>
-              <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
-                Общие дела, чек-листы, рецепты и покупки с близкими. Создайте семью и добавьте человека по его логину — он должен быть зарегистрирован.
-              </p>
+              <p style={hint}>Общие дела, чек-листы, рецепты и покупки с близкими. Создайте семью и добавьте человека по его логину — он должен быть зарегистрирован.</p>
               <form
                 style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
                 onSubmit={(e) => {
@@ -265,35 +166,57 @@ export default function Settings() {
             </>
           )}
         </section>
-      </div>
-      )}
 
-      {tab === 'account' && (
-        <div className="settings-col">
-          <section className="card" aria-labelledby="set-account">
-            <h2 className="card-title display" id="set-account">
-              <Icon name="users" />
-              Аккаунт
-            </h2>
-            <span style={{ overflowWrap: 'anywhere' }}>
-              Вы вошли как <b>{data.login}</b>
-            </span>
-            <button className="btn btn-ghost" type="button" onClick={logout} style={{ alignSelf: 'flex-start' }}>
+        <CalendarCard />
+
+        <section className="card" aria-labelledby="set-elsewhere">
+          <h2 className="card-title display" id="set-elsewhere">
+            <Icon name="settings" />
+            Настраивается на месте
+          </h2>
+          <nav aria-label="Другие настройки" className="set-links">
+            <Link href="/settings/home">
+              <span>
+                <b>Главная</b>
+                <small>плитки, быстрые действия и нижнее меню; ещё шестерёнкой на самой главной</small>
+              </span>
+              <Icon name="arrow" size={18} />
+            </Link>
+            <Link href="/settings/menu">
+              <span>
+                <b>Разделы меню</b>
+                <small>порядок и скрытые; на телефоне ещё из «Ещё»</small>
+              </span>
+              <Icon name="arrow" size={18} />
+            </Link>
+            <Link href="/money/settings">
+              <span>
+                <b>Деньги</b>
+                <small>валюты, категории, что показывать</small>
+              </span>
+              <Icon name="arrow" size={18} />
+            </Link>
+          </nav>
+        </section>
+
+        <section className="card" aria-labelledby="set-account">
+          <h2 className="card-title display" id="set-account">
+            <Icon name="users" />
+            Аккаунт и помощь
+          </h2>
+          <span style={{ overflowWrap: 'anywhere' }}>
+            Вы вошли как <b>{data.login}</b>
+          </span>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Link href="/guide">Как пользоваться</Link>
+            <Link href="/support">Написать в поддержку</Link>
+            <span style={{ flex: 1 }} />
+            <button className="btn btn-ghost" type="button" onClick={logout}>
               <Icon name="logout" size={18} />
               Выйти
             </button>
-          </section>
-          <section className="card" aria-labelledby="set-help">
-            <h2 className="card-title display" id="set-help">
-              <Icon name="help" />
-              Помощь
-            </h2>
-            <Link href="/guide">Как пользоваться</Link>
-            <Link href="/support">Написать в поддержку</Link>
-          </section>
-        </div>
-      )}
-
+          </div>
+        </section>
       </div>
 
       {leaving && me && (
