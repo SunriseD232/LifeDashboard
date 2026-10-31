@@ -8,6 +8,7 @@ import { localDay } from '@/lib/dates';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
 import { loadPhoto } from './photo';
+import { Fixed } from './MoneyParts';
 
 /** Строка выписки с подсказками сервера (src/server/moneyImport.ts). */
 interface Row {
@@ -368,6 +369,7 @@ export default function MoneyImport() {
                 Ещё {visible.length - shown} строк
               </button>
             )}
+            <Fixed>
             <div className="m-import-go">
               <button className="btn btn-ghost" type="button" onClick={() => setPhase('pick')} disabled={busy}>
                 Другой файл
@@ -376,6 +378,7 @@ export default function MoneyImport() {
                 {count ? `Импортировать ${count}` : 'Нечего импортировать'}
               </button>
             </div>
+            </Fixed>
           </>
         )}
 

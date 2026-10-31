@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './icons';
 import { useModalFocus } from './useModalFocus';
 
@@ -23,12 +24,19 @@ export function useIsPhone(): boolean {
   return phone;
 }
 
-/** Круглая «+» над нижней панелью. */
+/**
+ * Круглая «+» над нижней панелью. Рисуем прямо в body: экран при переходе
+ * едет через transform, и fixed внутри него сначала стоял бы не на месте.
+ */
 export function Fab({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  if (!ready) return null;
+  return createPortal(
     <button className="fab" type="button" aria-label={label} title={label} onClick={onClick}>
       <Icon name="plus" size={26} strokeWidth={2.2} />
-    </button>
+    </button>,
+    document.body,
   );
 }
 
