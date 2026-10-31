@@ -951,6 +951,25 @@ export const MIGRATIONS: Migration[] = [
     alter table user_settings add column hub_usage text not null default '{}';
     `),
   },
+  {
+    version: 20,
+    name: 'Отпуска: периоды, пауза повторов, дни в году',
+    up: (db) =>
+      db.exec(`
+    create table vacations (
+      id text primary key,
+      user_id text not null references users(id) on delete cascade,
+      title text not null,
+      start text not null,
+      end text not null,
+      pause integer not null default 1,
+      created_at text not null default (datetime('now'))
+    );
+    create index vacations_user on vacations (user_id, start);
+    -- Сколько дней отпуска положено в год; null — не считаем.
+    alter table user_settings add column vacation_days integer;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

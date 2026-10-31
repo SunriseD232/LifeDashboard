@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { money } from '@/lib/currencies';
 import { localDay } from '@/lib/dates';
+import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
 import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shortDay, type Scope } from './MoneyParts';
 import { DueList } from './MoneyRecurring';
@@ -14,7 +15,7 @@ import { useGoalProgress } from './MoneyGoals';
  * траты месяца по категориям и последние операции.
  */
 export default function MoneyHome() {
-  const { data, toBase, month, setMonth, shown } = useMoney();
+  const { data, toBase, month, setMonth, shown, openSearch } = useMoney();
   const [scope, setScope] = useState<Scope>('all');
   const base = data.settings!.base_currency;
   const nowMonth = localDay().slice(0, 7);
@@ -63,6 +64,9 @@ export default function MoneyHome() {
           <div className="muted m-small">{monthTitle(nowMonth)}</div>
           <h1 className="display m-h1">Деньги</h1>
         </div>
+        <button className="icon-btn bare m-search" type="button" onClick={openSearch} aria-label="Поиск">
+          <Icon name="search" />
+        </button>
       </header>
       <main className="m-main m-main-q">
         <ScopeSwitch scope={scope} onChange={setScope} />

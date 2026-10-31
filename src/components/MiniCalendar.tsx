@@ -35,6 +35,7 @@ export function WeekStrip({
   onPick,
   dots,
   alwaysMonth = false,
+  vacation,
 }: {
   sel: string;
   today: string;
@@ -42,6 +43,8 @@ export function WeekStrip({
   dots: (day: string) => AgendaItem[];
   /** Сразу месяц, без сворачивания в неделю (на компьютере места хватает). */
   alwaysMonth?: boolean;
+  /** Отпуск в этот день — подсветка и подпись для диктора. */
+  vacation?: (day: string) => { title: string; start: string; end: string } | null;
 }) {
   const [month, setMonth] = useState<string | null>(alwaysMonth ? firstOfMonth(sel) : null);
   const [touchX, setTouchX] = useState<number | null>(null);
@@ -96,6 +99,7 @@ export function WeekStrip({
         ))}
         {rows.flat().map((day, i, all) => {
           const items = dots(day);
+          const vac = vacation?.(day);
           const stop = all.includes(sel) ? day === sel : all.includes(today) ? day === today : i === 0;
           return (
             <button
@@ -104,10 +108,11 @@ export function WeekStrip({
               className="cal-day"
               data-out={(month && firstOfMonth(day) !== month) || undefined}
               data-today={day === today || undefined}
+              data-vac={vac ? (vac.start === day ? (vac.end === day ? 'one' : 'start') : vac.end === day ? 'end' : 'mid') : undefined}
               aria-pressed={day === sel}
               aria-current={day === today ? 'date' : undefined}
               tabIndex={stop ? 0 : -1}
-              aria-label={`${dayHead(day, today)}${items.length ? `, задач: ${items.length}` : ''}`}
+              aria-label={`${dayHead(day, today)}${vac ? `, отпуск «${vac.title}»` : ''}${items.length ? `, задач: ${items.length}` : ''}`}
               onClick={() => {
                 onPick(day);
                 setMonth(alwaysMonth ? firstOfMonth(day) : null);

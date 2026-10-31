@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { agendaFor } from '@/lib/agenda';
@@ -9,6 +10,7 @@ import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences
 import { addDays, dueDay } from '@/lib/recur';
 import { knownTags, shortDate, type Task } from '@/lib/tasks';
 import { sortTasks, timeline, type Row } from '@/lib/timeline';
+import { vacationOn } from '@/lib/vacations';
 import type { Priority, Reminder } from '@/lib/types';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
@@ -123,6 +125,21 @@ export function useDateMoves() {
     );
   };
 
+  /**
+   * Просроченные разовые — все разом на сегодня (время то же). Можно в любой
+   * момент из «Задач», не только из вечернего итога.
+   */
+  const remsToday = (rs: Reminder[]) => {
+    const was = new Map(rs.map((r) => [r.id, r.rule]));
+    const move = (rule: (id: string) => Reminder['rule']) =>
+      mutate(
+        (d) => ({ ...d, reminders: d.reminders.map((x) => (was.has(x.id) ? { ...x, rule: rule(x.id) } : x)) }),
+        () => Promise.all(rs.map((r) => api(`reminders/${r.id}`, 'PATCH', { rule: rule(r.id) }))),
+      );
+    move(() => ({ kind: 'once', date: today }));
+    toast(`На сегодня: ${rs.length}`, () => move((id) => was.get(id)!));
+  };
+
   /** Убрать дату: напоминание → задача в списке «Без напоминания». */
   const remUndate = (r: Reminder) => {
     mutate(
@@ -141,7 +158,7 @@ export function useDateMoves() {
     );
   };
 
-  return { taskTomorrow, remTomorrow, remUndate, tomorrow };
+  return { taskTomorrow, remTomorrow, remsToday, remUndate, tomorrow };
 }
 
 // ---------------------------------------------------------------- строки
@@ -565,7 +582,13 @@ export default function Tasks() {
   const doneSet = useMemo(() => new Set(data.done), [data.done]);
   const groups = timeline(tasks, reminders, today, doneSet, data.snoozed);
   const dots = (d: string) => agendaFor(d, reminders, today, doneSet);
+  // Отмеченное сегодня — и задачи, и напоминания — уходит в свёрнутый блок «Сделано».
   const doneToday = tasks.filter((t) => data.tasksDoneToday.includes(t.id) && t.done_at);
+  const doneRems = (groups.find((g) => g.id === 'today')?.rows ?? []).filter((r) => r.kind === 'rem' && r.occ.done);
+  const doneCount = doneToday.length + doneRems.length;
+  const openGroups = groups.map((g) => (g.id === 'today' ? { ...g, rows: g.rows.filter((r) => !(r.kind === 'rem' && r.occ.done)) } : g)).filter((g) => g.rows.length > 0);
+  const moves = useDateMoves();
+  const overdueRems = [...new Map((groups.find((g) => g.id === 'overdue')?.rows ?? []).flatMap((r) => (r.kind === 'rem' ? [[r.occ.reminder.id, r.occ.reminder] as const] : []))).values()];
   const filtered = !!tag || prio > 0;
 
   const open = (r: Reminder) => setDialog({ reminder: r });
@@ -641,8 +664,8 @@ export default function Tasks() {
     </section>
   ) : (
     <div className="day-groups">
-      {groups.length === 0 &&
-        doneToday.length === 0 &&
+      {openGroups.length === 0 &&
+        doneCount === 0 &&
         (filtered ? (
           <p style={{ margin: 0, color: 'var(--muted)' }}>
             По этому фильтру задач нет.{' '}
@@ -653,18 +676,31 @@ export default function Tasks() {
         ) : (
           <Empty icon="tasks" title="Задач нет — можно выдохнуть" action="Добавить задачу" onAction={() => setDialog({})} />
         ))}
-      {groups.map((g) => (
+      {openGroups.length === 0 && doneCount > 0 && <p style={{ margin: 0, color: 'var(--muted)' }}>Всё на сегодня сделано.</p>}
+      {openGroups.map((g) => (
         <section key={g.id} aria-labelledby={`g-${g.id}`}>
-          <h2 className="group-title day-title" id={`g-${g.id}`} data-tone={g.id === 'overdue' ? 'danger' : undefined}>
-            {g.title}
-            <span className="day-count">{g.rows.length}</span>
-          </h2>
+          <div className="day-head">
+            <h2 className="group-title day-title" id={`g-${g.id}`} data-tone={g.id === 'overdue' ? 'danger' : undefined}>
+              {g.title}
+              <span className="day-count">{g.rows.length}</span>
+            </h2>
+            {g.id === 'overdue' && overdueRems.length > 0 && (
+              <button className="btn btn-ghost day-action" type="button" onClick={() => moves.remsToday(overdueRems)}>
+                <Icon name="calendar" size={16} />
+                Всё на сегодня
+              </button>
+            )}
+          </div>
           {g.rows.map((r) => row(r, g.id === 'overdue'))}
         </section>
       ))}
-      {doneToday.length > 0 && (
-        <details>
-          <summary style={{ cursor: 'pointer', fontSize: 'calc(14px * var(--fs))', fontWeight: 600, color: 'var(--muted)', minHeight: 32 }}>Сделано сегодня · {doneToday.length}</summary>
+      {doneCount > 0 && (
+        <details className="done-block">
+          <summary>
+            <Icon name="check" size={16} />
+            Сделано сегодня · {doneCount}
+          </summary>
+          {doneRems.map((r) => row(r))}
           {sortTasks(doneToday).map((t) => (
             <TaskRow key={t.id} task={t} />
           ))}
@@ -674,6 +710,8 @@ export default function Tasks() {
   );
 
   const pickDay = (d: string) => setDay(d === day ? null : d);
+  const vac = (d: string) => vacationOn(data.vacations.list, d);
+  const onVacation = vac(today);
 
   return (
     <>
@@ -691,14 +729,22 @@ export default function Tasks() {
 
       <div className="tasks-layout">
         <div className="tasks-main">
-          {phone && <WeekStrip key="week" sel={day ?? today} today={today} onPick={pickDay} dots={dots} />}
+          {onVacation && (
+            <Link href="/vacations" className="vac-now">
+              <Icon name="sun" size={18} />
+              <span>
+                Отпуск до {new Date(`${onVacation.end}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}.{onVacation.pause ? ' Повторы на паузе.' : ''}
+              </span>
+            </Link>
+          )}
+          {phone && <WeekStrip key="week" sel={day ?? today} today={today} onPick={pickDay} dots={dots} vacation={vac} />}
           {filters}
           {list}
         </div>
         {!phone && (
           <aside className="tasks-side">
             <section className="card" aria-label="Календарь задач">
-              <WeekStrip key="month" sel={day ?? today} today={today} onPick={pickDay} dots={dots} alwaysMonth />
+              <WeekStrip key="month" sel={day ?? today} today={today} onPick={pickDay} dots={dots} vacation={vac} alwaysMonth />
               <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
                 {day ? (
                   <button className="add-line" type="button" style={{ padding: 0 }} onClick={() => setDay(null)}>

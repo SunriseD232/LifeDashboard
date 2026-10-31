@@ -22,7 +22,7 @@ const MONEY_NAV = [
  * в том же порядке, а «Деньги» раскрыты своими пунктами. На телефоне его нет
  * (там нижнее меню).
  */
-export default function MoneySide({ nav, login }: { nav: NavPref[] | null | undefined; login: string | null }) {
+export default function MoneySide({ nav, login, onSearch }: { nav: NavPref[] | null | undefined; login: string | null; onSearch: () => void }) {
   const path = usePathname();
   const active = activeIndex(MONEY_NAV, path);
   const sections = [HOME, ...arrange(nav).visible] as Section[];
@@ -34,7 +34,12 @@ export default function MoneySide({ nav, login }: { nav: NavPref[] | null | unde
         </span>
         LifeDashboard
       </Link>
-      <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 14 }}>
+      <button className="searchbtn" type="button" onClick={onSearch} style={{ marginTop: 14 }}>
+        <Icon name="search" size={18} />
+        <span style={{ flex: 1 }}>Поиск</span>
+        <kbd>Ctrl K</kbd>
+      </button>
+      <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {sections.map((s) => (
           <Link key={s.href} className="nav" href={s.href}>
             <Icon name={s.icon} />

@@ -13,6 +13,7 @@ import { arrange, HELP, HOME, type NavPref, type Section } from '@/lib/nav';
 import { parseHub, type HubPrefs, type HubUsage } from '@/lib/hub';
 import { contextOf, dashBar, hubBar, MONEY_BAR, slideClass, takeSlide, MONEY_HOME } from '@/lib/superapp';
 import type { Task } from '@/lib/tasks';
+import type { Vacations } from '@/lib/vacations';
 import { leftToday, timeline } from '@/lib/timeline';
 import type { Exercise, Workout, WorkoutTemplate } from '@/lib/workouts';
 import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/types';
@@ -45,6 +46,8 @@ export interface AppData {
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
   settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
+  /** Отпуска и сколько дней положено в год (src/lib/vacations.ts). */
+  vacations: Vacations;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
   login?: string | null;
   /** Подключён ли ИИ (src/server/ai.ts) — иначе ИИ-кнопок не показываем. */
@@ -72,6 +75,11 @@ interface AppContext {
 const Ctx = createContext<AppContext | null>(null);
 
 /** Данные и действия приложения — для страниц (src/app/**\/page.tsx). */
+/** Вне каркаса LifeDashboard (в «Деньгах») — null: поиск работает и там. */
+export function useAppMaybe(): AppContext | null {
+  return useContext(Ctx);
+}
+
 export function useApp(): AppContext {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error('useApp вне AppShell');
@@ -94,6 +102,7 @@ const EMPTY: AppData = {
   gym: { workouts: [], exercises: [], templates: [] },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [] },
   household: null,
+  vacations: { list: [], allowance: null },
 };
 
 /** Показать созданное без сети, пока оно в очереди (настоящий id придёт позже). */
@@ -155,6 +164,13 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const [plusOpen, setPlusOpen] = useState(false);
   const [composer, setComposer] = useState<ComposerStart | null>(null);
   useEffect(() => setPlusOpen(false), [pathname]);
+  // /lists?list=<id> — открыть чек-лист: так ведёт поиск из «Денег», где выбора чек-листа нет.
+  useEffect(() => {
+    const list = pathname === '/lists' ? new URLSearchParams(window.location.search).get('list') : null;
+    if (!list) return;
+    setOpenList(list);
+    router.replace('/lists');
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   // Откуда приехал экран — считаем один раз на адрес.
   const slide = useRef<{ path: string; cls: string } | null>(null);
   const [status, setStatus] = useState<Status>(memo ? 'ready' : 'loading');

@@ -28,7 +28,7 @@ function dayLabel(day: string): string {
 
 /** Все операции месяца: поиск, фильтр по типу, по дням. */
 export default function MoneyOps() {
-  const { data, month, setMonth, shown } = useMoney();
+  const { data, month, setMonth, shown, openSearch } = useMoney();
   const [scope, setScope] = useState<Scope>('all');
   const [filter, setFilter] = useState<'all' | OpKind>('all');
   const [query, setQuery] = useState('');
@@ -55,6 +55,9 @@ export default function MoneyOps() {
         <h1 className="display m-h1" style={{ flex: 1 }}>
           Операции
         </h1>
+        <button className="icon-btn bare m-search" type="button" onClick={openSearch} aria-label="Поиск">
+          <Icon name="search" />
+        </button>
       </header>
       <main className="m-main m-main-q">
         <div className="m-month">
