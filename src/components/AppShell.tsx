@@ -166,6 +166,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 // С ними экран сразу на месте, а свежие данные подтягиваются фоном.
 let memo: AppData | null = null;
 
+/** Сколько ждать первую загрузку, прежде чем показать сохранённое или подсказку. */
+const SLOW_MS = 6_000;
+const SLOW_HINT = 'Если включён VPN — добавьте media-watch.ru в исключения (сайт российский, VPN ему не нужен) или смените страну в VPN.';
+
 /** Где семья видит изменения друг друга почти сразу. */
 const LIVE_PATHS = ['/', '/kitchen', '/lists', '/tasks'];
 
@@ -253,6 +257,23 @@ function LdShell({ children }: { children: React.ReactNode }) {
   statusRef.current = status;
   const syncing = useRef(false);
   const loadedAt = useRef(0);
+  // Первая загрузка зависла (бывает через VPN): через 6 с — сохранённые данные,
+  // если они есть, иначе подсказка; ответ сервера, когда придёт, их заменит.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (status !== 'loading') return;
+    const t = setTimeout(() => {
+      if (statusRef.current !== 'loading') return;
+      setSlow(true);
+      const cached = loadState<AppData>();
+      if (cached) {
+        setData({ ...EMPTY, ...cached.state });
+        setOffline(true);
+        setStatus('ready');
+      }
+    }, SLOW_MS);
+    return () => clearTimeout(t);
+  }, [status]);
 
   const reload = useCallback(async () => {
     try {
@@ -263,6 +284,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
       setData(fresh);
       saveState(fresh.login, fresh);
       setOffline(false);
+      setSlow(false);
       setPending(outbox().length);
       setStatus('ready');
     } catch (e) {
@@ -422,8 +444,18 @@ function LdShell({ children }: { children: React.ReactNode }) {
 
   if (status === 'loading') {
     return (
-      <div role="status" aria-busy="true" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', color: 'var(--muted)' }}>
-        Загружаем…
+      <div role="status" aria-busy="true" style={{ display: 'grid', placeItems: 'center', minHeight: '60vh', color: 'var(--muted)', padding: 16, textAlign: 'center' }}>
+        {slow ? (
+          <div style={{ maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <b style={{ color: 'var(--ink)' }}>Сервер долго не отвечает</b>
+            <span>{SLOW_HINT}</span>
+            <button className="btn btn-primary" type="button" onClick={() => location.reload()}>
+              Попробовать ещё раз
+            </button>
+          </div>
+        ) : (
+          'Загружаем…'
+        )}
       </div>
     );
   }
@@ -446,7 +478,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
           <h1 className="display" style={{ margin: 0, fontSize: 'calc(28px * var(--fs))' }}>
             Не удалось загрузить
           </h1>
-          <p style={{ margin: 0, color: 'var(--muted)' }}>Сервер не ответил. Проверьте интернет и попробуйте ещё раз.</p>
+          <p style={{ margin: 0, color: 'var(--muted)' }}>Сервер не ответил. Проверьте интернет и попробуйте ещё раз. {SLOW_HINT}</p>
           <button className="btn btn-primary" type="button" onClick={() => { setStatus('loading'); reload(); }}>
             Попробовать ещё раз
           </button>
@@ -543,7 +575,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
         {(offline || pending > 0) && (
           <div className="offline-bar" role="status">
             <Icon name={offline ? 'cloud' : 'repeat'} size={16} />
-            {offline ? 'Нет сети — показываю сохранённое' : 'Отправляю изменения…'}
+            {offline ? (slow ? 'Связь медленная — показываю сохранённое, свежее подтянется само' : 'Нет сети — показываю сохранённое') : 'Отправляю изменения…'}
             {pending > 0 && ` · ждут отправки: ${pending}`}
           </div>
         )}

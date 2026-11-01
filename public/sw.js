@@ -54,18 +54,23 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Страницы: сначала сеть (и запомнить), без сети — то, что запомнили.
+  // Сеть зависла (бывает через VPN): через 6 с — запомненная копия, если есть;
+  // свежая всё равно ляжет в кэш, когда придёт.
   if (req.mode === 'navigate') {
     const key = url.origin + url.pathname.replace(/\/$/, '');
     event.respondWith(
       (async () => {
         const c = await caches.open(PAGES);
-        try {
-          const res = await fetch(req);
+        const net = fetch(req).then((res) => {
           if (res.ok) c.put(key, res.clone());
           return res;
+        });
+        const hit = await c.match(key);
+        try {
+          if (!hit) return await net;
+          return await Promise.race([net, new Promise((r) => setTimeout(() => r(hit), 6000))]);
         } catch (e) {
           // Чужую страницу вместо этой не подставляем — приложение запуталось бы в адресе.
-          const hit = await c.match(key);
           return hit || new Response(OFFLINE_PAGE, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
         }
       })(),
