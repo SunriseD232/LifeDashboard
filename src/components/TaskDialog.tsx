@@ -35,6 +35,8 @@ interface Draft {
   priority: Priority;
   checklist_id: string;
   shared: boolean;
+  /** Кто делает (логин) — у общих; '' — все. */
+  assignee: string;
   rule: Rule;
   times: string[];
   nag: number;
@@ -46,14 +48,27 @@ export type DialogTarget = { task: Task } | { reminder: Reminder } | { day?: str
 type Extra = 'repeat' | 'tags' | 'priority' | 'checklist' | 'note' | 'nag';
 
 function draftOf(target: NonNullable<DialogTarget>, today: string, at: string): Draft {
-  const base: Draft = { kind: 'task', title: '', note: '', tags: [], priority: 0, checklist_id: '', shared: false, rule: { kind: 'once', date: today }, times: [at], nag: 0 };
+  const base: Draft = { kind: 'task', title: '', note: '', tags: [], priority: 0, checklist_id: '', shared: false, assignee: '', rule: { kind: 'once', date: today }, times: [at], nag: 0 };
   if ('task' in target) {
     const t = target.task;
-    return { ...base, title: t.title, note: t.note ?? '', tags: t.tags, priority: t.priority, checklist_id: t.checklist_id ?? '', shared: !!t.household_id };
+    return { ...base, title: t.title, note: t.note ?? '', tags: t.tags, priority: t.priority, checklist_id: t.checklist_id ?? '', shared: !!t.household_id, assignee: t.assignee ?? '' };
   }
   if ('reminder' in target) {
     const r = target.reminder;
-    return { ...base, kind: 'rem', title: r.title, note: r.note ?? '', tags: r.tags, priority: r.priority, checklist_id: r.checklist_id ?? '', rule: r.rule, times: r.times, nag: r.nag ?? 0 };
+    return {
+      ...base,
+      kind: 'rem',
+      title: r.title,
+      note: r.note ?? '',
+      tags: r.tags,
+      priority: r.priority,
+      checklist_id: r.checklist_id ?? '',
+      shared: !!r.household_id,
+      assignee: r.assignee ?? '',
+      rule: r.rule,
+      times: r.times,
+      nag: r.nag ?? 0,
+    };
   }
   const day = target.day && target.day >= today ? target.day : null;
   return { ...base, kind: day ? 'rem' : 'task', title: target.title ?? '', rule: { kind: 'once', date: day ?? today }, times: [target.time ?? at] };
@@ -182,8 +197,10 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
 
   const editing = 'task' in target ? target.task : 'reminder' in target ? target.reminder : null;
   const wasKind: Kind | null = 'task' in target ? 'task' : 'reminder' in target ? 'rem' : null;
-  // Чужую общую задачу нельзя удалить — значит, и перевести в напоминание.
-  const foreign = 'task' in target && !!target.task.author;
+  // Чужую общую задачу нельзя удалить — значит, и перевести в другой вид:
+  // у задачи «Когда» закрыто, у напоминания нельзя убрать срок.
+  const foreign = !!editing?.author;
+  const foreignTask = foreign && wasKind === 'task';
   const known = knownTags(data.tags, data.tasks, data.reminders);
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
 
@@ -260,8 +277,8 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
   };
 
   const bodyOf = () => {
-    const common = { title: d.title.trim().slice(0, 200), note: d.note.trim() || null, tags: d.tags, priority: d.priority, checklist_id: d.checklist_id || null };
-    return d.kind === 'task' ? { ...common, shared: d.shared } : { ...common, title: common.title.slice(0, 120), times: d.times, rule: d.rule, nag: d.nag || null };
+    const common = { title: d.title.trim().slice(0, 200), note: d.note.trim() || null, tags: d.tags, priority: d.priority, checklist_id: d.checklist_id || null, shared: d.shared, assignee: d.shared ? d.assignee || null : null };
+    return d.kind === 'task' ? common : { ...common, title: common.title.slice(0, 120), times: d.times, rule: d.rule, nag: d.nag || null };
   };
 
   const save = async (e: React.FormEvent) => {
@@ -382,10 +399,10 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
       )}
 
       {!repeating && (
-        <fieldset className="td-when" disabled={foreign}>
+        <fieldset className="td-when" disabled={foreignTask}>
           <legend className="label">Когда</legend>
           <div className="td-chips">
-            <button type="button" className="chip" aria-pressed={!onceDate} onClick={() => when(null)}>
+            <button type="button" className="chip" aria-pressed={!onceDate} disabled={foreign} onClick={() => when(null)}>
               Без срока
             </button>
             <button
@@ -523,7 +540,7 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
           open(x);
         }}
       >
-        {d.kind === 'task' && data.household && (
+        {data.household && (
           <button type="button" className="chip" aria-pressed={d.shared} disabled={foreign} onClick={() => set({ shared: !d.shared })}>
             <Icon name="users" size={14} />
             Общая для семьи
@@ -531,7 +548,23 @@ export default function TaskDialog({ target, onClose }: { target: NonNullable<Di
         )}
       </AddChips>
 
-      {foreign && <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Общая задача, завёл(а) {(target as { task: Task }).task.author}.</p>}
+      {d.shared && data.household && data.household.members.length > 1 && (
+        <div className="fld">
+          <label className="label" htmlFor="td-assignee">
+            Кто делает
+          </label>
+          <select id="td-assignee" className="field" value={d.assignee} onChange={(e) => set({ assignee: e.target.value })}>
+            <option value="">{d.kind === 'rem' ? 'Все — напомню каждому' : 'Все'}</option>
+            {data.household.members.map((m) => (
+              <option key={m.login} value={m.login}>
+                {m.me ? `${m.login} (вы)` : m.login}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {foreign && <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Общая, завёл(а) {editing!.author}. Удалить может только автор.</p>}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {editing && !foreign && (

@@ -17,6 +17,7 @@ import { plannedFor } from '@/lib/workouts';
 import { AiButton } from './Ai';
 import { useApp } from './AppShell';
 import Composer, { type ComposerStart } from './Composer';
+import { InviteList } from './Family';
 import { Icon } from './icons';
 import { useKitchen } from './Kitchen';
 import { dayHead, WeekStrip } from './MiniCalendar';
@@ -164,6 +165,9 @@ export default function Hub() {
           <Icon name="edit" />
         </Link>
       </header>
+
+      {/* Позвали в семью — ответить можно сразу, не ища настройки. */}
+      <InviteList />
 
       {/* На компьютере нижнего меню нет — «Записать» прямо на главной. */}
       <form

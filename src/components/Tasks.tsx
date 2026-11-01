@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { localDay, minutesOf } from '@/lib/dates';
 import { occurrenceKey, occurrencesOn, type Occurrence } from '@/lib/occurrences';
 import { addDays, dueDay } from '@/lib/recur';
-import { knownTags, shortDate, type Task } from '@/lib/tasks';
+import { isMine, knownTags, shortDate, type Task } from '@/lib/tasks';
 import { sortTasks, timeline, type Row } from '@/lib/timeline';
 import { vacationOn } from '@/lib/vacations';
 import type { Priority, Reminder } from '@/lib/types';
@@ -75,7 +75,10 @@ export function useDateMoves() {
     }
     await reload();
   };
-  const remBody = (x: { title: string; tags: string[]; priority: Priority; note: string | null; checklist_id: string | null }, date: string, times = [at]) => ({
+  // Общее остаётся общим и с тем же «кто делает» — чем бы оно ни стало.
+  type Movable = { title: string; tags: string[]; priority: Priority; note: string | null; checklist_id: string | null; household_id: string | null; assignee: string | null };
+  const family = (x: Movable) => (x.household_id ? { shared: true, assignee: x.assignee } : {});
+  const remBody = (x: Movable, date: string, times = [at]) => ({
     title: x.title.slice(0, 120),
     times,
     rule: { kind: 'once', date },
@@ -83,13 +86,15 @@ export function useDateMoves() {
     priority: x.priority,
     note: x.note,
     checklist_id: x.checklist_id,
+    ...family(x),
   });
-  const taskBody = (x: { title: string; tags: string[]; priority: Priority; note: string | null; checklist_id: string | null }) => ({
+  const taskBody = (x: Movable) => ({
     title: x.title,
     tags: x.tags,
     priority: x.priority,
     note: x.note,
     checklist_id: x.checklist_id,
+    ...family(x),
   });
 
   /** Задача без даты → напоминание на завтра. */
@@ -163,11 +168,12 @@ export function useDateMoves() {
 
 // ---------------------------------------------------------------- строки
 
-/** Метки, чек-лист, «общая» — подписи под названием. */
-function Meta({ tags, checklistId, shared, author }: { tags: string[]; checklistId: string | null; shared?: boolean; author?: string | null }) {
+/** Метки, чек-лист, «общая», кто делает и кто сделал — подписи под названием. */
+function Meta({ tags, checklistId, shared, author, assignee, doneBy }: { tags: string[]; checklistId: string | null; shared?: boolean; author?: string | null; assignee?: string | null; doneBy?: string | null }) {
   const { data } = useApp();
   const list = checklistId ? data.checklists.find((c) => c.id === checklistId) : null;
   if (!tags.length && !list && !shared) return null;
+  const me = data.login ?? null;
   return (
     <span className="row-tags">
       {tags.map((t) => (
@@ -186,6 +192,16 @@ function Meta({ tags, checklistId, shared, author }: { tags: string[]; checklist
           <Icon name="users" size={12} /> {author ?? 'общая'}
         </span>
       )}
+      {shared && assignee && (
+        <span className="tag" data-me={assignee === me || undefined} title={`Делает ${assignee}`}>
+          <Icon name="arrow" size={12} /> {assignee === me ? 'вам' : assignee}
+        </span>
+      )}
+      {doneBy && (
+        <span className="tag" title={`Отметил(а) ${doneBy}`}>
+          <Icon name="check" size={12} /> {doneBy}
+        </span>
+      )}
     </span>
   );
 }
@@ -194,7 +210,8 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
   const { complete, undo, remove } = useTaskActions();
   const moves = useDateMoves();
   const done = !!task.done_at;
-  // Чужую общую задачу удалить нельзя (сервер не даст) — и свайп не предлагает.
+  // Чужую общую задачу удалить нельзя (сервер не даст) — и свайп не предлагает,
+  // и в напоминание её не превратить (это тоже удаление).
   const canDelete = !task.household_id || !task.author;
   const body = (
     <>
@@ -202,7 +219,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
         <PriorityFlag p={task.priority} />
         {task.title}
       </span>
-      <Meta tags={task.tags} checklistId={task.checklist_id} shared={!!task.household_id} author={task.author} />
+      <Meta tags={task.tags} checklistId={task.checklist_id} shared={!!task.household_id} author={task.author} assignee={task.assignee} doneBy={done ? task.done_by : null} />
     </>
   );
   return (
@@ -212,8 +229,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
         done
           ? []
           : [
-              // Общую задачу семьи в напоминание не превратить: push — одному человеку.
-              ...(!task.household_id ? [{ label: 'Завтра', icon: 'calendar', tone: 'warm' as const, onClick: () => moves.taskTomorrow(task) }] : []),
+              ...(canDelete ? [{ label: 'Завтра', icon: 'calendar', tone: 'warm' as const, onClick: () => moves.taskTomorrow(task) }] : []),
               ...(canDelete ? [{ label: 'Удалить', icon: 'trash', tone: 'danger' as const, onClick: () => remove(task) }] : []),
             ]
       }
@@ -248,7 +264,7 @@ export function TaskRow({ task, onOpen }: { task: Task; onOpen?: (t: Task) => vo
 export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { occ: Occurrence; date: string; time: string; onOpen: (r: Reminder) => void; overdue?: boolean; hideDate?: boolean }) {
   const rem = useReminderActions();
   const moves = useDateMoves();
-  const { now } = useApp();
+  const { now, data } = useApp();
   const today = localDay(now);
   const r = occ.reminder;
   const checkable = date === today || !!overdue;
@@ -261,7 +277,7 @@ export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { oc
         {r.title}
         {chore && <span className="chip chip-danger">давно пора</span>}
       </span>
-      <Meta tags={r.tags} checklistId={r.checklist_id} />
+      <Meta tags={r.tags} checklistId={r.checklist_id} shared={!!r.household_id} author={r.author} assignee={r.assignee} doneBy={occ.done ? data.done_by?.[occ.key] : null} />
     </>
   );
   return (
@@ -269,11 +285,12 @@ export function ReminderRow({ occ, date, time, onOpen, overdue, hideDate }: { oc
       onRight={checkable && !occ.done ? () => rem.done(r, occ.slot, true) : undefined}
       actions={[
         ...(date === today && !occ.done ? [{ label: 'Через час', icon: 'clock', tone: 'warm' as const, onClick: () => rem.snooze(occ, 60) }] : []),
-        // Разовую — на завтра или без даты; повтор меняют в окне задачи.
+        // Разовую — на завтра или без даты (чужую общую — только на завтра:
+        // «без даты» её пересоздаёт); повтор меняют в окне задачи.
         ...(r.rule.kind === 'once'
           ? [
               ...(r.rule.date !== moves.tomorrow ? [{ label: 'Завтра', icon: 'calendar', onClick: () => moves.remTomorrow(r) }] : []),
-              { label: 'Без даты', icon: 'tasks', onClick: () => moves.remUndate(r) },
+              ...(!r.author ? [{ label: 'Без даты', icon: 'tasks', onClick: () => moves.remUndate(r) }] : []),
             ]
           : [{ label: 'Изменить', icon: 'edit', onClick: () => onOpen(r) }]),
       ]}
@@ -315,13 +332,15 @@ interface Filter {
   tag: string | null;
   /** Не ниже этой важности; 0 — любая. */
   prio: Priority;
+  /** В семье: только моё — личное, поручено мне или никому. */
+  mine?: boolean;
 }
 const FILTER_KEY = 'lifedashboard:tasks-filter';
 
 function loadFilter(): Filter {
   try {
     const f = JSON.parse(localStorage.getItem(FILTER_KEY) || 'null') as Filter | null;
-    if (f && typeof f === 'object') return { tag: typeof f.tag === 'string' ? f.tag : null, prio: [0, 1, 2, 3].includes(f.prio) ? f.prio : 0 };
+    if (f && typeof f === 'object') return { tag: typeof f.tag === 'string' ? f.tag : null, prio: [0, 1, 2, 3].includes(f.prio) ? f.prio : 0, mine: !!f.mine };
   } catch {
     /* приватный режим */
   }
@@ -576,7 +595,12 @@ export default function Tasks() {
   const usePrio = data.tasks.some((t) => t.priority > 0) || data.reminders.some((r) => r.priority > 0);
   const tag = useTags && filter.tag && tags.includes(filter.tag) ? filter.tag : null;
   const prio = usePrio ? filter.prio : 0;
-  const pass = (x: { tags: string[]; priority: Priority }) => (!tag || x.tags.includes(tag)) && x.priority >= prio;
+  // «Мои» — когда в семье кому-то что-то поручено.
+  const useMine = !!data.household && [...data.tasks, ...data.reminders].some((x) => x.assignee);
+  const mine = useMine && !!filter.mine;
+  const me = data.login ?? '';
+  const pass = (x: { tags: string[]; priority: Priority; household_id: string | null; assignee: string | null }) =>
+    (!tag || x.tags.includes(tag)) && x.priority >= prio && (!mine || isMine(x, me));
   const tasks = data.tasks.filter(pass);
   const reminders = data.reminders.filter(pass);
   const doneSet = useMemo(() => new Set(data.done), [data.done]);
@@ -589,7 +613,7 @@ export default function Tasks() {
   const openGroups = groups.map((g) => (g.id === 'today' ? { ...g, rows: g.rows.filter((r) => !(r.kind === 'rem' && r.occ.done)) } : g)).filter((g) => g.rows.length > 0);
   const moves = useDateMoves();
   const overdueRems = [...new Map((groups.find((g) => g.id === 'overdue')?.rows ?? []).flatMap((r) => (r.kind === 'rem' ? [[r.occ.reminder.id, r.occ.reminder] as const] : []))).values()];
-  const filtered = !!tag || prio > 0;
+  const filtered = !!tag || prio > 0 || mine;
 
   const open = (r: Reminder) => setDialog({ reminder: r });
   const row = (r: Row, overdue = false, hideDate = false) =>
@@ -608,8 +632,14 @@ export default function Tasks() {
     });
   };
 
-  const filters = (useTags || usePrio) && (
+  const filters = (useTags || usePrio || useMine) && (
     <div className="task-filters" data-tour="tasks-filters">
+      {useMine && (
+        <button className="chip" type="button" aria-pressed={mine} onClick={() => setFilter({ ...filter, mine: !mine })}>
+          <Icon name="users" size={14} />
+          Мои
+        </button>
+      )}
       {useTags && (
         <div className="chip-scroll" role="group" aria-label="Метки">
           <button className="chip" type="button" aria-pressed={!tag} onClick={() => setFilter({ ...filter, tag: null })}>

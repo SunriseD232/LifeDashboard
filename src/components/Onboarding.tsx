@@ -5,14 +5,16 @@ import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import PushPanel from './PushPanel';
+import Setup from './Setup';
 import { useModalFocus } from './useModalFocus';
 import { CityPicker } from './Weather';
 
 const EXAMPLES = ['Позвонить маме', 'Записаться к врачу', 'Купить продукты'];
 
 /**
- * Знакомство при первом входе: город → уведомления → первое дело. Каждый шаг
- * можно пропустить; после — больше не показываем (user_settings.onboarded).
+ * Знакомство при первом входе: что нужно (разделы и их порядок) → город →
+ * уведомления → первое дело. Каждый шаг можно пропустить; после — больше
+ * не показываем (user_settings.onboarded).
  */
 export default function Onboarding() {
   const { data, reload, toast } = useApp();
@@ -50,10 +52,18 @@ export default function Onboarding() {
 
   const steps = [
     {
+      icon: 'settings',
+      title: 'Что вам нужно?',
+      text: 'Отметьте нужное и поставьте по порядку стрелками — так будут меню и главная. Лишнее спрячем, вернуть можно в «Настройках».',
+      body: <Setup onDone={() => setStep(1)} />,
+      // Своя кнопка «Сохранить и дальше»; «Пропустить» оставит как есть.
+      done: false,
+    },
+    {
       icon: 'partly',
       title: 'Где вы живёте?',
       text: 'Покажу погоду и подскажу, когда взять зонт.',
-      body: <CityPicker onPicked={() => setStep(1)} />,
+      body: <CityPicker onPicked={() => setStep(2)} />,
       done: !!data.settings.city,
     },
     {

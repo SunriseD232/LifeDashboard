@@ -291,7 +291,7 @@ function ChecklistDetail({
 
   const patchItem = (id: string, patch: Partial<ChecklistItem>) =>
     mutate(
-      (d) => ({ ...d, items: d.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) }),
+      (d) => ({ ...d, items: d.items.map((i) => (i.id === id ? { ...i, ...patch, ...(patch.done !== undefined ? { done_by: null } : {}) } : i)) }),
       // В покупках «купил» кладёт продукт в «что есть дома» — подтянем это.
       () => api(`items/${id}`, 'PATCH', patch).then(() => (list.kind === 'shopping' && patch.done ? reload() : undefined)),
     );
@@ -612,7 +612,10 @@ function ChecklistDetail({
                 >
                   <label className={`check${it.done ? ' done' : ''}`}>
                     <input type="checkbox" checked={it.done} onChange={(e) => patchItem(it.id, { done: e.target.checked })} />
-                    <span className="check-text">{it.title}</span>
+                    <span className="check-text">
+                      {it.title}
+                      {it.done && it.done_by && <span className="done-by"> · {list.kind === 'shopping' ? 'купил(а)' : 'отметил(а)'} {it.done_by}</span>}
+                    </span>
                     {it.note && <em style={{ marginLeft: 'auto', fontStyle: 'normal', fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>{it.note}</em>}
                   </label>
                 </Swipe>

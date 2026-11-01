@@ -34,6 +34,8 @@ export interface AppData {
   reminders: Reminder[];
   /** Отметки «сделано» СЕГОДНЯ — ключи `${id}@${время}` (src/lib/occurrences.ts). */
   done: string[];
+  /** Кто из семьи отметил общее напоминание сегодня: ключ → логин (свои — нет). */
+  done_by?: Record<string, string>;
   /** Отложенные сегодня. */
   snoozed: Snooze[];
   /** Задачи без напоминания: открытые и закрытые сегодня. */
@@ -45,8 +47,10 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null; fridge: FridgeItem[] };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage };
-  household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage; family_push?: string[] };
+  household: { id: string; name: string; members: { login: string; me: boolean }[]; invited?: { id: string; login: string }[] } | null;
+  /** Меня зовут в семью (src/server/household.ts). */
+  invites?: { id: string; family: string; from: string }[];
   /** Отпуска и сколько дней положено в год (src/lib/vacations.ts). */
   vacations: Vacations;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
@@ -157,6 +161,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 // выгружается, и без этого возврат на главную снова ждал бы сервер.
 // С ними экран сразу на месте, а свежие данные подтягиваются фоном.
 let memo: AppData | null = null;
+
+/** Где семья видит изменения друг друга почти сразу. */
+const LIVE_PATHS = ['/', '/kitchen', '/lists', '/tasks'];
 
 function LdShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -346,6 +353,19 @@ function LdShell({ children }: { children: React.ReactNode }) {
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [reload]);
+
+  // Семья: пока открыты покупки, чек-листы, дела или главная, изменения
+  // остальных подтягиваем раз в 15 секунд — вдвоём в магазине список не
+  // расходится. Только на видимой вкладке и когда нет неотправленного.
+  const inFamily = !!data.household;
+  const live = LIVE_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(`${p}/`)));
+  useEffect(() => {
+    if (!inFamily || !live) return;
+    const t = setInterval(() => {
+      if (!document.hidden && !outbox().length && Date.now() - loadedAt.current > 12_000) reload();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [inFamily, live, reload]);
 
   // Число на иконке приложения (экран «Домой»): сколько осталось на сегодня.
   useEffect(() => {

@@ -315,7 +315,7 @@ export function Shopping() {
     mutate(
       (d) => ({
         ...d,
-        items: d.items.map((x) => (x.id === i.id ? { ...x, done } : x)),
+        items: d.items.map((x) => (x.id === i.id ? { ...x, done, done_by: null } : x)),
         kitchen: done && i.product_id && !d.kitchen.pantry.includes(i.product_id) ? { ...d.kitchen, pantry: [...d.kitchen.pantry, i.product_id] } : d.kitchen,
       }),
       // Пункт без продукта сервер привяжет сам — подтянем, что теперь есть дома.
@@ -356,6 +356,7 @@ export function Shopping() {
             </span>
           )}
           {i.recipe_title && <span className="chip chip-blue">{i.recipe_title.toLowerCase()}</span>}
+          {i.done && i.done_by && <span className="done-by">купил(а) {i.done_by}</span>}
         </span>
       </label>
       <button className="icon-btn bare" type="button" aria-label={`Убрать «${i.title}»`} onClick={() => remove(i)}>

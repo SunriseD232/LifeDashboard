@@ -97,9 +97,11 @@ export interface HubPrefs {
   auto: boolean;
   /** Закреплённые действия — всегда первыми. */
   pins: string[];
+  /** Действия, которых не показывать (выключенные при знакомстве разделы). */
+  off: string[];
 }
 
-export const DEFAULT_HUB: HubPrefs = { bar: null, tiles: null, auto: true, pins: [] };
+export const DEFAULT_HUB: HubPrefs = { bar: null, tiles: null, auto: true, pins: [], off: [] };
 
 const ids = (raw: unknown, known: { id: string }[], max: number): string[] => {
   if (!Array.isArray(raw)) return [];
@@ -125,7 +127,7 @@ export function parseHub(raw: unknown): HubPrefs {
     }
     if (!tiles.length) tiles = null;
   }
-  return { bar: bar.length === 4 ? bar : null, tiles, auto: r.auto !== false, pins: ids(r.pins, SHORTCUTS, SHORTCUT_SLOTS) };
+  return { bar: bar.length === 4 ? bar : null, tiles, auto: r.auto !== false, pins: ids(r.pins, SHORTCUTS, SHORTCUT_SLOTS), off: ids(r.off, SHORTCUTS, SHORTCUTS.length) };
 }
 
 /** Плитки по порядку: сохранённые, затем новые из каталога (с их видимостью по умолчанию). */
@@ -187,7 +189,7 @@ export function bumpUsage(u: HubUsage, id: string, hour: number): HubUsage {
  * (своя часть дня весит втрое), затем — по порядку каталога.
  */
 export function pickShortcuts(p: HubPrefs, usage: HubUsage, hour: number, hasMoney: boolean): ShortcutDef[] {
-  const avail = SHORTCUTS.filter((s) => hasMoney || !s.money);
+  const avail = SHORTCUTS.filter((s) => (hasMoney || !s.money) && !p.off.includes(s.id));
   const byId = new Map(avail.map((s) => [s.id, s]));
   const pinned = p.pins.map((id) => byId.get(id)).filter((s): s is ShortcutDef => !!s);
   if (!p.auto) return pinned.length ? pinned : avail.slice(0, SHORTCUT_SLOTS);

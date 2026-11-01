@@ -4462,3 +4462,131 @@ a.hub-tile:hover {
     order: -1;
   }
 }
+
+/* Семья: приглашения мне и что присылать push (src/components/Family.tsx). */
+.family-invites {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.family-invites li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--sel);
+}
+.family-invites li > svg {
+  color: var(--accent);
+  flex: none;
+}
+.family-push {
+  border: 0;
+  margin: 4px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+/* Кто отметил пункт общего списка — не зачёркиваем вместе с текстом. */
+.done-by {
+  display: inline-block;
+  font-size: calc(13px * var(--fs));
+  color: var(--muted);
+  text-decoration: none;
+}
+.tag[data-me] {
+  background: var(--sel);
+  color: var(--sel-ink);
+}
+
+/* «Что вам нужно?» в знакомстве (src/components/Setup.tsx). */
+.setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.setup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setup-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 0;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.setup-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 4px 6px 12px;
+  cursor: pointer;
+}
+.setup-pick input {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  border-radius: 7px;
+  border: 2px solid var(--box);
+  background: var(--field);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.setup-pick input:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.setup-pick input:checked::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border-left: 2.5px solid #fff;
+  border-bottom: 2.5px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
+}
+.setup-ic {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--sel);
+  color: var(--sel-ink);
+}
+.setup-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.setup-t small {
+  font-size: calc(13px * var(--fs));
+  color: var(--muted);
+}
+.setup-row[data-off] .setup-ic {
+  background: var(--seg);
+  color: var(--muted);
+}
+.setup-row[data-off] .setup-t b {
+  color: var(--muted);
+}

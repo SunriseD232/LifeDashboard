@@ -45,6 +45,8 @@ export default function Vacations() {
   const current = vacationOn(list, today);
   const ahead = list.filter((v) => v.end >= today);
   const past = list.filter((v) => v.end < today && v.end.slice(0, 4) === String(year)).reverse();
+  // Семья: кто когда в отпуске (только показанные семье и ещё не прошедшие).
+  const family = (data.vacations.family ?? []).filter((v) => v.end >= today);
 
   const saveAllowance = async (raw: string) => {
     const n = raw.trim() === '' ? null : Number(raw);
@@ -77,6 +79,11 @@ export default function Vacations() {
             {v.start <= today && today <= v.end ? ' · сейчас' : ''}
           </small>
         </span>
+        {v.shared && (
+          <span className="tag" title="Видно семье">
+            <Icon name="users" size={12} />
+          </span>
+        )}
         {v.pause && (
           <span className="tag" title="Повторяющиеся напоминания в эти дни не приходят">
             <Icon name="bell" size={12} />
@@ -159,7 +166,7 @@ export default function Vacations() {
             </div>
           </section>
 
-          {list.length === 0 ? (
+          {list.length === 0 && family.length === 0 ? (
             <Empty icon="suitcase" title="Отпусков пока нет" action="Добавить отпуск" onAction={() => setEdit({})} />
           ) : (
             <>
@@ -169,6 +176,33 @@ export default function Vacations() {
                     Впереди
                   </h2>
                   <ul className="vac-list">{ahead.map(row)}</ul>
+                </section>
+              )}
+              {family.length > 0 && (
+                <section aria-labelledby="vac-family">
+                  <h2 className="group-title" id="vac-family">
+                    Семья
+                  </h2>
+                  <ul className="vac-list">
+                    {family.map((f) => (
+                      <li key={f.id}>
+                        <div className="vac-row">
+                          <span className="vac-icon" aria-hidden="true">
+                            <Icon name="users" size={18} />
+                          </span>
+                          <span className="vac-text">
+                            <b>
+                              {f.login} · {f.title}
+                            </b>
+                            <small>
+                              {vacationDates(f, today)} · {days(spanDays(f.start, f.end))}
+                              {f.start <= today && today <= f.end ? ' · сейчас' : ''}
+                            </small>
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </section>
               )}
               {past.length > 0 && (
@@ -208,6 +242,8 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
   const [start, setStart] = useState(first);
   const [end, setEnd] = useState(v?.end ?? (next && next <= twoWeeks ? addDays(next, -1) : twoWeeks));
   const [pause, setPause] = useState(v?.pause ?? true);
+  // В семье новый отпуск сразу видно остальным — для того полоса и нужна.
+  const [shared, setShared] = useState(v?.shared ?? !!data.household);
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(false);
   const n = spanDays(start, end);
@@ -227,7 +263,7 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const body: Partial<VacationData['list'][number]> = { title: title.trim() || 'Отпуск', start, end, pause };
+    const body: Partial<VacationData['list'][number]> = { title: title.trim() || 'Отпуск', start, end, pause, shared: !!data.household && shared };
     run(() => (v ? api(`vacations/${v.id}`, 'PATCH', body) : api('vacations', 'POST', body)), v ? 'Отпуск изменён' : `Отпуск добавлен: ${days(n)}`);
   };
 
@@ -275,6 +311,12 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
             <input type="checkbox" checked={pause} onChange={(e) => setPause(e.target.checked)} />
             <span className="check-text">Не присылать повторяющиеся напоминания и вечерний итог. Разовые придут как обычно.</span>
           </label>
+          {data.household && (
+            <label className="check" style={{ padding: 0 }}>
+              <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+              <span className="check-text">Показать семье — увидят даты и название</span>
+            </label>
+          )}
           <div className="vac-actions">
             {v && (
               <button className="btn btn-danger-ghost" type="button" disabled={busy} onClick={() => setRemoving(true)}>

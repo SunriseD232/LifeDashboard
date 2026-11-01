@@ -58,7 +58,16 @@ export default function MoneyRecurringPage() {
         {list.length > 0 && (
           <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
             {list.map((r) => (
-              <button key={r.id} type="button" className="m-op" onClick={() => setEdit(r)} style={r.active ? undefined : { opacity: 0.5 }}>
+              // Платёж по семейному счёту, заведённый другим, меняет он; записать — может любой («Пора платить»).
+              <button
+                key={r.id}
+                type="button"
+                className="m-op"
+                disabled={!!r.author}
+                title={r.author ? `Завёл ${r.author} — менять может только он` : undefined}
+                onClick={() => setEdit(r)}
+                style={r.active ? undefined : { opacity: 0.5 }}
+              >
                 <span className="m-op-ic">
                   <Icon name="repeat" />
                 </span>
@@ -67,6 +76,7 @@ export default function MoneyRecurringPage() {
                   <small>
                     {r.active ? `${shortDay(r.next_day, today)} · ${period(r)}` : 'на паузе'}
                     {r.mode === 'auto' && ' · авто'}
+                    {r.shared && ` · семья${r.author ? `, ${r.author}` : ''}`}
                   </small>
                 </span>
                 <span className={`mono${r.kind === 'income' ? ' m-pos' : ''}`}>{money(r.kind === 'income' ? r.amount_minor : -r.amount_minor, r.currency, { sign: true })}</span>

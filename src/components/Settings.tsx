@@ -3,9 +3,8 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
 import { useApp } from './AppShell';
-import Confirm from './Confirm';
+import FamilyCard from './Family';
 import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
@@ -23,13 +22,9 @@ const OLD_TABS: Record<string, string> = { home: '/settings/home', menu: '/setti
  * поставить и прямо в окне задачи.
  */
 export default function Settings() {
-  const { data, reload, toast, logout } = useApp();
+  const { data, toast, logout } = useApp();
   const s = data.settings;
-  const hh = data.household;
   const [changingCity, setChangingCity] = useState(!s.city);
-  const [hhName, setHhName] = useState('Семья');
-  const [login, setLogin] = useState('');
-  const [leaving, setLeaving] = useState(false);
   const params = useSearchParams();
   const router = useRouter();
   const old = params.get('tab');
@@ -37,17 +32,6 @@ export default function Settings() {
     if (old && OLD_TABS[old]) router.replace(OLD_TABS[old]);
   }, [old, router]);
 
-  const run = async (fn: () => Promise<unknown>, ok?: string) => {
-    try {
-      await fn();
-      await reload();
-      if (ok) toast(ok);
-    } catch (err) {
-      toast((err as Error).message);
-    }
-  };
-
-  const me = hh?.members.find((m) => m.me)?.login;
   const hint = { margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' } as const;
 
   return (
@@ -95,77 +79,7 @@ export default function Settings() {
           <AppearancePicker />
         </section>
 
-        <section className="card" aria-labelledby="set-family">
-          <h2 className="card-title display" id="set-family">
-            <Icon name="users" />
-            Семья
-          </h2>
-          {!hh ? (
-            <>
-              <p style={hint}>Общие дела, чек-листы, рецепты и покупки с близкими. Создайте семью и добавьте человека по его логину — он должен быть зарегистрирован.</p>
-              <form
-                style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  run(() => api('household', 'POST', { name: hhName }), 'Семья создана');
-                }}
-              >
-                <label className="sr-only" htmlFor="hh-name">
-                  Название
-                </label>
-                <input id="hh-name" className="field" style={{ maxWidth: 280 }} maxLength={60} value={hhName} onChange={(e) => setHhName(e.target.value)} />
-                <button className="btn btn-primary" type="submit" disabled={!hhName.trim()}>
-                  <Icon name="plus" size={18} />
-                  Создать семью
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              <div style={{ fontWeight: 600 }}>{hh.name}</div>
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' }}>
-                {hh.members.map((m) => (
-                  <li key={m.login} className="task-row" style={{ padding: '6px 0' }}>
-                    <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-                      {m.login}
-                      {m.me && <span style={{ color: 'var(--muted)' }}> — это вы</span>}
-                    </span>
-                    {!m.me && (
-                      <button
-                        className="icon-btn bare"
-                        type="button"
-                        aria-label={`Убрать ${m.login} из семьи`}
-                        onClick={() => run(() => api(`household/members/${encodeURIComponent(m.login)}`, 'DELETE'), `${m.login} больше не в семье`)}
-                      >
-                        <Icon name="x" size={18} />
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              <form
-                style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  run(() => api('household/members', 'POST', { login }), 'Добавили в семью').then(() => setLogin(''));
-                }}
-              >
-                <label className="sr-only" htmlFor="hh-login">
-                  Логин
-                </label>
-                <input id="hh-login" className="field" style={{ maxWidth: 280 }} placeholder="Логин человека" autoCapitalize="none" value={login} onChange={(e) => setLogin(e.target.value)} />
-                <button className="btn btn-ghost" type="submit" disabled={!login.trim()}>
-                  <Icon name="plus" size={18} />
-                  Добавить
-                </button>
-                <span style={{ flex: 1 }} />
-                <button className="btn btn-danger-ghost" type="button" onClick={() => setLeaving(true)}>
-                  Выйти из семьи
-                </button>
-              </form>
-            </>
-          )}
-        </section>
+        <FamilyCard />
 
         <CalendarCard />
 
@@ -219,18 +133,6 @@ export default function Settings() {
         </section>
       </div>
 
-      {leaving && me && (
-        <Confirm
-          title="Выйти из семьи?"
-          text="Общие дела останутся у остальных. Если вы последний — семья удалится, а общие дела станут личными у их авторов."
-          action="Выйти"
-          onCancel={() => setLeaving(false)}
-          onConfirm={() => {
-            setLeaving(false);
-            run(() => api(`household/members/${encodeURIComponent(me)}`, 'DELETE'), 'Вы вышли из семьи');
-          }}
-        />
-      )}
     </>
   );
 }
