@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { findChecklist } from '../checklistStore';
-import { householdOf } from '../household';
+import { loginOf, notifyFamily, notifyUser } from '../familyEvents';
+import { assigneeOf, householdOf } from '../household';
 import { DAY_RE, HttpError, text, type Ctx } from '../http';
 import { priority, tagsFor } from '../tagStore';
 import { findTask } from '../taskStore';
@@ -12,7 +13,8 @@ function day(v: unknown): string {
 
 /**
  * Задачи без напоминания: /api/tasks[/:id[/done|undo]].
- * Тело: { title, note, tags: [...], priority: 0–3, checklist_id, shared (общая задача семьи) }.
+ * Тело: { title, note, tags: [...], priority: 0–3, checklist_id, shared (общая задача семьи),
+ * assignee (логин из семьи — кто делает; пусто — все) }.
  */
 export function tasks({ d, userId, method, body, id, action }: Ctx): unknown {
   const sharedTo = (v: unknown): string | null => {
@@ -26,21 +28,31 @@ export function tasks({ d, userId, method, body, id, action }: Ctx): unknown {
     return cid && findChecklist(d, userId, cid) ? cid : null;
   };
 
+  // Поручили не себе — человеку придёт push (если он такие хочет).
+  const tellAssignee = (who: string | null, title: string) => {
+    if (who && who !== userId) notifyUser(d, who, 'assign', `${title} — от ${loginOf(d, userId)}`, '/task/tasks');
+  };
+
   if (method === 'POST' && !id) {
     const tid = randomUUID();
+    const hh = sharedTo(body.shared);
+    const who = assigneeOf(d, hh, body.assignee);
+    const title = text(body.title, 200, 'Задача')!;
     d.transaction(() => {
       d.prepare(
-        'insert into tasks (id, user_id, household_id, title, note, tags, priority, checklist_id) values (?, ?, ?, ?, ?, ?, ?, ?)',
+        'insert into tasks (id, user_id, household_id, title, note, tags, priority, checklist_id, assignee_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       ).run(
         tid,
         userId,
-        sharedTo(body.shared),
-        text(body.title, 200, 'Задача'),
+        hh,
+        title,
         text(body.note, 2000, 'Заметка', true),
         tagsFor(d, userId, body.tags),
         priority(body.priority),
         checklistId(body.checklist_id),
+        who,
       );
+      tellAssignee(who, title);
     })();
     return { id: tid };
   }
@@ -61,6 +73,13 @@ export function tasks({ d, userId, method, body, id, action }: Ctx): unknown {
       if (body.shared !== undefined) {
         if (!body.shared && t.household_id && t.user_id !== userId) throw new HttpError(403, 'Сделать личной может только автор.');
         set('household_id', sharedTo(body.shared));
+        if (!body.shared) set('assignee_id', null);
+      }
+      if (body.assignee !== undefined) {
+        const hh = body.shared === false ? null : body.shared ? householdOf(d, userId) : t.household_id;
+        const who = assigneeOf(d, hh, body.assignee);
+        set('assignee_id', who);
+        if (who !== t.assignee_id) tellAssignee(who, body.title !== undefined ? String(body.title).trim() : t.title);
       }
     })();
     return { ok: true };
@@ -79,6 +98,7 @@ export function tasks({ d, userId, method, body, id, action }: Ctx): unknown {
     d.transaction(() => {
       d.prepare('insert into task_log (task_id, user_id, day) values (?, ?, ?)').run(t.id, userId, today);
       d.prepare('update tasks set done_at = ? where id = ?').run(today, t.id);
+      if (t.household_id) notifyFamily(d, userId, 'done', `${t.title} (${loginOf(d, userId)})`, '/task/tasks', t.household_id);
     })();
     return { ok: true };
   }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { findProduct, formatQty, mergeInto, type ShoppingItem } from '@/lib/kitchen';
 import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
+import { notifyFamily } from '../familyEvents';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
 import { fridge } from '../fridge';
@@ -191,6 +192,8 @@ export function kitchen(ctx: Ctx): unknown {
           }
         }
       })();
+      const fresh = added.filter((a) => a.created).map((a) => (d.prepare('select title from checklist_items where id = ?').get(a.id) as { title: string }).title);
+      if (list.household_id) for (const t of fresh) notifyFamily(d, userId, 'shopping', t, '/task/kitchen?tab=shopping', list.household_id);
       return { added, checklist_id: list.id };
     }
 

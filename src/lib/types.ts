@@ -23,6 +23,8 @@ export interface ChecklistItem {
   note: string | null;
   done: boolean;
   position: number;
+  /** Кто отметил — у общих списков, если не я. */
+  done_by?: string | null;
   /** У покупок: продукт (купил — попадает в «что есть дома»), количество, для какого рецепта. */
   product_id?: string | null;
   qty?: number | null;
@@ -46,6 +48,12 @@ export interface Reminder {
   /** Важность: 0 — нет, 1 — низкая, 2 — средняя, 3 — высокая. */
   priority: Priority;
   note: string | null;
+  /** Общее для семьи — или null, личное. */
+  household_id: string | null;
+  /** Кто делает (логин) — у общих; null — все. */
+  assignee: string | null;
+  /** Кто завёл — для общих, если не я. */
+  author: string | null;
 }
 
 export type Priority = 0 | 1 | 2 | 3;

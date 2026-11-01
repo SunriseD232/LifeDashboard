@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { notifyFamily } from '../familyEvents';
 import { findChecklist } from '../checklistStore';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
@@ -63,7 +64,7 @@ export function checklists({ d, userId, method, body, id, action }: Ctx): unknow
     return { ok: true };
   }
   if (method === 'POST' && action === 'reset') {
-    d.prepare('update checklist_items set done = 0 where checklist_id = ?').run(list.id);
+    d.prepare('update checklist_items set done = 0, done_by = null where checklist_id = ?').run(list.id);
     return { ok: true };
   }
   if (method === 'POST' && action === 'items') {
@@ -80,6 +81,7 @@ export function checklists({ d, userId, method, body, id, action }: Ctx): unknow
     d.prepare(
       'insert into checklist_items (id, checklist_id, user_id, title, group_name, position, product_id) values (?, ?, ?, ?, ?, ?, ?)',
     ).run(iid, list.id, userId, title, group, pos, product?.id ?? null);
+    if (list.kind === 'shopping' && list.household_id) notifyFamily(d, userId, 'shopping', title, '/task/kitchen?tab=shopping', list.household_id);
     return { id: iid, position: pos };
   }
   if (method === 'POST' && action === 'reorder') {

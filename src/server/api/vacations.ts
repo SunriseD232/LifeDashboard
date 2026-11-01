@@ -9,7 +9,7 @@ const day = (v: unknown, field: string): string => {
 };
 
 /**
- * Отпуска: /api/vacations — GET { list, allowance }; POST { title, start, end, pause };
+ * Отпуска: /api/vacations — GET { list, allowance, family }; POST { title, start, end, pause, shared (видно семье) };
  * PATCH /:id — то же, что изменилось; DELETE /:id;
  * PUT /vacations/allowance { days } — сколько дней положено в год (null — не считать).
  */
@@ -34,7 +34,15 @@ export function vacations({ d, userId, method, body, id }: Ctx): unknown {
     const end = day(body.end, 'По');
     check(start, end);
     const vid = randomUUID();
-    d.prepare('insert into vacations (id, user_id, title, start, end, pause) values (?, ?, ?, ?, ?, ?)').run(vid, userId, text(body.title, 60, 'Название', true) ?? 'Отпуск', start, end, body.pause === false ? 0 : 1);
+    d.prepare('insert into vacations (id, user_id, title, start, end, pause, shared) values (?, ?, ?, ?, ?, ?, ?)').run(
+      vid,
+      userId,
+      text(body.title, 60, 'Название', true) ?? 'Отпуск',
+      start,
+      end,
+      body.pause === false ? 0 : 1,
+      body.shared ? 1 : 0,
+    );
     return { id: vid, ...readVacations(d, userId) };
   }
 
@@ -47,7 +55,8 @@ export function vacations({ d, userId, method, body, id }: Ctx): unknown {
     check(start, end, id);
     const title = body.title !== undefined ? text(body.title, 60, 'Название', true) ?? 'Отпуск' : cur.title;
     const pause = body.pause !== undefined ? !!body.pause : cur.pause;
-    d.prepare('update vacations set title = ?, start = ?, end = ?, pause = ? where id = ? and user_id = ?').run(title, start, end, pause ? 1 : 0, id, userId);
+    const shared = body.shared !== undefined ? !!body.shared : cur.shared;
+    d.prepare('update vacations set title = ?, start = ?, end = ?, pause = ?, shared = ? where id = ? and user_id = ?').run(title, start, end, pause ? 1 : 0, shared ? 1 : 0, id, userId);
     return readVacations(d, userId);
   }
 

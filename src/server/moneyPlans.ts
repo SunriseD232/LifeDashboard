@@ -4,10 +4,12 @@ import { detectRecurring, dueDates, nextDate, type MoneyDebt, type MoneyGoal, ty
 import { DAY_RE, HttpError, text } from './http';
 import { currencyCode, insertOp, minor, opFields, ownCategory } from './moneyOps';
 import { readOps, visibleAccount } from './moneyStore';
+import { householdOf, visibleWhere } from './household';
 
 /**
- * Регулярные платежи, долги и цели «Денег». Всё — личное (свои строки),
- * а деньги ходят по счетам обычными операциями.
+ * Регулярные платежи, долги и цели «Денег». Долги — личные; платёж по
+ * семейному счёту и цель, отмеченная «для семьи», видны всей семье.
+ * Деньги ходят по счетам обычными операциями.
  */
 
 type DB = Database.Database;
@@ -21,6 +23,9 @@ const day = (v: unknown, field = 'Дата'): string => {
 
 interface RecurRow {
   id: string;
+  user_id: string;
+  household_id: string | null;
+  author: string | null;
   account_id: string;
   kind: 'expense' | 'income';
   amount_minor: number;
@@ -36,23 +41,34 @@ interface RecurRow {
   active: number;
 }
 
+/** Свои платежи и платежи семьи по её счетам. */
 function recurRows(d: DB, userId: string): RecurRow[] {
+  const v = visibleWhere(d, userId, 'r');
   return d
     .prepare(
-      `select r.*, a.currency from money_recurring r join money_accounts a on a.id = r.account_id
-       where r.user_id = ? order by r.active desc, r.next_day, r.payee`,
+      `select r.*, a.currency, u.login as author from money_recurring r join money_accounts a on a.id = r.account_id
+         left join users u on u.id = r.user_id
+       where ${v.where} order by r.active desc, r.next_day, r.payee`,
     )
-    .all(userId) as RecurRow[];
+    .all(...v.params) as RecurRow[];
 }
 
 export function readRecurring(d: DB, userId: string): MoneyRecurring[] {
-  return recurRows(d, userId).map(({ anchor_day: _a, active, ...r }) => ({ ...r, active: !!active }));
+  return recurRows(d, userId).map(({ anchor_day: _a, active, user_id, household_id, author, ...r }) => ({
+    ...r,
+    active: !!active,
+    shared: !!household_id,
+    author: user_id === userId ? null : author,
+  }));
 }
 
-/** Запись по шаблону платежа на день — как будто человек ввёл её сам. */
-function recordRecur(d: DB, userId: string, r: RecurRow, onDay: string) {
-  const f = opFields(d, userId, { kind: r.kind, day: onDay, account_id: r.account_id, amount_minor: r.amount_minor, category_id: r.category_id, payee: r.payee, note: r.note }, r.category_id);
-  return insertOp(d, userId, f, { source: 'recurring' });
+/**
+ * Запись по шаблону платежа на день — как будто её ввёл автор платежа (его
+ * категория); у общего записать может любой в семье, но запись одна.
+ */
+function recordRecur(d: DB, r: RecurRow, onDay: string) {
+  const f = opFields(d, r.user_id, { kind: r.kind, day: onDay, account_id: r.account_id, amount_minor: r.amount_minor, category_id: r.category_id, payee: r.payee, note: r.note }, r.category_id);
+  return insertOp(d, r.user_id, f, { source: 'recurring' });
 }
 
 /**
@@ -69,7 +85,7 @@ export function processRecurring(d: DB, userId: string, today: string): number {
       // Счёт или категорию могли удалить — тогда платёж выключаем, а не падаем.
       try {
         for (const x of days) {
-          recordRecur(d, userId, r, x);
+          recordRecur(d, r, x);
           made++;
         }
         d.prepare('update money_recurring set next_day = ? where id = ?').run(next, r.id);
@@ -100,6 +116,8 @@ function recurFields(d: DB, userId: string, b: Record<string, unknown>) {
     next_day: next,
     anchor_day: Number(next.slice(8, 10)),
     mode: b.mode === 'auto' ? 'auto' : 'ask',
+    // По семейному счёту — платёж семьи: его видят и записывают все.
+    household_id: acc.household_id,
   };
 }
 
@@ -122,9 +140,9 @@ export function recurring(d: DB, userId: string, method: string, id: string | un
     const f = recurFields(d, userId, b);
     const rid = randomUUID();
     d.prepare(
-      `insert into money_recurring (id, user_id, account_id, kind, amount_minor, category_id, payee, note, unit, every, anchor_day, next_day, mode)
-       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(rid, userId, f.account_id, f.kind, f.amount_minor, f.category_id, f.payee, f.note, f.unit, f.every, f.anchor_day, f.next_day, f.mode);
+      `insert into money_recurring (id, user_id, account_id, kind, amount_minor, category_id, payee, note, unit, every, anchor_day, next_day, mode, household_id)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(rid, userId, f.account_id, f.kind, f.amount_minor, f.category_id, f.payee, f.note, f.unit, f.every, f.anchor_day, f.next_day, f.mode, f.household_id);
     return { id: rid };
   }
   const r = recurRows(d, userId).find((x) => x.id === id);
@@ -134,14 +152,17 @@ export function recurring(d: DB, userId: string, method: string, id: string | un
       d.prepare('update money_recurring set active = ? where id = ?').run(b.active ? 1 : 0, r.id);
       return { ok: true };
     }
+    // Менять платёж целиком — автору: категории у каждого свои.
+    if (r.user_id !== userId) throw new HttpError(403, 'Менять платёж может только тот, кто его завёл.');
     const f = recurFields(d, userId, b);
     d.prepare(
       `update money_recurring set account_id = ?, kind = ?, amount_minor = ?, category_id = ?, payee = ?, note = ?, unit = ?, every = ?,
-         anchor_day = ?, next_day = ?, mode = ?, active = 1 where id = ?`,
-    ).run(f.account_id, f.kind, f.amount_minor, f.category_id, f.payee, f.note, f.unit, f.every, f.anchor_day, f.next_day, f.mode, r.id);
+         anchor_day = ?, next_day = ?, mode = ?, active = 1, household_id = ? where id = ?`,
+    ).run(f.account_id, f.kind, f.amount_minor, f.category_id, f.payee, f.note, f.unit, f.every, f.anchor_day, f.next_day, f.mode, f.household_id, r.id);
     return { ok: true };
   }
   if (method === 'DELETE') {
+    if (r.user_id !== userId) throw new HttpError(403, 'Удалить платёж может только тот, кто его завёл.');
     d.prepare('delete from money_recurring where id = ?').run(r.id);
     return { ok: true };
   }
@@ -151,7 +172,7 @@ export function recurring(d: DB, userId: string, method: string, id: string | un
     d.transaction(() => {
       if (action === 'pay') {
         const amount = b.amount_minor !== undefined ? minor(b.amount_minor, 'Сумма') : r.amount_minor;
-        opId = recordRecur(d, userId, { ...r, amount_minor: amount }, r.next_day <= today ? r.next_day : today);
+        opId = recordRecur(d, { ...r, amount_minor: amount }, r.next_day <= today ? r.next_day : today);
       }
       d.prepare('update money_recurring set next_day = ? where id = ?').run(nextDate(r.next_day, r.unit, r.every, r.anchor_day), r.id);
     })();
@@ -248,13 +269,26 @@ export function debts(d: DB, userId: string, method: string, id: string | undefi
 
 // ---------------------------------------------------------------- цели
 
+/** Свои цели и цели семьи. */
 export function readGoals(d: DB, userId: string): MoneyGoal[] {
-  return d
-    .prepare('select id, name, target_minor, currency, account_id, saved_minor, due_day from money_goals where user_id = ? and archived = 0 order by created_at')
-    .all(userId) as MoneyGoal[];
+  const v = visibleWhere(d, userId, 'g');
+  return (
+    d
+      .prepare(
+        `select g.id, g.name, g.target_minor, g.currency, g.account_id, g.saved_minor, g.due_day, g.user_id, g.household_id, u.login as author
+         from money_goals g left join users u on u.id = g.user_id where ${v.where} and g.archived = 0 order by g.created_at`,
+      )
+      .all(...v.params) as (Omit<MoneyGoal, 'shared'> & { user_id: string; household_id: string | null })[]
+  ).map(({ user_id, household_id, ...g }) => ({ ...g, shared: !!household_id, author: user_id === userId ? null : g.author }));
 }
 
 export function goals(d: DB, userId: string, method: string, id: string | undefined, b: Record<string, unknown>): unknown {
+  const sharedTo = (): string | null => {
+    if (!b.shared) return null;
+    const hh = householdOf(d, userId);
+    if (!hh) throw new HttpError(400, 'Чтобы делиться, создайте семью в настройках.');
+    return hh;
+  };
   const fields = () => {
     const acc = b.account_id ? visibleAccount(d, userId, b.account_id) : null;
     if (b.account_id && !acc) throw new HttpError(400, 'Нет такого счёта.');
@@ -269,7 +303,7 @@ export function goals(d: DB, userId: string, method: string, id: string | undefi
   if (method === 'POST' && !id) {
     const f = fields();
     const gid = randomUUID();
-    d.prepare('insert into money_goals (id, user_id, name, target_minor, currency, account_id, saved_minor, due_day) values (?, ?, ?, ?, ?, ?, ?, ?)').run(
+    d.prepare('insert into money_goals (id, user_id, name, target_minor, currency, account_id, saved_minor, due_day, household_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
       gid,
       userId,
       f.name,
@@ -278,11 +312,19 @@ export function goals(d: DB, userId: string, method: string, id: string | undefi
       f.account_id,
       minor(b.saved_minor ?? 0, 'Уже есть', true),
       f.due,
+      sharedTo(),
     );
     return { id: gid };
   }
-  const g = d.prepare('select id from money_goals where id = ? and user_id = ?').get(id ?? '', userId) as { id: string } | undefined;
+  const v = visibleWhere(d, userId, 'g');
+  const g = d.prepare(`select g.id, g.user_id, g.household_id from money_goals g where g.id = ? and ${v.where}`).get(id ?? '', ...v.params) as
+    | { id: string; user_id: string; household_id: string | null }
+    | undefined;
   if (!g) throw new HttpError(404, 'Цель не найдена.');
+  // Откладывать в общую цель могут все; менять и удалять — автор.
+  const author = () => {
+    if (g.user_id !== userId) throw new HttpError(403, 'Менять цель может только тот, кто её завёл.');
+  };
   if (method === 'PATCH') {
     if (b.add_minor !== undefined) {
       // «Отложил ещё» — для цели без счёта; минус — взял обратно.
@@ -291,15 +333,25 @@ export function goals(d: DB, userId: string, method: string, id: string | undefi
       d.prepare('update money_goals set saved_minor = max(0, saved_minor + ?) where id = ?').run(n, g.id);
       return { ok: true };
     }
+    author();
     if (b.archived !== undefined) {
       d.prepare('update money_goals set archived = ? where id = ?').run(b.archived ? 1 : 0, g.id);
       return { ok: true };
     }
     const f = fields();
-    d.prepare('update money_goals set name = ?, target_minor = ?, currency = ?, account_id = ?, due_day = ? where id = ?').run(f.name, f.target, f.currency, f.account_id, f.due, g.id);
+    d.prepare('update money_goals set name = ?, target_minor = ?, currency = ?, account_id = ?, due_day = ?, household_id = ? where id = ?').run(
+      f.name,
+      f.target,
+      f.currency,
+      f.account_id,
+      f.due,
+      b.shared === undefined ? g.household_id : sharedTo(),
+      g.id,
+    );
     return { ok: true };
   }
   if (method === 'DELETE') {
+    author();
     d.prepare('delete from money_goals where id = ?').run(g.id);
     return { ok: true };
   }

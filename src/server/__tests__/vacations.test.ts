@@ -18,7 +18,7 @@ describe('отпуска', () => {
   it('добавить, изменить, удалить; чужие не видны', () => {
     const d = setup();
     const { id } = call(d, 'POST', { start: '2026-07-01', end: '2026-07-14' });
-    expect(call(d, 'GET').list).toEqual([{ id, title: 'Отпуск', start: '2026-07-01', end: '2026-07-14', pause: true }]);
+    expect(call(d, 'GET').list).toEqual([{ id, title: 'Отпуск', start: '2026-07-01', end: '2026-07-14', pause: true, shared: false }]);
     call(d, 'PATCH', { title: 'Море', pause: false }, id);
     expect(call(d, 'GET').list[0]).toMatchObject({ title: 'Море', pause: false, end: '2026-07-14' });
     expect(call(d, 'GET', {}, undefined, 'other').list).toEqual([]);

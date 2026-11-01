@@ -5,7 +5,7 @@ import type { Reminder } from '@/lib/types';
 vi.mock('@/lib/db', () => ({ db: () => { throw new Error('нет базы в тесте'); } }));
 const { icsFor, rrule } = await import('../calendar');
 
-const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, household_id: null, assignee: null, author: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
 
 describe('календарь (.ics)', () => {
   const ics = icsFor([rem({}), rem({ id: 'o', title: 'Паспорт', times: ['09:00'], rule: { kind: 'once', date: '2026-10-05' } })], '2026-10-02', new Date('2026-10-02T10:00:00Z'));

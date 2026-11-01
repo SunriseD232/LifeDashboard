@@ -103,18 +103,18 @@ const EMPTY: AppData = {
   gym: { workouts: [], exercises: [], templates: [] },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [] },
   household: null,
-  vacations: { list: [], allowance: null },
+  vacations: { list: [], allowance: null, family: [] },
 };
 
 /** Показать созданное без сети, пока оно в очереди (настоящий id придёт позже). */
 function withQueued(d: AppData, q: Queued): AppData {
   const b = (q.body ?? {}) as Record<string, unknown>;
   if (q.path === 'tasks' && q.tempId) {
-    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Task['priority']) ?? 0, checklist_id: null, done_at: null, household_id: null, author: null };
+    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Task['priority']) ?? 0, checklist_id: null, done_at: null, household_id: null, author: null, assignee: null, done_by: null };
     return { ...d, tasks: [...d.tasks, t] };
   }
   if (q.path === 'reminders' && q.tempId) {
-    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Reminder['priority']) ?? 0, note: null };
+    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Reminder['priority']) ?? 0, note: null, household_id: null, assignee: null, author: null };
     return { ...d, reminders: [...d.reminders, r] };
   }
   if (q.path === 'kitchen/shopping' && d.kitchen.shopping_id && Array.isArray(b.items)) {

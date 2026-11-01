@@ -102,6 +102,8 @@ export interface MoneyState {
   recurring: MoneyRecurring[];
   debts: MoneyDebt[];
   goals: MoneyGoal[];
+  /** Бюджет семьи на месяц — на все траты с семейных счетов; null — не задан или нет семьи. */
+  family_budget: { limit_minor: number; currency: string } | null;
   /** Подключены SMS от банка (есть ключ для «Команд»). */
   sms_on: boolean;
 }

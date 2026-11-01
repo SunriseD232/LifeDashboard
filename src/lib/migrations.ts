@@ -1008,6 +1008,69 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 22,
+    name: 'Семья: приглашения, общие напоминания, кто делает и кто отметил',
+    up: (db) =>
+      db.exec(`
+    -- Приглашение в семью — по логину, как его набрали: есть ли такой
+    -- человек, приглашающий не узнаёт. Вступает только сам приглашённый.
+    create table household_invites (
+      id text primary key,
+      household_id text not null references households(id) on delete cascade,
+      login text not null,
+      invited_by text not null references users(id) on delete cascade,
+      created_at text not null default (datetime('now')),
+      unique (household_id, login)
+    );
+    create index household_invites_login on household_invites (login);
+
+    -- Общие напоминания; assignee_id — кто делает (null — все).
+    alter table reminders add column household_id text references households(id) on delete set null;
+    alter table reminders add column assignee_id text references users(id) on delete set null;
+    create index reminders_household_idx on reminders (household_id);
+    alter table tasks add column assignee_id text references users(id) on delete set null;
+    -- Кто отметил пункт (покупку) — у общих списков.
+    alter table checklist_items add column done_by text references users(id) on delete set null;
+
+    -- События семьи для push: копятся и уходят пачкой (не по одному
+    -- «молоко», «хлеб»), в тихие часы ждут их конца.
+    create table family_events (
+      id integer primary key autoincrement,
+      user_id text not null references users(id) on delete cascade,
+      kind text not null,
+      text text not null,
+      url text,
+      created_at text not null default (datetime('now'))
+    );
+    create index family_events_user on family_events (user_id, created_at);
+    -- Какие события семьи присылать (JSON-массив); null — все.
+    alter table user_settings add column family_push text;
+
+    -- Отпуск видно семье (полоса «кто когда в отпуске»).
+    alter table vacations add column shared integer not null default 0;
+
+    -- Общие цели и регулярные платежи (по семейному счёту), бюджет семьи.
+    alter table money_goals add column household_id text references households(id) on delete set null;
+    alter table money_recurring add column household_id text references households(id) on delete set null;
+    create table money_family_budget (
+      household_id text primary key references households(id) on delete cascade,
+      limit_minor integer not null,
+      currency text not null
+    );
+
+    -- Поиск: общие напоминания видны семье.
+    drop trigger if exists reminders_search_ai;
+    drop trigger if exists reminders_search_au;
+    create trigger reminders_search_ai after insert on reminders begin
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    create trigger reminders_search_au after update on reminders begin
+      delete from search_fts where kind = 'reminder' and ref_id = old.id;
+      insert into search_fts (kind, ref_id, user_id, household_id, title, body) values ('reminder', new.id, new.user_id, new.household_id, replace(replace(coalesce(new.title, ''), 'ё', 'е'), 'Ё', 'Е'), replace(replace(new.tags || ' ' || coalesce(new.note, ''), 'ё', 'е'), 'Ё', 'Е'));
+    end;
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

@@ -15,7 +15,7 @@ export function items({ d, userId, method, body, id }: Ctx): unknown {
     d.transaction(() => {
       if (body.title !== undefined) d.prepare('update checklist_items set title = ? where id = ?').run(text(body.title, 120, 'Вещь'), id);
       if (body.done !== undefined) {
-        d.prepare('update checklist_items set done = ? where id = ?').run(body.done ? 1 : 0, id);
+        d.prepare('update checklist_items set done = ?, done_by = ? where id = ?').run(body.done ? 1 : 0, body.done ? userId : null, id);
         if (body.done && !it.done && it.checklist.kind === 'shopping') {
           let pid = it.product_id;
           if (!pid) {

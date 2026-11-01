@@ -3,8 +3,8 @@ import type { Task } from '../tasks';
 import { isOverdue, leftToday, timeline } from '../timeline';
 import type { Reminder } from '../types';
 
-const task = (over: Partial<Task>): Task => ({ id: Math.random().toString(36).slice(2), title: 'Задача', note: null, tags: [], priority: 0, checklist_id: null, done_at: null, household_id: null, author: null, ...over });
-const rem = (over: Partial<Reminder>): Reminder => ({ id: Math.random().toString(36).slice(2), title: 'Витамины', times: ['09:00'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, rule: { kind: 'repeat', unit: 'day', every: 1, start: '2026-10-01' }, ...over });
+const task = (over: Partial<Task>): Task => ({ id: Math.random().toString(36).slice(2), title: 'Задача', note: null, tags: [], priority: 0, checklist_id: null, done_at: null, household_id: null, author: null, assignee: null, done_by: null, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: Math.random().toString(36).slice(2), title: 'Витамины', times: ['09:00'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, household_id: null, assignee: null, author: null, rule: { kind: 'repeat', unit: 'day', every: 1, start: '2026-10-01' }, ...over });
 const today = '2026-10-04';
 
 describe('«Задачи» по дням', () => {

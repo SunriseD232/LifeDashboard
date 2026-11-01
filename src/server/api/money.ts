@@ -21,7 +21,7 @@ import { refreshRates, todayRates } from '../moneyRates';
 import { aiConfigured } from '../ai';
 import { aiReceipt, aiText, aiVoice } from '../moneyAi';
 import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
-import { ask, monthFlow, prices, readBudgets, report, setBudget, type Scope } from '../moneyReport';
+import { ask, monthFlow, prices, readBudgets, readFamilyBudget, report, setBudget, setFamilyBudget, type Scope } from '../moneyReport';
 import { PERIODS, type Period } from '@/lib/moneyReport';
 import { validMapping } from '@/lib/moneyImport';
 import { debts, goals, processRecurring, readDebts, readGoals, readRecurring, recurring } from '../moneyPlans';
@@ -93,6 +93,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       recurring: [],
       debts: [],
       goals: [],
+      family_budget: null,
       sms_on: false,
     };
     if (state.settings) {
@@ -102,6 +103,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
         recurring: readRecurring(d, userId),
         debts: readDebts(d, userId),
         goals: readGoals(d, userId),
+        family_budget: readFamilyBudget(d, userId),
         sms_on: smsStatus(d, userId).on,
       });
     }
@@ -321,6 +323,10 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
   if (sub === 'budgets' && method === 'PUT') {
     settingsRequired(d, userId);
     return setBudget(d, userId, body);
+  }
+  if (sub === 'family-budget' && method === 'PUT') {
+    settingsRequired(d, userId);
+    return setFamilyBudget(d, userId, body);
   }
   if (sub === 'prices' && method === 'GET') {
     settingsRequired(d, userId);
