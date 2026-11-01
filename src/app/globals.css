@@ -2235,17 +2235,27 @@ mark {
 }
 
 /* знакомство при первом входе */
+/* Центр — авто-отступами, не сеткой: окно выше экрана иначе уезжает
+   верхом за край, куда не докрутить. Прокрутка — внутри, страница под ним стоит. */
 .onboarding {
   position: fixed;
   inset: 0;
   z-index: 70;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   background: var(--ground);
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+body:has(.onboarding) {
+  overflow: hidden;
 }
 .onboarding-box {
+  margin: auto 0;
+  flex: none;
   width: min(460px, 100%);
   min-height: min(560px, 100%);
   display: flex;
