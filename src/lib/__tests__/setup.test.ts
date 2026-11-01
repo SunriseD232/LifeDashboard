@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { arrange } from '../nav';
 import { DEFAULT_HUB, parseHub, pickShortcuts } from '../hub';
-import { applySetup, defaultSetup, MONEY_ID } from '../setup';
+import { applySetup, defaultSetup, MONEY_ID, sameSetup, setupFrom } from '../setup';
 
 const off = (...ids: string[]) => defaultSetup().map((c) => (ids.includes(c.id) ? { ...c, on: false } : c));
 
@@ -45,5 +45,16 @@ describe('«Что вам нужно?»', () => {
     const tiles = applySetup(choices, DEFAULT_HUB).hub.tiles!.map((t) => t.id);
     expect(tiles[0]).toBe('today');
     expect(tiles.indexOf('shopping')).toBeLessThan(tiles.indexOf('spend'));
+  });
+
+  it('у тех, кто уже пользуется, — начинаем с их порядка и скрытого', () => {
+    expect(sameSetup(setupFrom(null, DEFAULT_HUB), defaultSetup())).toBe(true);
+    const nav = [{ href: '/kitchen' }, { href: '/tasks', hidden: true }];
+    const s = setupFrom(nav, { ...DEFAULT_HUB, noMoney: true });
+    expect(s.slice(0, 3)).toEqual([
+      { id: '/kitchen', on: true },
+      { id: MONEY_ID, on: false },
+      { id: '/tasks', on: false },
+    ]);
   });
 });

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { SETUP_SEEN } from '@/lib/setup';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 
@@ -288,12 +289,13 @@ const PARTS: Part[] = [
 
 /** «Как пользоваться»: все разделы и фишки на одной странице с оглавлением. */
 export default function Guide() {
-  const { data, mutate, toast } = useApp();
+  const { data, mutate, toast, replayOnboarding } = useApp();
   const parts = PARTS.filter((p) => !p.ai || data.ai);
+  // Только подсказки: «Что вам нужно?» уже было — его заново — кнопкой рядом.
   const replay = () => {
     mutate(
-      (d) => ({ ...d, settings: { ...d.settings, tour_seen: [] } }),
-      () => api('settings', 'PATCH', { tour_seen: [] }),
+      (d) => ({ ...d, settings: { ...d.settings, tour_seen: [SETUP_SEEN] } }),
+      () => api('settings', 'PATCH', { tour_seen: [SETUP_SEEN] }),
     );
     toast('Подсказки покажутся снова — при входе в каждый раздел');
   };
@@ -306,6 +308,10 @@ export default function Guide() {
         <button className="btn btn-ghost" type="button" onClick={replay}>
           <Icon name="help" size={18} />
           Показать подсказки заново
+        </button>
+        <button className="btn btn-ghost" type="button" onClick={replayOnboarding}>
+          <Icon name="reset" size={18} />
+          Пройти знакомство заново
         </button>
       </div>
       <p style={{ margin: 0, color: 'var(--muted)' }}>LifeDashboard — задачи, напоминания, чек-листы, заметки, кухня, спорт, деньги и отпуска в одном месте. Вот что он умеет.</p>

@@ -1,5 +1,5 @@
 import { arrangeTiles, DEFAULT_BAR, type HubPrefs } from './hub';
-import { MOVABLE, type NavPref } from './nav';
+import { arrange, MOVABLE, type NavPref } from './nav';
 
 /**
  * «Что вам нужно?» в знакомстве: человек включает разделы и ставит их по
@@ -109,3 +109,18 @@ export function applySetup(choices: SetupChoice[], hub: HubPrefs): { nav: NavPre
 
   return { nav, hub: { ...hub, tiles, bar, off: hidden, pins: hub.pins.filter((p) => !hidden.includes(p)), noMoney: off(MONEY_ID) } };
 }
+
+/** Отметка в tour_seen: «Что вам нужно?» уже показали (при знакомстве или всем после выхода). */
+export const SETUP_SEEN = 'setup';
+
+/**
+ * Выбор, как сейчас: у тех, кто уже пользуется, — их порядок и скрытое
+ * (у «Денег» своего места в меню нет — ставим вторыми).
+ */
+export function setupFrom(nav: NavPref[] | null, hub: HubPrefs): SetupChoice[] {
+  const list = arrange(nav).all.map((s) => ({ id: s.href, on: !s.hidden }));
+  list.splice(Math.min(1, list.length), 0, { id: MONEY_ID, on: !hub.noMoney });
+  return list;
+}
+
+export const sameSetup = (a: SetupChoice[], b: SetupChoice[]) => a.length === b.length && a.every((c, i) => c.id === b[i].id && c.on === b[i].on);

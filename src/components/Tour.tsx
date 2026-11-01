@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { SETUP_SEEN } from '@/lib/setup';
 import { tourFor, type TourSection } from '@/lib/tour';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
@@ -43,7 +44,8 @@ export default function Tour() {
   useEffect(() => {
     setSection(null);
     const s = tourFor(pathname);
-    if (!s || !data.settings.onboarded || seen.includes('*') || seen.includes(s.id)) return;
+    // Пока не показали «Что вам нужно?» (или идёт знакомство заново) — подсказки ждут.
+    if (!s || !data.settings.onboarded || !seen.includes(SETUP_SEEN) || seen.includes('*') || seen.includes(s.id)) return;
     const t = setTimeout(() => {
       setStep(0);
       setSection(s);

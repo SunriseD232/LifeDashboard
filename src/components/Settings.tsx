@@ -22,7 +22,7 @@ const OLD_TABS: Record<string, string> = { home: '/settings/home', menu: '/setti
  * поставить и прямо в окне задачи.
  */
 export default function Settings() {
-  const { data, toast, logout } = useApp();
+  const { data, toast, logout, replayOnboarding } = useApp();
   const s = data.settings;
   const [changingCity, setChangingCity] = useState(!s.city);
   const params = useSearchParams();
@@ -123,6 +123,10 @@ export default function Settings() {
           </span>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <Link href="/guide">Как пользоваться</Link>
+            <button className="btn btn-ghost" type="button" onClick={replayOnboarding}>
+              <Icon name="reset" size={18} />
+              Пройти знакомство заново
+            </button>
             <Link href="/support">Написать в поддержку</Link>
             <span style={{ flex: 1 }} />
             <button className="btn btn-ghost" type="button" onClick={logout}>
