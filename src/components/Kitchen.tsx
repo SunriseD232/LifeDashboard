@@ -10,6 +10,7 @@ import type { ChecklistItem } from '@/lib/types';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import Empty from './Empty';
+import Fridge from './Fridge';
 import { MenuPlanner, PantryPhoto, StoreMode } from './KitchenAi';
 import { Fab, useIsPhone } from './Phone';
 import Swipe from './Swipe';
@@ -424,7 +425,7 @@ export default function Kitchen() {
   const router = useRouter();
   const phone = useIsPhone();
   const q = params.get('tab');
-  const tab = q === 'shopping' ? 'shopping' : q === 'pantry' && phone ? 'pantry' : 'recipes';
+  const tab = q === 'shopping' ? 'shopping' : q === 'fridge' ? 'fridge' : q === 'pantry' && phone ? 'pantry' : 'recipes';
   const toBuy = data.items.filter((i) => i.checklist_id === data.kitchen.shopping_id && !i.done).length;
 
   return (
@@ -434,7 +435,7 @@ export default function Kitchen() {
         <h1 className="h1 display" style={{ flex: 1 }}>
           Кухня
         </h1>
-        <div className="tabs-row" role="group" aria-label="Раздел кухни">
+        <div className="tabs-row kitchen-tabs" role="group" aria-label="Раздел кухни">
           <button type="button" aria-pressed={tab === 'recipes'} onClick={() => router.replace('/kitchen')}>
             Рецепты
           </button>
@@ -443,8 +444,13 @@ export default function Kitchen() {
               Дома
             </button>
           )}
+          <button type="button" aria-pressed={tab === 'fridge'} onClick={() => router.replace('/kitchen?tab=fridge')}>
+            Холодильник
+          </button>
           <button type="button" aria-pressed={tab === 'shopping'} onClick={() => router.replace('/kitchen?tab=shopping')}>
-            <Icon name="cart" size={16} />
+            <span className="hide-phone" style={{ display: 'inline-flex' }}>
+              <Icon name="cart" size={16} />
+            </span>
             Покупки
             {toBuy > 0 && <span className="badge">{toBuy}</span>}
           </button>
@@ -456,6 +462,8 @@ export default function Kitchen() {
       </div>
       {tab === 'shopping' ? (
         <Shopping />
+      ) : tab === 'fridge' ? (
+        <Fridge />
       ) : phone ? (
         tab === 'pantry' ? (
           <Pantry />

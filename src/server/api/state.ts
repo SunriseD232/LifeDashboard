@@ -2,6 +2,7 @@ import { userLogin } from '@/lib/auth';
 import { readChecklists, readItems } from '../checklistStore';
 import { householdInfo } from '../household';
 import { readPantry, readProducts, readRecipes, scopeOf, shoppingList } from '../kitchenStore';
+import { readFridge } from '../fridge';
 import { readNotes } from '../noteStore';
 import { aiConfigured } from '../ai';
 import { isAdmin } from './support';
@@ -40,6 +41,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
         recipes: readRecipes(d, userId),
         pantry: readPantry(d, scopeOf(d, userId)),
         shopping_id: shoppingList(d, userId, false)?.id ?? null,
+        fridge: readFridge(d, scopeOf(d, userId)),
       },
       gym: {
         workouts: readWorkouts(d, userId),

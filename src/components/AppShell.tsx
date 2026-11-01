@@ -9,6 +9,7 @@ import { registerOffline } from '@/lib/pushClient';
 import { clearOffline, flush, loadState, onOutboxChange, outbox, saveState, type Queued } from '@/lib/offline';
 import { dayTitle, localDay } from '@/lib/dates';
 import type { Product, Recipe } from '@/lib/kitchen';
+import type { FridgeItem } from '@/lib/fridge';
 import { arrange, HELP, HOME, type NavPref, type Section } from '@/lib/nav';
 import { parseHub, type HubPrefs, type HubUsage } from '@/lib/hub';
 import { contextOf, dashBar, hubBar, MONEY_BAR, slideClass, takeSlide, MONEY_HOME } from '@/lib/superapp';
@@ -42,7 +43,7 @@ export interface AppData {
   /** Свои метки — по порядку (src/server/tagStore.ts). */
   tags: string[];
   notes: Note[];
-  kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null };
+  kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null; fridge: FridgeItem[] };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
   settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage };
   household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
@@ -98,7 +99,7 @@ const EMPTY: AppData = {
   tasksDoneToday: [],
   tags: [],
   notes: [],
-  kitchen: { products: [], recipes: [], pantry: [], shopping_id: null },
+  kitchen: { products: [], recipes: [], pantry: [], shopping_id: null, fridge: [] },
   gym: { workouts: [], exercises: [], templates: [] },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [] },
   household: null,

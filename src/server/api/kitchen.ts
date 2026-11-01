@@ -3,6 +3,7 @@ import { findProduct, formatQty, mergeInto, type ShoppingItem } from '@/lib/kitc
 import { CATEGORY_LABELS, SEED_RECIPES, type Category } from '@/lib/kitchenSeed';
 import { householdOf } from '../household';
 import { HttpError, text, type Ctx } from '../http';
+import { fridge } from '../fridge';
 import { findRecipe, productByName, readProducts, scopeOf, shoppingList } from '../kitchenStore';
 
 const CATEGORIES = new Set(Object.keys(CATEGORY_LABELS));
@@ -52,9 +53,12 @@ function writeIngredients(d: Ctx['d'], recipeId: string, list: { product_id: str
  *  seed             POST — базовые рецепты (src/lib/kitchenSeed.ts), если своих ещё нет;
  *  shopping         POST { items: [{ product_id, qty, unit, recipe }] } — в покупки;
  *                   ответ { added } — для «Отменить» (shopping/undo);
- *  shopping/clear   POST — убрать купленное.
+ *  shopping/clear   POST — убрать купленное;
+ *  fridge/…         холодильник — src/server/fridge.ts.
  */
-export function kitchen({ d, userId, method, body, id, action }: Ctx): unknown {
+export function kitchen(ctx: Ctx): unknown {
+  if (ctx.id === 'fridge') return fridge(ctx);
+  const { d, userId, method, body, id, action } = ctx;
   // ---- что есть дома ----
   if (id === 'pantry') {
     const scope = scopeOf(d, userId);
