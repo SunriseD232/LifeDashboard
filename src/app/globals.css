@@ -2088,6 +2088,16 @@ mark {
   .tabs-row button {
     padding: 8px 11px;
   }
+  /* Четыре вкладки кухни — во всю ширину телефона, без прокрутки. */
+  .kitchen-tabs {
+    align-self: stretch;
+    gap: 0;
+  }
+  .kitchen-tabs button {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 8px 7px;
+  }
   .recipe-card .chip {
     max-width: 100%;
     white-space: normal;

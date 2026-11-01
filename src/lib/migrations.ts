@@ -970,6 +970,44 @@ export const MIGRATIONS: Migration[] = [
     alter table user_settings add column vacation_days integer;
     `),
   },
+  {
+    version: 21,
+    name: 'Холодильник: продукты из чека с КБЖУ',
+    up: (db) =>
+      db.exec(`
+    -- Конкретные покупки (src/lib/fridge.ts). scope — как у pantry: семья или 'u:' + id.
+    -- КБЖУ — на 100 г/мл; source: label | manual | ai, confidence: high | mid | low.
+    create table fridge_items (
+      id text primary key,
+      scope text not null,
+      added_by text,
+      name text not null,
+      title text not null,
+      product_id text references products(id) on delete set null,
+      qty real not null default 1,
+      size real,
+      size_unit text,
+      bought text,
+      kcal real, protein real, fat real, carbs real,
+      source text not null default 'ai',
+      confidence text not null default 'low',
+      note text,
+      created_at text not null default (datetime('now'))
+    );
+    create index fridge_items_scope on fridge_items (scope, created_at);
+    -- Что уже знаем о товаре по названию из чека: следующая покупка берёт отсюда.
+    create table fridge_nutrition (
+      scope text not null,
+      key text not null,
+      kcal real not null, protein real not null, fat real not null, carbs real not null,
+      source text not null,
+      confidence text not null,
+      note text,
+      updated_at text not null default (datetime('now')),
+      primary key (scope, key)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;
