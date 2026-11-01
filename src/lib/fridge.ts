@@ -121,6 +121,10 @@ export function parseDraft(x: unknown): FridgeDraft | null {
   } else if (nutr && inconsistent(nutr)) {
     confidence = 'low';
     note = 'Калории не сходятся с БЖУ — оценка, скорее всего, ошибочная.';
+  } else if (/\s\/\s|предполож/i.test(title) && confidence === 'high') {
+    // «Золотой Петушок / Золотой Урожай» — модель гадает марку: не «точно».
+    confidence = 'mid';
+    note = note ?? 'Марку по сокращению в чеке угадал не наверняка.';
   }
   return {
     name,

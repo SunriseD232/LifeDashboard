@@ -74,6 +74,12 @@ describe('холодильник: разбор', () => {
     expect(list[4]).toMatchObject({ food: false, product: null });
   });
 
+  it('угаданная марка («А / Б») — не «уверен»', () => {
+    const [x] = parseDrafts({ items: [{ name: 'ЗР Хашбраун 400г', title: 'Хашбраун, Золотой Петушок / Золотой Урожай', nutr: { kcal: 150, protein: 2, fat: 6, carbs: 22 }, confidence: 'high' }] });
+    expect(x).toMatchObject({ confidence: 'mid' });
+    expect(x.note).toMatch(/угадал/);
+  });
+
   it('подписи количества и итог на упаковку', () => {
     expect(amountLabel({ qty: 2, size: 115, size_unit: 'г' })).toBe('2 × 115 г');
     expect(amountLabel({ qty: 1, size: 1000, size_unit: 'мл' })).toBe('1 л');
