@@ -70,7 +70,7 @@ function merchant(text: string, start: number, end: number): string {
       .split('|')[0]
       .replace(/(?:\*|карт[аы]?|счет|сч[её]т|mir-?|ecmc|visa)\s?\*?\d{4}/gi, ' ')
       .replace(/\b\d{1,2}[:.]\d{2}(?:[:.]\d{2,4})?\b/g, ' ')
-      .replace(/^[\s.,:;–—-]+|[\s.,:;–—-]+$/g, '')
+      .replace(/^[\s.,:;–—+-]+|[\s.,:;–—+-]+$/g, '')
       .replace(/\s+/g, ' ')
       .trim();
   let after = clean(text.slice(end));

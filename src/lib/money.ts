@@ -125,7 +125,7 @@ export const MODULES: { id: string; label: string; hint?: string }[] = [
   { id: 'recurring', label: 'Регулярные платежи', hint: 'Подписки, аренда, зарплата' },
   { id: 'debts', label: 'Долги', hint: 'Кто кому должен' },
   { id: 'goals', label: 'Цели', hint: 'Копить на что-то' },
-  { id: 'sms', label: 'SMS от банка', hint: 'Через «Команды» iOS' },
+  { id: 'sms', label: 'SMS от банка', hint: '«Команды» на iPhone, MacroDroid на Android' },
 ];
 
 export const DEFAULT_CATEGORIES: { kind: 'expense' | 'income'; names: string[] }[] = [

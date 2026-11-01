@@ -101,7 +101,26 @@ export function smsPreview(d: DB, userId: string, body: Record<string, unknown>)
   return { op: { kind: p.sms.kind, amount_minor: p.amount_minor, currency: p.account.currency, orig: p.orig, payee: p.sms.payee, account: p.account.name, card_last4: p.sms.card_last4, category_id: p.category_id } };
 }
 
-/** Входящее SMS от «Команд». Без входа: кто — по ключу. */
+/**
+ * Тело входящего запроса — как сумели прислать: JSON { text }, он же со
+ * «сырыми» переносами строк внутри (MacroDroid и Tasker подставляют текст
+ * сообщения в JSON как есть), форма text=… или просто текст сообщения.
+ */
+export function readSmsBody(raw: string): Record<string, unknown> {
+  const s = raw.slice(0, 5000);
+  for (const t of [s, s.replace(/[\u0000-\u001f]+/g, ' ')]) {
+    try {
+      const v = JSON.parse(t);
+      if (v && typeof v === 'object') return v as Record<string, unknown>;
+    } catch {
+      /* не JSON — дальше */
+    }
+  }
+  if (/^\s*(text|message|token)=/.test(s)) return Object.fromEntries(new URLSearchParams(s));
+  return { text: s };
+}
+
+/** Входящее SMS или уведомление банка («Команды» iOS, MacroDroid на Android). Без входа: кто — по ключу. */
 export function smsIncoming(d: DB, authHeader: string | null, body: Record<string, unknown>) {
   const token = (authHeader?.replace(/^Bearer\s+/i, '') || (typeof body.token === 'string' ? body.token : '')).trim();
   if (!token.startsWith('ms_')) throw new HttpError(401, 'Нет ключа. Создайте его в «Деньгах»: Ещё → SMS от банка.');
