@@ -21,6 +21,8 @@ import type { Checklist, ChecklistItem, Note, Reminder, Snooze } from '@/lib/typ
 import { Icon } from './icons';
 import Login from './Login';
 import Onboarding from './Onboarding';
+import { SetupPrompt } from './Setup';
+import { SETUP_SEEN } from '@/lib/setup';
 import SearchDialog from './SearchDialog';
 import Tour from './Tour';
 import ThemeToggle from './ThemeToggle';
@@ -75,6 +77,8 @@ interface AppContext {
   openList: string | null;
   setOpenList: (id: string | null) => void;
   logout: () => Promise<void>;
+  /** Пройти знакомство заново (настройки, справка); подсказки по разделам — тоже. */
+  replayOnboarding: () => void;
 }
 
 const Ctx = createContext<AppContext | null>(null);
@@ -398,6 +402,16 @@ function LdShell({ children }: { children: React.ReactNode }) {
     [reload, toast],
   );
 
+  // Повтор знакомства: подсказки по разделам тоже сбрасываем — они ждут его конца.
+  const [replaying, setReplaying] = useState(false);
+  const replayOnboarding = () => {
+    mutate(
+      (d) => ({ ...d, settings: { ...d.settings, tour_seen: [] } }),
+      () => api('settings', 'PATCH', { tour_seen: [] }),
+    );
+    setReplaying(true);
+  };
+
   const logout = async () => {
     await api('auth/logout', 'POST').catch(() => undefined);
     clearOffline();
@@ -464,7 +478,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const time = now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <Ctx.Provider value={{ data, mutate, reload, toast, now, openList, setOpenList, logout }}>
+    <Ctx.Provider value={{ data, mutate, reload, toast, now, openList, setOpenList, logout, replayOnboarding }}>
       <div className="shell">
         <SkipLink />
         <aside className="side">
@@ -568,7 +582,13 @@ function LdShell({ children }: { children: React.ReactNode }) {
       <Tour />
 
       {/* Знакомство — только совсем новым: не прошли и ничего ещё не завели. */}
-      {!data.settings.onboarded && data.tasks.length + data.reminders.length + data.checklists.length + data.notes.length === 0 && <Onboarding />}
+      {replaying ? (
+        <Onboarding onClose={() => setReplaying(false)} />
+      ) : !data.settings.onboarded && data.tasks.length + data.reminders.length + data.checklists.length + data.notes.length === 0 ? (
+        <Onboarding />
+      ) : (
+        data.settings.onboarded && status === 'ready' && !data.settings.tour_seen.includes(SETUP_SEEN) && <SetupPrompt />
+      )}
 
       {/* Область для диктора есть всегда: если создать её вместе с текстом,
           NVDA и VoiceOver часто его не прочтут. */}

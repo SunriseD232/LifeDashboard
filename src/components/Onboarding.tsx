@@ -7,6 +7,7 @@ import { Icon } from './icons';
 import PushPanel from './PushPanel';
 import { InviteList } from './Family';
 import Setup from './Setup';
+import { SETUP_SEEN } from '@/lib/setup';
 import { useModalFocus } from './useModalFocus';
 import { CityPicker } from './Weather';
 
@@ -15,9 +16,10 @@ const EXAMPLES = ['Позвонить маме', 'Записаться к вра
 /**
  * Знакомство при первом входе: что нужно (разделы и их порядок) → город →
  * уведомления → первое дело. Каждый шаг можно пропустить; после — больше
- * не показываем (user_settings.onboarded).
+ * не показываем (user_settings.onboarded). Пройти заново — из настроек
+ * и справки (onClose — закрыть такой повтор).
  */
-export default function Onboarding() {
+export default function Onboarding({ onClose }: { onClose?: () => void }) {
   const { data, reload, toast } = useApp();
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState('');
@@ -30,11 +32,13 @@ export default function Onboarding() {
 
   const finish = async () => {
     try {
-      await api('settings', 'PATCH', { onboarded: true });
+      // «Что вам нужно?» — тоже часть знакомства: отдельным окном его уже не покажем.
+      await api('settings', 'PATCH', { onboarded: true, tour_seen: [...new Set([...data.settings.tour_seen, SETUP_SEEN])] });
     } catch {
       /* не страшно: покажем ещё раз в следующий вход */
     }
     await reload();
+    onClose?.();
   };
 
   const addFirst = async (e?: React.FormEvent) => {
@@ -56,7 +60,7 @@ export default function Onboarding() {
       icon: 'settings',
       title: 'Что вам нужно?',
       text: 'Отметьте нужное и поставьте по порядку стрелками — так будут меню и главная. Лишнее спрячем, вернуть можно в «Настройках».',
-      body: <Setup onDone={() => setStep(1)} />,
+      body: <Setup markSeen={false} onDone={() => setStep(1)} />,
       // Своя кнопка «Сохранить и дальше»; «Пропустить» оставит как есть.
       done: false,
     },
