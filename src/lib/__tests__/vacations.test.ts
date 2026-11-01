@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { daysInYear, overlaps, pausedOn, spanDays, vacationOn, yearCount, type Vacation } from '../vacations';
 
-const v = (id: string, start: string, end: string, pause = true): Vacation => ({ id, title: 'Отпуск', start, end, pause });
+const v = (id: string, start: string, end: string, pause = true): Vacation => ({ id, title: 'Отпуск', start, end, pause, shared: false });
 
 describe('vacations', () => {
   it('counts calendar days inclusively', () => {

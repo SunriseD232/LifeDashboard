@@ -19,6 +19,15 @@ export interface Task {
   household_id: string | null;
   /** Кто завёл — для общих задач показываем, если не я. */
   author: string | null;
+  /** Кто делает (логин) — у общих; null — все. */
+  assignee: string | null;
+  /** Кто выполнил — у общих, если не я. */
+  done_by: string | null;
+}
+
+/** «Моё» в семье: личное, поручено мне или никому в частности. */
+export function isMine(x: { household_id: string | null; assignee: string | null }, me: string): boolean {
+  return !x.household_id || !x.assignee || x.assignee === me;
 }
 
 export const PRIORITIES: { v: Priority; label: string; short: string }[] = [

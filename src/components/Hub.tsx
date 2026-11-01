@@ -17,6 +17,7 @@ import { plannedFor } from '@/lib/workouts';
 import { AiButton } from './Ai';
 import { useApp } from './AppShell';
 import Composer, { type ComposerStart } from './Composer';
+import { InviteList } from './Family';
 import { Icon } from './icons';
 import { useKitchen } from './Kitchen';
 import { dayHead, WeekStrip } from './MiniCalendar';
@@ -88,13 +89,15 @@ export default function Hub() {
     report: () => router.push('/money/report'),
     ops: () => router.push('/money/ops'),
   };
-  const shortcuts = pickShortcuts(prefs, parseUsage(data.settings.hub_usage), hour, !!m);
+  // «Деньги» выключили при знакомстве — на главной их нет, даже если счета есть.
+  const hasMoney = !!m && !prefs.noMoney;
+  const shortcuts = pickShortcuts(prefs, parseUsage(data.settings.hub_usage), hour, hasMoney);
   const press = (s: ShortcutDef) => {
     api('hub/use', 'POST', { id: s.id, hour: new Date().getHours() }).catch(() => undefined);
     GO[s.id]();
   };
 
-  const tiles = arrangeTiles(prefs, !!m).filter((t) => !t.hidden);
+  const tiles = arrangeTiles(prefs, hasMoney).filter((t) => !t.hidden);
   const tile = (id: string, wide: boolean): ReactNode => {
     switch (id) {
       case 'today':
@@ -164,6 +167,9 @@ export default function Hub() {
           <Icon name="edit" />
         </Link>
       </header>
+
+      {/* Позвали в семью — ответить можно сразу, не ища настройки. */}
+      <InviteList />
 
       {/* На компьютере нижнего меню нет — «Записать» прямо на главной. */}
       <form

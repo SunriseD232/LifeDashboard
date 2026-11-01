@@ -54,10 +54,16 @@ export default function MoneyGoals() {
           return (
             <section key={g.id} className="m-card">
               <div className="m-card-head">
-                <h2 className="m-card-title">{g.name}</h2>
-                <button className="m-card-link m-link-btn" type="button" onClick={() => setEdit(g)}>
-                  Изменить
-                </button>
+                <h2 className="m-card-title">
+                  {g.name}
+                  {g.shared && <span className="m-tag" style={{ marginLeft: 8 }}>{g.author ? `семья · ${g.author}` : 'семья'}</span>}
+                </h2>
+                {/* Общую цель меняет автор, откладывают все. */}
+                {!g.author && (
+                  <button className="m-card-link m-link-btn" type="button" onClick={() => setEdit(g)}>
+                    Изменить
+                  </button>
+                )}
               </div>
               <div className="m-row-between">
                 <span className="display m-sum">{money(p.have, g.currency, { trim: true })}</span>
@@ -103,6 +109,7 @@ function GoalSheet({ goal, onClose }: { goal: MoneyGoal | null; onClose: () => v
   const [target, setTarget] = useState(goal ? formatMinor(goal.target_minor, goal.currency).replace(/\s/g, '') : '');
   const [saved, setSaved] = useState('');
   const [due, setDue] = useState(goal?.due_day ?? '');
+  const [shared, setShared] = useState(goal?.shared ?? false);
   const [error, setError] = useState<string | null>(null);
 
   async function run(req: Promise<unknown>, msg: string) {
@@ -120,7 +127,7 @@ function GoalSheet({ goal, onClose }: { goal: MoneyGoal | null; onClose: () => v
     const t = parseAmount(target, code);
     if (!name.trim()) return setError('На что копим?');
     if (!t) return setError('Сколько нужно?');
-    const body = { name: name.trim(), target_minor: t, account_id: accountId || null, currency: code, due_day: due || null, saved_minor: parseAmount(saved, code) ?? 0 };
+    const body = { name: name.trim(), target_minor: t, account_id: accountId || null, currency: code, due_day: due || null, saved_minor: parseAmount(saved, code) ?? 0, shared: data.family && shared };
     run(goal ? api(`money/goals/${goal.id}`, 'PATCH', body) : api('money/goals', 'POST', body), goal ? 'Сохранено' : 'Цель добавлена');
   }
 
@@ -168,6 +175,12 @@ function GoalSheet({ goal, onClose }: { goal: MoneyGoal | null; onClose: () => v
         <span className="label">К какому сроку (необязательно)</span>
         <input className="field" type="date" value={due} onChange={(e) => setDue(e.target.value)} />
       </label>
+      {data.family && (
+        <label className="m-check">
+          <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          Цель семьи — видят и откладывают все в семье
+        </label>
+      )}
       {error && (
         <p className="m-error" role="alert">
           {error}

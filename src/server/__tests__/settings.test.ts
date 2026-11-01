@@ -28,7 +28,7 @@ describe('подсказки и поля окна задачи', () => {
     const d = setup();
     expect(readSettings(d, 'me')).toMatchObject({ hub: { bar: null, tiles: null, auto: true, pins: [] }, hub_usage: {} });
     patch(d, { hub: { bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w' }, { id: 'evil' }], pins: ['op'] } });
-    expect(readSettings(d, 'me').hub).toEqual({ bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w', hidden: false }], auto: true, pins: ['op'] });
+    expect(readSettings(d, 'me').hub).toEqual({ bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w', hidden: false }], auto: true, pins: ['op'], off: [], noMoney: false });
     // Другие настройки главную не трогают; null — как было.
     patch(d, { deadline_time: '10:00' });
     expect(readSettings(d, 'me').hub.pins).toEqual(['op']);
@@ -45,7 +45,7 @@ describe('подсказки и поля окна задачи', () => {
   });
   it('раздел по адресу — только главные экраны', () => {
     // На главной супер-аппа подсказок нет.
-    expect(tourFor('/')).toBeNull();
+    expect(tourFor('/')?.id).toBe('hub');
     expect(tourFor('/tasks')?.id).toBe('tasks');
     expect(tourFor('/kitchen/new')).toBeNull();
     expect(tourFor('/settings')).toBeNull();

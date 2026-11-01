@@ -100,7 +100,8 @@ function ShortcutsCard({ p, save }: CardProps) {
   const pinned = (id: string) => p.pins.includes(id);
   const toggle = (id: string) => {
     if (pinned(id)) save({ ...p, pins: p.pins.filter((x) => x !== id) });
-    else if (p.pins.length < SHORTCUT_SLOTS) save({ ...p, pins: [...p.pins, id] });
+    // Закрепили спрятанное при знакомстве — значит, оно всё-таки нужно.
+    else if (p.pins.length < SHORTCUT_SLOTS) save({ ...p, pins: [...p.pins, id], off: p.off.filter((x) => x !== id) });
   };
   const byId = new Map(SHORTCUTS.map((s) => [s.id, s]));
   const full = p.pins.length >= SHORTCUT_SLOTS;

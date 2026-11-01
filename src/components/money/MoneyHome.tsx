@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { money } from '@/lib/currencies';
+import { api } from '@/lib/api';
+import { formatMinor, money, parseAmount } from '@/lib/currencies';
 import { localDay } from '@/lib/dates';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
@@ -164,6 +165,8 @@ export default function MoneyHome() {
           </section>
         )}
 
+        {data.family && <FamilyBudget />}
+
         {shown('recurring') && <DueList />}
         {shown('recurring') && <Upcoming />}
         {shown('goals') && <GoalsCard />}
@@ -268,5 +271,108 @@ function DebtsCard() {
       </div>
       {late > 0 && <small className="m-up">Просрочено: {late}</small>}
     </Link>
+  );
+}
+
+/**
+ * Бюджет семьи на месяц: все траты с семейных счетов, кто бы ни тратил.
+ * Задаёт и меняет любой в семье; сумма — в валюте того, кто задал, на
+ * экране — в своей основной.
+ */
+function FamilyBudget() {
+  const { data, toBase, reload, toast } = useMoney();
+  const base = data.settings!.base_currency;
+  const fb = data.family_budget;
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState('');
+  const sharedAcc = new Set(data.accounts.filter((a) => a.shared).map((a) => a.id));
+  const opById = new Map(data.ops.map((o) => [o.id, o]));
+  let spent = 0;
+  for (const p of data.month_parts) {
+    const o = opById.get(p.op_id);
+    if (o && sharedAcc.has(o.account_id)) spent += p.base_minor;
+  }
+  const limit = fb ? toBase(fb.limit_minor, fb.currency) : null;
+
+  const save = async (value: number | null) => {
+    try {
+      await api('money/family-budget', 'PUT', { limit_minor: value, currency: base });
+      await reload();
+      setEditing(false);
+      toast(value === null ? 'Бюджет семьи убран' : 'Бюджет семьи сохранён');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+
+  if (!fb && !editing) {
+    if (!sharedAcc.size) return null;
+    return (
+      <section className="m-card">
+        <div className="m-card-head">
+          <h2 className="m-card-title">Бюджет семьи</h2>
+          <button className="m-card-link m-link-btn" type="button" onClick={() => setEditing(true)}>
+            Задать
+          </button>
+        </div>
+        <small className="muted">С семейных счетов в этом месяце: {money(spent, base, { trim: true })}. Задайте, сколько можно на месяц всем вместе.</small>
+      </section>
+    );
+  }
+
+  const share = limit ? spent / limit : 0;
+  return (
+    <section className="m-card">
+      <div className="m-card-head">
+        <h2 className="m-card-title">
+          Бюджет семьи
+          {limit !== null && (share >= 1 ? <span className="m-tag m-tag-warn">сверх</span> : share >= 0.9 ? <span className="m-tag m-tag-warn">почти всё</span> : null)}
+        </h2>
+        {!editing && (
+          <button
+            className="m-card-link m-link-btn"
+            type="button"
+            onClick={() => {
+              setRaw(fb ? formatMinor(fb.limit_minor, fb.currency).replace(/\s/g, '') : '');
+              setEditing(true);
+            }}
+          >
+            Изменить
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <form
+          className="m-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const n = parseAmount(raw, base);
+            if (n && n > 0) save(n);
+          }}
+        >
+          <input className="field mono" inputMode="decimal" placeholder={`В месяц, ${base}`} aria-label="Бюджет семьи на месяц" value={raw} onChange={(e) => setRaw(e.target.value)} style={{ flex: 1 }} autoFocus />
+          {fb && (
+            <button className="btn btn-ghost" type="button" onClick={() => save(null)}>
+              Убрать
+            </button>
+          )}
+          <button className="btn btn-primary" type="submit" disabled={!raw.trim()}>
+            Сохранить
+          </button>
+        </form>
+      ) : (
+        <>
+          <div className="m-row-between">
+            <span className="muted m-small">С семейных счетов за месяц</span>
+            <span className="mono">
+              {money(spent, base, { trim: true })} <span className="muted">/ {limit !== null ? money(limit, base, { trim: true }) : money(fb!.limit_minor, fb!.currency, { trim: true })}</span>
+            </span>
+          </div>
+          <div className={`bar${share >= 0.9 ? ' warm' : ''}`}>
+            <i style={{ width: `${Math.min(100, Math.max(2, Math.round(share * 100)))}%` }} />
+          </div>
+        </>
+      )}
+    </section>
   );
 }

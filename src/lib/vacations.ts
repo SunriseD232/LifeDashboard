@@ -11,12 +11,25 @@ export interface Vacation {
   end: string;
   /** Не присылать повторяющиеся напоминания в эти дни. */
   pause: boolean;
+  /** Видно семье. */
+  shared: boolean;
+}
+
+/** Отпуск человека из семьи — только посмотреть. */
+export interface FamilyVacation {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  login: string;
 }
 
 export interface Vacations {
   list: Vacation[];
   /** Сколько дней положено в год; null — не считаем. */
   allowance: number | null;
+  /** Отпуска остальных в семье, которые они показали семье. */
+  family: FamilyVacation[];
 }
 
 const ms = (day: string) => Date.parse(`${day}T00:00:00Z`);

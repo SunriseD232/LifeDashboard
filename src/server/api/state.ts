@@ -1,13 +1,13 @@
 import { userLogin } from '@/lib/auth';
 import { readChecklists, readItems } from '../checklistStore';
-import { householdInfo } from '../household';
+import { householdInfo, invitesFor } from '../household';
 import { readPantry, readProducts, readRecipes, scopeOf, shoppingList } from '../kitchenStore';
 import { readFridge } from '../fridge';
 import { readNotes } from '../noteStore';
 import { aiConfigured } from '../ai';
 import { isAdmin } from './support';
 import { readExercises, readTemplates, readWorkouts } from '../workoutStore';
-import { doneKeys, readReminders, snoozesOn } from '../reminderStore';
+import { doneByOthers, doneKeys, readReminders, snoozesOn } from '../reminderStore';
 import { readSettings } from '../settings';
 import { readTags } from '../tagStore';
 import { readTasks } from '../taskStore';
@@ -22,7 +22,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
     const checklists = readChecklists(d, userId);
     const items = readItems(d, userId);
     // Без названия чек-листа — экрану оно приходит из самих чек-листов.
-    const reminders = readReminders(d, userId).map(({ checklist_title: _, ...r }) => r);
+    const reminders = readReminders(d, userId).map(({ checklist_title: _, user_id: _u, assignee_id: _a, ...r }) => r);
     const done = doneKeys(d, userId, day);
     const snoozed = snoozesOn(d, userId, day);
     const { tasks, doneToday } = readTasks(d, userId, day);
@@ -31,6 +31,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
       items,
       reminders,
       done,
+      done_by: doneByOthers(d, userId, day),
       snoozed,
       tasks,
       tasksDoneToday: doneToday,
@@ -51,6 +52,7 @@ export function state({ d, userId, method, req }: Ctx): unknown {
       vacations: readVacations(d, userId),
       settings: readSettings(d, userId),
       household: householdInfo(d, userId),
+      invites: invitesFor(d, userId),
       login: userLogin(userId),
       ai: aiConfigured(),
       admin: isAdmin(userLogin(userId)),

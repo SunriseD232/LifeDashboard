@@ -18,6 +18,10 @@ export interface MoneyRecurring {
   next_day: string;
   mode: 'auto' | 'ask';
   active: boolean;
+  /** По семейному счёту — видят и записывают все в семье. */
+  shared: boolean;
+  /** Кто завёл — если не я. */
+  author: string | null;
 }
 
 export interface MoneyDebt {
@@ -42,6 +46,10 @@ export interface MoneyGoal {
   account_id: string | null;
   saved_minor: number;
   due_day: string | null;
+  /** Цель семьи — откладывают все. */
+  shared: boolean;
+  /** Кто завёл — если не я. */
+  author: string | null;
 }
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);

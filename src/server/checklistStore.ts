@@ -25,11 +25,12 @@ export function readItems(d: Database.Database, userId: string): ChecklistItem[]
   return (
     d
       .prepare(
-        `select i.id, i.checklist_id, i.title, i.group_name, i.note, i.done, i.position, i.product_id, i.qty, i.unit, i.recipe_title
-         from checklist_items i join checklists c on c.id = i.checklist_id
+        `select i.id, i.checklist_id, i.title, i.group_name, i.note, i.done, i.position, i.product_id, i.qty, i.unit, i.recipe_title,
+           case when i.done = 1 and i.done_by <> ? then u.login end as done_by
+         from checklist_items i join checklists c on c.id = i.checklist_id left join users u on u.id = i.done_by
          where ${v.where} order by i.position, i.created_at`,
       )
-      .all(...v.params) as Record<string, unknown>[]
+      .all(userId, ...v.params) as Record<string, unknown>[]
   ).map((r) => ({ ...(r as unknown as ChecklistItem), done: !!r.done }));
 }
 

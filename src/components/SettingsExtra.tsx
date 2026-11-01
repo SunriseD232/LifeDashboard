@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { parseHub } from '@/lib/hub';
 import { arrange, PHONE_SLOTS, type NavPref } from '@/lib/nav';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
@@ -65,6 +66,7 @@ export function NavEditor() {
           );
         })}
       </ol>
+      <MoneyToggle />
       {nav.custom && (
         <button className="btn btn-ghost" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => save(null)}>
           <Icon name="reset" size={16} />
@@ -72,6 +74,32 @@ export function NavEditor() {
         </button>
       )}
     </section>
+  );
+}
+
+/** «Деньги» в меню и на главной: их можно было выключить при знакомстве. */
+function MoneyToggle() {
+  const { data, mutate } = useApp();
+  const hub = parseHub(data.settings.hub);
+  const money = ['op', 'receipt', 'report', 'ops'];
+  const set = (on: boolean) => {
+    const next = { ...hub, noMoney: !on, off: on ? hub.off.filter((x) => !money.includes(x)) : [...new Set([...hub.off, ...money])] };
+    mutate(
+      (d) => ({ ...d, settings: { ...d.settings, hub: next } }),
+      () => api('settings', 'PATCH', { hub: next }),
+    );
+  };
+  return (
+    <div className="nav-edit" data-hidden={hub.noMoney || undefined}>
+      <Icon name="wallet" size={18} />
+      <span style={{ flex: 1, minWidth: 0 }}>
+        Деньги
+        {hub.noMoney && <span style={{ marginLeft: 8, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>скрыт</span>}
+      </span>
+      <button className="btn btn-ghost" type="button" style={{ minHeight: 36, padding: '4px 10px', fontSize: 'calc(13px * var(--fs))' }} aria-pressed={!hub.noMoney} onClick={() => set(hub.noMoney)}>
+        {hub.noMoney ? 'Показать' : 'Скрыть'}
+      </button>
+    </div>
   );
 }
 

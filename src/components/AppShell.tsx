@@ -34,6 +34,8 @@ export interface AppData {
   reminders: Reminder[];
   /** Отметки «сделано» СЕГОДНЯ — ключи `${id}@${время}` (src/lib/occurrences.ts). */
   done: string[];
+  /** Кто из семьи отметил общее напоминание сегодня: ключ → логин (свои — нет). */
+  done_by?: Record<string, string>;
   /** Отложенные сегодня. */
   snoozed: Snooze[];
   /** Задачи без напоминания: открытые и закрытые сегодня. */
@@ -45,8 +47,10 @@ export interface AppData {
   notes: Note[];
   kitchen: { products: Product[]; recipes: Recipe[]; pantry: string[]; shopping_id: string | null; fridge: FridgeItem[] };
   gym: { workouts: Workout[]; exercises: Exercise[]; templates: WorkoutTemplate[] };
-  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage };
-  household: { id: string; name: string; members: { login: string; me: boolean }[] } | null;
+  settings: { city: string | null; lat: number | null; lon: number | null; tz: string | null; deadline_time: string; summary_time: string | null; nav: NavPref[] | null; calendar_token: string | null; onboarded: boolean; quiet_from: string | null; quiet_to: string | null; review_time: string | null; tour_seen: string[]; task_hidden: string[]; hub?: HubPrefs; hub_usage?: HubUsage; family_push?: string[] };
+  household: { id: string; name: string; members: { login: string; me: boolean }[]; invited?: { id: string; login: string }[] } | null;
+  /** Меня зовут в семью (src/server/household.ts). */
+  invites?: { id: string; family: string; from: string }[];
   /** Отпуска и сколько дней положено в год (src/lib/vacations.ts). */
   vacations: Vacations;
   /** Логин вошедшего (в next dev с LD_DEV_USER — null). */
@@ -103,18 +107,18 @@ const EMPTY: AppData = {
   gym: { workouts: [], exercises: [], templates: [] },
   settings: { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: true, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [] },
   household: null,
-  vacations: { list: [], allowance: null },
+  vacations: { list: [], allowance: null, family: [] },
 };
 
 /** Показать созданное без сети, пока оно в очереди (настоящий id придёт позже). */
 function withQueued(d: AppData, q: Queued): AppData {
   const b = (q.body ?? {}) as Record<string, unknown>;
   if (q.path === 'tasks' && q.tempId) {
-    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Task['priority']) ?? 0, checklist_id: null, done_at: null, household_id: null, author: null };
+    const t: Task = { id: q.tempId, title: String(b.title ?? ''), note: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Task['priority']) ?? 0, checklist_id: null, done_at: null, household_id: null, author: null, assignee: null, done_by: null };
     return { ...d, tasks: [...d.tasks, t] };
   }
   if (q.path === 'reminders' && q.tempId) {
-    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Reminder['priority']) ?? 0, note: null };
+    const r = { id: q.tempId, title: String(b.title ?? ''), times: (b.times as string[]) ?? [], rule: b.rule as Reminder['rule'], checklist_id: null, last_done: null, nag: null, tags: (b.tags as string[]) ?? [], priority: (b.priority as Reminder['priority']) ?? 0, note: null, household_id: null, assignee: null, author: null };
     return { ...d, reminders: [...d.reminders, r] };
   }
   if (q.path === 'kitchen/shopping' && d.kitchen.shopping_id && Array.isArray(b.items)) {
@@ -157,6 +161,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 // выгружается, и без этого возврат на главную снова ждал бы сервер.
 // С ними экран сразу на месте, а свежие данные подтягиваются фоном.
 let memo: AppData | null = null;
+
+/** Где семья видит изменения друг друга почти сразу. */
+const LIVE_PATHS = ['/', '/kitchen', '/lists', '/tasks'];
 
 function LdShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -347,6 +354,19 @@ function LdShell({ children }: { children: React.ReactNode }) {
     };
   }, [reload]);
 
+  // Семья: пока открыты покупки, чек-листы, дела или главная, изменения
+  // остальных подтягиваем раз в 15 секунд — вдвоём в магазине список не
+  // расходится. Только на видимой вкладке и когда нет неотправленного.
+  const inFamily = !!data.household;
+  const live = LIVE_PATHS.some((p) => pathname === p || (p !== '/' && pathname.startsWith(`${p}/`)));
+  useEffect(() => {
+    if (!inFamily || !live) return;
+    const t = setInterval(() => {
+      if (!document.hidden && !outbox().length && Date.now() - loadedAt.current > 12_000) reload();
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [inFamily, live, reload]);
+
   // Число на иконке приложения (экран «Домой»): сколько осталось на сегодня.
   useEffect(() => {
     if (status !== 'ready') return;
@@ -426,7 +446,8 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const ctx = contextOf(pathname);
-  const barOf = (c: typeof ctx) => (c === 'hub' ? hubBar(parseHub(data.settings.hub)) : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
+  const hubPrefs = parseHub(data.settings.hub);
+  const barOf = (c: typeof ctx) => (c === 'hub' ? hubBar(hubPrefs, !hubPrefs.noMoney) : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
   if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const counts: Record<string, [number, string]> = {
     '/tasks': [left, 'на сегодня'],
@@ -463,7 +484,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
             <kbd>Ctrl K</kbd>
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {([HOME, ...nav.visible, MONEY_HOME, ...HELP] as Section[]).map((s) => (
+            {([HOME, ...nav.visible, ...(hubPrefs.noMoney ? [] : [MONEY_HOME]), ...HELP] as Section[]).map((s) => (
               <Fragment key={s.href}>
                 {s.group && (!nav.custom || HELP.includes(s)) && <div className="nav-sep">{s.group}</div>}
                 <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>

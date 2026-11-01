@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { agendaFor, monthGrid } from '../agenda';
 import type { Reminder } from '../types';
 
-const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
+const rem = (over: Partial<Reminder>): Reminder => ({ id: 'r', title: 'Бассейн', times: ['18:30'], checklist_id: null, last_done: null, nag: null, tags: [], priority: 0, note: null, household_id: null, assignee: null, author: null, rule: { kind: 'repeat', unit: 'week', every: 1, start: '2026-09-01', weekdays: [2, 4] }, ...over });
 const today = '2026-10-03';
 
 describe('календарь: что на день', () => {

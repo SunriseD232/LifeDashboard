@@ -3,6 +3,7 @@ import { formatMinor } from '@/lib/currencies';
 import { periodRange, priceHistory, priceStats, RateBook, spendParts, type Part, type Period, type PriceRow } from '@/lib/moneyReport';
 import { askJson } from './ai';
 import { HttpError, text } from './http';
+import { householdOf } from './household';
 import { readAccounts, readCategories, readItemPrices, readMoneySettings, readOps, readUserRates } from './moneyStore';
 
 /**
@@ -124,6 +125,30 @@ export function readBudgets(d: Database.Database, userId: string): { category_id
   return d
     .prepare('select b.category_id, b.limit_minor from money_budgets b join money_categories c on c.id = b.category_id where b.user_id = ? and c.archived = 0')
     .all(userId) as { category_id: string; limit_minor: number }[];
+}
+
+/** Бюджет семьи на месяц: сколько всего можно потратить с семейных счетов. */
+export function readFamilyBudget(d: Database.Database, userId: string): { limit_minor: number; currency: string } | null {
+  const hh = householdOf(d, userId);
+  if (!hh) return null;
+  return (d.prepare('select limit_minor, currency from money_family_budget where household_id = ?').get(hh) as { limit_minor: number; currency: string } | undefined) ?? null;
+}
+
+/** { limit_minor, currency } — задать; limit_minor: null — убрать. Менять может любой в семье. */
+export function setFamilyBudget(d: Database.Database, userId: string, body: Record<string, unknown>) {
+  const hh = householdOf(d, userId);
+  if (!hh) throw new HttpError(400, 'Бюджет семьи — когда есть семья: создайте её в настройках.');
+  if (body.limit_minor === null) {
+    d.prepare('delete from money_family_budget where household_id = ?').run(hh);
+    return { ok: true };
+  }
+  const n = Number(body.limit_minor);
+  if (!Number.isSafeInteger(n) || n <= 0) throw new HttpError(400, 'Бюджет — сумма больше нуля.');
+  const cur = typeof body.currency === 'string' && /^[A-Z]{3}$/.test(body.currency) ? body.currency : 'RUB';
+  d.prepare(
+    'insert into money_family_budget (household_id, limit_minor, currency) values (?, ?, ?) on conflict (household_id) do update set limit_minor = excluded.limit_minor, currency = excluded.currency',
+  ).run(hh, n, cur);
+  return { ok: true };
 }
 
 export function setBudget(d: Database.Database, userId: string, body: Record<string, unknown>) {

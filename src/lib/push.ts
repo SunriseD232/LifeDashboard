@@ -11,6 +11,7 @@ import { pausedOn } from './vacations';
 import { readVacationList } from '../server/vacationStore';
 import { inQuiet, outOfQuiet, quietMissed, quietOf, reviewItems } from './quiet';
 import { plural } from './dates';
+import { batchMessage, pendingBatches } from '../server/familyEvents';
 
 /**
  * Push-уведомления LifeDashboard (Web Push, без отдельного приложения).
@@ -160,7 +161,8 @@ async function tick(): Promise<void> {
     const lp = localParts(tz, now);
     const st = readSettings(d, userId);
     const quiet = quietOf(st.quiet_from, st.quiet_to);
-    const all = readReminders(d, userId);
+    // Общее, поручённое другому, ему и звенит; не поручено никому — всем.
+    const all = readReminders(d, userId).filter((r) => !r.household_id || !r.assignee_id || r.assignee_id === userId);
     // В отпуске с паузой повторяющиеся не шлём — только разовые, поставленные нарочно.
     const paused = pausedOn(readVacationList(d, userId), lp.day);
     const occ = occurrencesOn(all, lp.day, new Set(doneKeys(d, userId, lp.day)), snoozesOn(d, userId, lp.day)).filter((o) => !paused || o.reminder.rule.kind === 'once');
@@ -172,9 +174,11 @@ async function tick(): Promise<void> {
     for (const o of quietNow ? [] : occ) {
       for (const s of sendsDue(o, lp.minutes)) {
         // Сначала помечаем, потом шлём: два тика подряд не отправят дважды.
+        // Общее звенит у каждого — и отметка об отправке у каждого своя.
+        const sentKey = o.reminder.household_id ? `${o.reminder.id}:${userId}` : o.reminder.id;
         const fresh = d
           .prepare('insert or ignore into push_sent (reminder_id, day, slot) values (?, ?, ?)')
-          .run(o.reminder.id, lp.day, s.mark);
+          .run(sentKey, lp.day, s.mark);
         if (fresh.changes === 0) continue;
         const r = o.reminder as StoredReminder;
         // «После выполнения» и срок уже прошёл — висит с прошлых дней.
@@ -241,8 +245,28 @@ async function tick(): Promise<void> {
     }
   }
 
+  await sendFamilyEvents(users, now);
+
   d.prepare("delete from push_sent where day < date('now', '-3 day')").run();
   d.prepare("delete from reminder_snooze where day < date('now', '-3 day')").run();
+}
+
+/**
+ * События семьи (src/server/familyEvents.ts): пачкой на человека и вид.
+ * В тихие часы ждут их конца; без устройств — просто выбрасываем.
+ */
+async function sendFamilyEvents(users: Map<string, string>, now: Date): Promise<void> {
+  const d = db();
+  for (const b of pendingBatches(d)) {
+    const tz = users.get(b.userId);
+    if (tz) {
+      const st = readSettings(d, b.userId);
+      if (inQuiet(localParts(tz, now).minutes, quietOf(st.quiet_from, st.quiet_to))) continue;
+      const m = batchMessage(b);
+      await sendToUser(b.userId, { ...m, tag: `family:${b.kind}`, url: b.url ?? '/task' });
+    }
+    d.prepare(`delete from family_events where id in (${b.ids.map(() => '?').join(',')})`).run(...b.ids);
+  }
 }
 
 declare global {
