@@ -83,6 +83,17 @@ fi
 echo "==> next build"
 NEXT_TELEMETRY_DISABLED=1 npm run build
 
+# Файлы прошлых сборок (в имени — хэш, не пересекаются) кладём и в новую:
+# открытая вкладка или страница из кэша приложения со старой сборки
+# догружает свои куски кода — без них Next падает «Application error».
+# Копятся в $ROOT/static-archive; старше 30 дней — убираем.
+mkdir -p "$ROOT/static-archive"
+for r in "$ROOT"/releases/*/; do
+  if [ -d "$r.next/static" ]; then cp -rn "$r.next/static/." "$ROOT/static-archive/"; fi
+done
+find "$ROOT/static-archive" -type f -mtime +30 -delete
+cp -rn "$ROOT/static-archive/." "$REL/.next/static/"
+
 # Переезд со «Сборов»: оба процесса слушают 3100, и база должна быть
 # скопирована с остановленного процесса — иначе часть записей осталась бы в
 # его WAL. Поэтому: стоп старого, копия базы, потом старт нового.
