@@ -28,7 +28,7 @@ describe('подсказки и поля окна задачи', () => {
     const d = setup();
     expect(readSettings(d, 'me')).toMatchObject({ hub: { bar: null, tiles: null, auto: true, pins: [] }, hub_usage: {} });
     patch(d, { hub: { bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w' }, { id: 'evil' }], pins: ['op'] } });
-    expect(readSettings(d, 'me').hub).toEqual({ bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w', hidden: false }], auto: true, pins: ['op'], off: [] });
+    expect(readSettings(d, 'me').hub).toEqual({ bar: ['money', 'home', 'tasks', 'settings'], tiles: [{ id: 'spend', size: 'w', hidden: false }], auto: true, pins: ['op'], off: [], noMoney: false });
     // Другие настройки главную не трогают; null — как было.
     patch(d, { deadline_time: '10:00' });
     expect(readSettings(d, 'me').hub.pins).toEqual(['op']);

@@ -4,7 +4,7 @@ import { arrangeTiles, bumpUsage, dayPart, parseHub, parseUsage, pickShortcuts, 
 describe('главная: плитки, действия, меню', () => {
   it('сохранённое чистим: чужие плитки, повторы, неполное меню', () => {
     const p = parseHub({ bar: ['home', 'tasks', 'evil'], tiles: [{ id: 'spend', size: 'w' }, { id: 'spend' }, { id: 'nope' }, { id: 'today', size: 'x', hidden: 1 }], auto: false, pins: ['op', 'op', 'zzz'] });
-    expect(p).toEqual({ bar: null, tiles: [{ id: 'spend', size: 'w', hidden: false }, { id: 'today', size: 's', hidden: true }], auto: false, pins: ['op'], off: [] });
+    expect(p).toEqual({ bar: null, tiles: [{ id: 'spend', size: 'w', hidden: false }, { id: 'today', size: 's', hidden: true }], auto: false, pins: ['op'], off: [], noMoney: false });
     expect(parseHub(null)).toMatchObject({ bar: null, tiles: null, auto: true, pins: [] });
   });
 

@@ -107,5 +107,5 @@ export function applySetup(choices: SetupChoice[], hub: HubPrefs): { nav: NavPre
     .filter(([, s]) => off(s))
     .map(([id]) => id);
 
-  return { nav, hub: { ...hub, tiles, bar, off: hidden, pins: hub.pins.filter((p) => !hidden.includes(p)) } };
+  return { nav, hub: { ...hub, tiles, bar, off: hidden, pins: hub.pins.filter((p) => !hidden.includes(p)), noMoney: off(MONEY_ID) } };
 }

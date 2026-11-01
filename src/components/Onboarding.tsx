@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { useApp } from './AppShell';
 import { Icon } from './icons';
 import PushPanel from './PushPanel';
+import { InviteList } from './Family';
 import Setup from './Setup';
 import { useModalFocus } from './useModalFocus';
 import { CityPicker } from './Weather';
@@ -123,6 +124,8 @@ export default function Onboarding() {
           {s.title}
         </h1>
         <p style={{ margin: 0, color: 'var(--muted)' }}>{s.text}</p>
+        {/* Позвали в семью ещё до первого входа — ответить сразу. */}
+        {step === 0 && <InviteList />}
         {s.body}
         <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
           {step > 0 && (

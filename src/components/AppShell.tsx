@@ -446,7 +446,8 @@ function LdShell({ children }: { children: React.ReactNode }) {
   const nav = arrange(data.settings.nav);
   const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
   const ctx = contextOf(pathname);
-  const barOf = (c: typeof ctx) => (c === 'hub' ? hubBar(parseHub(data.settings.hub)) : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
+  const hubPrefs = parseHub(data.settings.hub);
+  const barOf = (c: typeof ctx) => (c === 'hub' ? hubBar(hubPrefs, !hubPrefs.noMoney) : c === 'money' ? MONEY_BAR : dashBar(nav.phone));
   if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const counts: Record<string, [number, string]> = {
     '/tasks': [left, 'на сегодня'],
@@ -483,7 +484,7 @@ function LdShell({ children }: { children: React.ReactNode }) {
             <kbd>Ctrl K</kbd>
           </button>
           <nav aria-label="Разделы" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {([HOME, ...nav.visible, MONEY_HOME, ...HELP] as Section[]).map((s) => (
+            {([HOME, ...nav.visible, ...(hubPrefs.noMoney ? [] : [MONEY_HOME]), ...HELP] as Section[]).map((s) => (
               <Fragment key={s.href}>
                 {s.group && (!nav.custom || HELP.includes(s)) && <div className="nav-sep">{s.group}</div>}
                 <Link className="nav" href={s.href} aria-current={isActive(s.href) ? 'page' : undefined}>

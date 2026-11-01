@@ -99,9 +99,11 @@ export interface HubPrefs {
   pins: string[];
   /** Действия, которых не показывать (выключенные при знакомстве разделы). */
   off: string[];
+  /** «Деньги» не нужны: ни в меню, ни на главной (вернуть — «Разделы меню»). */
+  noMoney: boolean;
 }
 
-export const DEFAULT_HUB: HubPrefs = { bar: null, tiles: null, auto: true, pins: [], off: [] };
+export const DEFAULT_HUB: HubPrefs = { bar: null, tiles: null, auto: true, pins: [], off: [], noMoney: false };
 
 const ids = (raw: unknown, known: { id: string }[], max: number): string[] => {
   if (!Array.isArray(raw)) return [];
@@ -127,7 +129,7 @@ export function parseHub(raw: unknown): HubPrefs {
     }
     if (!tiles.length) tiles = null;
   }
-  return { bar: bar.length === 4 ? bar : null, tiles, auto: r.auto !== false, pins: ids(r.pins, SHORTCUTS, SHORTCUT_SLOTS), off: ids(r.off, SHORTCUTS, SHORTCUTS.length) };
+  return { bar: bar.length === 4 ? bar : null, tiles, auto: r.auto !== false, pins: ids(r.pins, SHORTCUTS, SHORTCUT_SLOTS), off: ids(r.off, SHORTCUTS, SHORTCUTS.length), noMoney: r.noMoney === true };
 }
 
 /** Плитки по порядку: сохранённые, затем новые из каталога (с их видимостью по умолчанию). */
