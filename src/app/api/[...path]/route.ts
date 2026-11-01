@@ -24,7 +24,7 @@ import { calendarFeed } from '@/server/calendar';
 import { findChecklist, readItems } from '@/server/checklistStore';
 import { checklistXlsx, groupForXlsx, xlsxFileName } from '@/lib/xlsx';
 import { HttpError, type Ctx } from '@/server/http';
-import { smsIncoming } from '@/server/moneySms';
+import { readSmsBody, smsIncoming } from '@/server/moneySms';
 import { hub } from '@/server/api/hub';
 
 /**
@@ -92,10 +92,10 @@ async function route(req: NextRequest, { params }: { params: { path: string[] } 
     });
   }
   try {
-    // SMS банка от «Команд» iOS — без входа, по ключу в заголовке (src/server/moneySms.ts).
+    // SMS и уведомления банка от «Команд» iOS и MacroDroid — без входа, по ключу в заголовке (src/server/moneySms.ts).
     if (res === 'money-sms' && req.method === 'POST') {
-      const body = await req.json().catch(() => ({}));
-      return NextResponse.json(smsIncoming(db(), req.headers.get('authorization'), body as Record<string, unknown>));
+      const body = readSmsBody(await req.text().catch(() => ''));
+      return NextResponse.json(smsIncoming(db(), req.headers.get('authorization'), body));
     }
     // Чек-лист в .xlsx — файлом с сервера: blob-ссылки часть браузеров
     // (установленное приложение, Safari) открывает как страницу, а не скачивает.

@@ -8,7 +8,8 @@ vi.mock('@/lib/db', () => ({ db: () => current }));
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined, set: () => {} }) }));
 
 const { money } = await import('../api/money');
-const { smsIncoming } = await import('../moneySms');
+const { readSmsBody, smsIncoming } = await import('../moneySms');
+const { parseBankSms } = await import('@/lib/moneySms');
 const { processRecurring } = await import('../moneyPlans');
 const { resetRatesClock, setRatesTransport, moscowDay } = await import('../moneyRates');
 import type { Ctx } from '../http';
@@ -119,6 +120,14 @@ describe('долги и цели', () => {
 });
 
 describe('SMS от банка', () => {
+  it('тело — как пришлёт MacroDroid: JSON, JSON с переносом строки внутри, форма, просто текст', () => {
+    expect(readSmsBody('{"text":"Покупка 350 ₽"}')).toEqual({ text: 'Покупка 350 ₽' });
+    expect(readSmsBody('{"text":"Т-Банк\nПокупка 350 ₽"}').text).toBe('Т-Банк Покупка 350 ₽');
+    expect(readSmsBody('text=%D0%9F%D0%BE%D0%BA%D1%83%D0%BF%D0%BA%D0%B0+350')).toMatchObject({ text: 'Покупка 350' });
+    expect(readSmsBody('СберБанк\nПокупка 350р')).toEqual({ text: 'СберБанк\nПокупка 350р' });
+    expect(parseBankSms('Пополнение Перевод от Иван И. +5 000 ₽ Баланс 15 000 ₽')?.payee).toBe('Перевод от Иван И');
+  });
+
   it('ключ → операция на счёт по цифрам карты; повтор и коды не записываются; импорт склеивает', async () => {
     const d = setup();
     const { card, cat } = await world(d);

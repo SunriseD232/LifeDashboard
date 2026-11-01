@@ -51,10 +51,12 @@ function Copy({ value, label }: { value: string; label: string }) {
   );
 }
 
+type Phone = 'ios' | 'android';
+
 /**
- * SMS от банка → операция сама. Автоматизация «Команд» iOS отправляет текст
- * каждого SMS банка сюда; ключ — вместо входа. Пуш-уведомления «Команды»
- * читать не умеют — только SMS.
+ * SMS от банка → операция сама. На iPhone — автоматизация «Команд» (только
+ * SMS: пуши она читать не умеет), на Android — MacroDroid (SMS или пуш
+ * приложения банка). Оба отправляют текст сюда; ключ — вместо входа.
  */
 export default function MoneySms() {
   const { data, reload, toast } = useMoney();
@@ -63,6 +65,11 @@ export default function MoneySms() {
   const [accountId, setAccountId] = useState('');
   const [sample, setSample] = useState('');
   const [preview, setPreview] = useState<Preview | null | 'none'>(null);
+  // Инструкция — для своего телефона; переключить можно.
+  const [phone, setPhone] = useState<Phone>('ios');
+  useEffect(() => {
+    if (/android/i.test(navigator.userAgent)) setPhone('android');
+  }, []);
   const accounts = data.accounts.filter((a) => !a.archived);
 
   const load = () =>
@@ -108,10 +115,20 @@ export default function MoneySms() {
       <main className="m-main">
         <section className="m-card" style={{ gap: 10 }}>
           <p style={{ margin: 0 }}>
-            Приходит SMS о покупке — операция записывается сама: сумма, место, карта, категория как в прошлый раз. Работает через приложение «Команды» на iPhone.
+            Приходит SMS или уведомление банка о покупке — операция записывается сама: сумма, место, карта, категория как в прошлый раз.
           </p>
+          <div className="seg" role="group" aria-label="Какой телефон" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <button type="button" aria-pressed={phone === 'ios'} onClick={() => setPhone('ios')}>
+              iPhone
+            </button>
+            <button type="button" aria-pressed={phone === 'android'} onClick={() => setPhone('android')}>
+              Android
+            </button>
+          </div>
           <p className="muted m-small" style={{ margin: 0 }}>
-            Только SMS: пуш-уведомления банков «Команды» читать не умеют. Если банк присылает пуши — включите в нём SMS-информирование или загружайте выписку.
+            {phone === 'ios'
+              ? 'Через приложение «Команды». Только SMS: пуш-уведомления банков «Команды» читать не умеют — если банк присылает пуши, включите в нём SMS-информирование или загружайте выписку.'
+              : 'Через бесплатное приложение MacroDroid. Умеет и SMS, и пуш-уведомления приложения банка — выберите что-то одно, иначе одна покупка запишется дважды.'}
           </p>
         </section>
 
@@ -163,30 +180,62 @@ export default function MoneySms() {
           )}
         </section>
 
-        <section className="m-card m-steps" style={{ gap: 8 }}>
-          <h2 className="m-card-title">2. Автоматизация в «Командах»</h2>
-          <ol>
-            <li>Откройте «Команды» → «Автоматизация» → «+» → «Сообщение».</li>
-            <li>
-              «Отправитель» — номер банка (Сбер — 900, у других — их имя в Сообщениях). «Сообщение содержит» можно не заполнять. Выберите <b>«Запускать сразу»</b> → «Далее» → «Новая пустая автоматизация».
-            </li>
-            <li>
-              Добавьте действие <b>«Получить содержимое URL»</b>, адрес:
-              <Copy value={URL_} label="адрес" />
-            </li>
-            <li>
-              Нажмите «›»: <b>Метод</b> — POST. <b>Заголовки</b> → «Добавить»: ключ <code>Authorization</code>, значение — ключ из шага 1 (начинается с <code>Bearer</code>).
-            </li>
-            <li>
-              <b>Текст запроса</b> — JSON → «Добавить поле» → «Текст»: ключ <code>text</code>, значение — переменная <b>«Ввод быстрой команды»</b> (сообщение целиком).
-            </li>
-            <li>Готово. Отправьте себе тестовое SMS или дождитесь покупки — операция появится в «Деньгах».</li>
-          </ol>
-        </section>
+        {phone === 'android' ? (
+          <section className="m-card m-steps" style={{ gap: 8 }}>
+            <h2 className="m-card-title">2. Макрос в MacroDroid</h2>
+            <ol>
+              <li>
+                Установите <b>MacroDroid</b> из Google Play (бесплатно) → «Добавить макрос».
+              </li>
+              <li>
+                <b>Триггер</b> — одно из двух:
+                <br />
+                SMS: «Звонки/SMS» → <b>«SMS получено»</b> → от номера банка (Сбер — 900, у других — их имя в Сообщениях).
+                <br />
+                Пуш: «Приложения» → <b>«Уведомление»</b> → «Уведомление получено» → приложение банка. MacroDroid попросит доступ к уведомлениям — разрешите.
+              </li>
+              <li>
+                <b>Действие</b>: «Связь» → <b>«HTTP-запрос»</b>. Метод — POST, адрес:
+                <Copy value={URL_} label="адрес" />
+              </li>
+              <li>
+                <b>Заголовки</b> → «+»: имя <code>Authorization</code>, значение — ключ из шага 1 (начинается с <code>Bearer</code>).
+              </li>
+              <li>
+                <b>Тело запроса</b>: тип <code>text/plain</code>, в само тело — кнопкой «…» (магический текст) <b>«Текст SMS»</b>, а для пуша — <b>«Заголовок уведомления»</b>, пробел и <b>«Текст уведомления»</b>. Больше ничего писать не нужно.
+              </li>
+              <li>
+                Сохраните макрос. В настройках Android снимите для MacroDroid <b>экономию батареи</b> — иначе система усыпит его и сообщения не дойдут.
+              </li>
+              <li>Готово. Дождитесь покупки или проверьте ниже на тексте своего SMS — операция появится в «Деньгах».</li>
+            </ol>
+          </section>
+        ) : (
+          <section className="m-card m-steps" style={{ gap: 8 }}>
+            <h2 className="m-card-title">2. Автоматизация в «Командах»</h2>
+            <ol>
+              <li>Откройте «Команды» → «Автоматизация» → «+» → «Сообщение».</li>
+              <li>
+                «Отправитель» — номер банка (Сбер — 900, у других — их имя в Сообщениях). «Сообщение содержит» можно не заполнять. Выберите <b>«Запускать сразу»</b> → «Далее» → «Новая пустая автоматизация».
+              </li>
+              <li>
+                Добавьте действие <b>«Получить содержимое URL»</b>, адрес:
+                <Copy value={URL_} label="адрес" />
+              </li>
+              <li>
+                Нажмите «›»: <b>Метод</b> — POST. <b>Заголовки</b> → «Добавить»: ключ <code>Authorization</code>, значение — ключ из шага 1 (начинается с <code>Bearer</code>).
+              </li>
+              <li>
+                <b>Текст запроса</b> — JSON → «Добавить поле» → «Текст»: ключ <code>text</code>, значение — переменная <b>«Ввод быстрой команды»</b> (сообщение целиком).
+              </li>
+              <li>Готово. Отправьте себе тестовое SMS или дождитесь покупки — операция появится в «Деньгах».</li>
+            </ol>
+          </section>
+        )}
 
         <section className="m-card" style={{ gap: 10 }}>
-          <h2 className="m-card-title">3. Проверить на своём SMS</h2>
-          <textarea className="field" rows={3} placeholder="Вставьте текст SMS банка" value={sample} onChange={(e) => (setSample(e.target.value), setPreview(null))} />
+          <h2 className="m-card-title">3. Проверить на своём {phone === 'android' ? 'SMS или уведомлении' : 'SMS'}</h2>
+          <textarea className="field" rows={3} placeholder={phone === 'android' ? 'Вставьте текст SMS или уведомления банка' : 'Вставьте текст SMS банка'} value={sample} onChange={(e) => (setSample(e.target.value), setPreview(null))} />
           <button className="btn btn-ghost" type="button" onClick={test} disabled={!sample.trim()}>
             Что получится
           </button>
