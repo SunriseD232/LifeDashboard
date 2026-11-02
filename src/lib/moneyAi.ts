@@ -228,7 +228,8 @@ export function parseFnsReceipt(raw: unknown, ctx: AiContext, history: (name: st
   const dt = typeof j.dateTime === 'number' ? new Date(j.dateTime * 1000 + 3 * 3600e3).toISOString() : str(j.dateTime, 30);
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(dt);
   return {
-    payee: shopName(str(j.retailPlace, 120) || str(j.user, 120)),
+    // Интернет-заказ: retailPlace — адрес сайта («http://delivery.x5-digital.ru»), берём продавца.
+    payee: shopName([str(j.retailPlace, 120), str(j.user, 120)].find((p) => p && !/^(https?:\/\/|www\.)|\.(ru|com|рф)/i.test(p)) ?? ''),
     day: day(m?.[1], ctx.today),
     time: m?.[2] ?? null,
     currency: 'RUB',
