@@ -9,7 +9,7 @@ import PushPanel from './PushPanel';
 import { Icon } from './icons';
 import { CityPicker } from './Weather';
 import { AppearancePicker } from './ThemeToggle';
-import { CalendarCard, RhythmCard } from './SettingsExtra';
+import { CalendarCard, HolidaysCard, RhythmCard } from './SettingsExtra';
 
 // Старые ссылки на вкладки (?tab=…): «Главная» и «Меню» переехали на свои
 // страницы, остальное — разделы этой.
@@ -80,6 +80,8 @@ export default function Settings() {
         </section>
 
         <FamilyCard />
+
+        <HolidaysCard />
 
         <CalendarCard />
 

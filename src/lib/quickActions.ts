@@ -37,6 +37,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
   { id: 'money-settings', label: 'Настройки денег', also: 'валюты категории деньги', icon: 'settings', href: '/money/settings', money: true },
   { id: 'settings', label: 'Настройки', also: 'параметры', icon: 'settings', href: '/settings', top: true },
   { id: 'push', label: 'Уведомления', also: 'push пуш настройки', icon: 'bell', href: '/settings#set-push' },
+  { id: 'holidays', label: 'Праздники', also: 'выходные страна производственный календарь переносы настройки', icon: 'sun', href: '/settings#set-holidays' },
   { id: 'rhythm', label: 'Ритм дня', also: 'тихие часы время по умолчанию сводка итог настройки', icon: 'clock', href: '/settings#set-rhythm' },
   { id: 'theme', label: 'Оформление', also: 'тема тёмная светлая цвет шрифт размер текста настройки', icon: 'moon', href: '/settings#set-theme' },
   { id: 'family', label: 'Семья', also: 'общие близкие настройки', icon: 'users', href: '/settings#set-family' },

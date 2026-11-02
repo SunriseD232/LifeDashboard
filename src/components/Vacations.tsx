@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { localDay, plural } from '@/lib/dates';
-import { addDays } from '@/lib/recur';
+import { countryName } from '@/lib/holidays';
 import { spanDays, vacationOn, yearCount, type Vacation, type Vacations as VacationData } from '@/lib/vacations';
 import { useApp } from './AppShell';
 import Confirm from './Confirm';
@@ -11,6 +12,7 @@ import Empty from './Empty';
 import { Icon } from './icons';
 import { WeekStrip } from './MiniCalendar';
 import { Fab, Sheet, useIsPhone } from './Phone';
+import RangePicker, { fieldDate, type Edge } from './RangePicker';
 
 const MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const dm = (day: string) => `${Number(day.slice(8))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
@@ -221,6 +223,10 @@ export default function Vacations() {
           <section className="card" aria-label="Календарь отпусков">
             <WeekStrip sel={sel} today={today} onPick={pick} dots={() => []} vacation={(d) => vacationOn(list, d)} alwaysMonth />
             <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>Нажмите свободный день — начнём отпуск с него. Отпуск на календаре — открыть его.</p>
+            <p style={{ margin: 0, fontSize: 'calc(13px * var(--fs))', color: 'var(--muted)' }}>
+              {data.settings.holidays_on === false ? 'Праздники не показываются' : `Праздники: ${countryName(data.settings.holiday_country ?? 'RU')}`} ·{' '}
+              <Link href="/settings#set-holidays">настроить</Link>
+            </p>
           </section>
         </aside>
       </div>
@@ -234,19 +240,17 @@ export default function Vacations() {
 function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; onClose: () => void }) {
   const { data, reload, toast } = useApp();
   const v = edit.vacation;
-  const first = v?.start ?? edit.start ?? today;
-  // Новый — на две недели, но не дальше дня перед следующим отпуском.
-  const next = data.vacations.list.find((x) => x.start > first)?.start;
-  const twoWeeks = addDays(first, 13);
   const [title, setTitle] = useState(v?.title ?? '');
-  const [start, setStart] = useState(first);
-  const [end, setEnd] = useState(v?.end ?? (next && next <= twoWeeks ? addDays(next, -1) : twoWeeks));
+  // Новый: даты выбирают в календаре — он открывается сразу (с дня, если его нажали).
+  const [start, setStart] = useState<string | null>(v?.start ?? edit.start ?? null);
+  const [end, setEnd] = useState<string | null>(v?.end ?? null);
+  const [picking, setPicking] = useState<Edge | null>(v ? null : edit.start ? 'end' : 'start');
   const [pause, setPause] = useState(v?.pause ?? true);
   // В семье новый отпуск сразу видно остальным — для того полоса и нужна.
   const [shared, setShared] = useState(v?.shared ?? !!data.household);
   const [busy, setBusy] = useState(false);
   const [removing, setRemoving] = useState(false);
-  const n = spanDays(start, end);
+  const n = start && end ? spanDays(start, end) : 0;
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     setBusy(true);
@@ -263,6 +267,7 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!start || !end) return setPicking(start ? 'end' : 'start');
     const body: Partial<VacationData['list'][number]> = { title: title.trim() || 'Отпуск', start, end, pause, shared: !!data.household && shared };
     run(() => (v ? api(`vacations/${v.id}`, 'PATCH', body) : api('vacations', 'POST', body)), v ? 'Отпуск изменён' : `Отпуск добавлен: ${days(n)}`);
   };
@@ -277,35 +282,20 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
             </label>
             <input id="vac-title" className="field" maxLength={60} placeholder="Отпуск" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
-          <div className="vac-dates">
-            <div className="fld">
-              <label className="label" htmlFor="vac-start">
-                С
-              </label>
-              <input
-                id="vac-start"
-                className="field"
-                type="date"
-                required
-                value={start}
-                onChange={(e) => {
-                  const s = e.target.value;
-                  if (!s) return;
-                  // Сдвинули начало — длина сохраняется.
-                  setEnd(addDays(s, Math.max(0, spanDays(start, end) - 1)));
-                  setStart(s);
-                }}
-              />
-            </div>
-            <div className="fld">
-              <label className="label" htmlFor="vac-end">
-                По
-              </label>
-              <input id="vac-end" className="field" type="date" required min={start} value={end} onChange={(e) => e.target.value && setEnd(e.target.value)} />
-            </div>
+          <div className="vac-dates" role="group" aria-label="Даты">
+            {(['start', 'end'] as const).map((k) => {
+              const d = k === 'start' ? start : end;
+              return (
+                <button key={k} type="button" className="field rp-field" onClick={() => setPicking(k === 'end' && !start ? 'start' : k)}>
+                  <small>{k === 'start' ? 'Начало' : 'Конец'}</small>
+                  <b data-empty={!d || undefined}>{d ? fieldDate(d, today) : 'Выбрать'}</b>
+                  <Icon name="calendar" size={18} />
+                </button>
+              );
+            })}
           </div>
           <p className="vac-span" aria-live="polite">
-            {n > 0 ? `${days(n)}, календарных` : 'Конец раньше начала'}
+            {n > 0 ? `${days(n)}, календарных` : 'Выберите даты в календаре'}
           </p>
           <label className="check" style={{ padding: 0 }}>
             <input type="checkbox" checked={pause} onChange={(e) => setPause(e.target.checked)} />
@@ -331,6 +321,21 @@ function VacationSheet({ edit, today, onClose }: { edit: Edit; today: string; on
           </div>
         </form>
       </Sheet>
+      {picking && (
+        <RangePicker
+          start={start}
+          end={end}
+          edge={picking}
+          today={today}
+          busy={data.vacations.list.filter((x) => x.id !== v?.id)}
+          onClose={() => setPicking(null)}
+          onDone={(s, e) => {
+            setStart(s);
+            setEnd(e);
+            setPicking(null);
+          }}
+        />
+      )}
       {removing && v && (
         <Confirm
           title={`Удалить «${v.title}»?`}

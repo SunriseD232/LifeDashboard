@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { monthGrid, type AgendaItem } from '@/lib/agenda';
+import { isDayOff, type Holiday } from '@/lib/holidays';
 import { addDays } from '@/lib/recur';
 import { Icon } from './icons';
+import { useHolidays } from './useHolidays';
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const asDate = (day: string) => new Date(`${day}T12:00:00`);
@@ -24,10 +26,25 @@ const shiftMonth = (month: string, n: number) => {
 };
 const mondayOf = (day: string) => addDays(day, -((asDate(day).getDay() + 6) % 7));
 
+/** Для диктора и подсказки: «, праздник: Новый год», «, рабочий день (перенос)». */
+export const holidayLabel = (h: Holiday | null) => (!h ? '' : h.kind === 'holiday' ? `, праздник: ${h.name}` : `, ${h.name.charAt(0).toLowerCase()}${h.name.slice(1)}`);
+
+/** Под заголовком дня: «Праздник: День России», «Рабочий день (перенос)». */
+export function HolidayNote({ day }: { day: string }) {
+  const h = useHolidays([Number(day.slice(0, 4))])?.(day);
+  if (!h || h.kind === 'short') return null;
+  return (
+    <p className="hol-note" data-kind={h.kind}>
+      {h.kind === 'holiday' ? `Праздник: ${h.name}` : h.name}
+    </p>
+  );
+}
+
 /**
  * Маленький календарь с точками-задачами. На телефоне — лента недели: ‹ ›
  * и свайп листают недели, стрелка вниз — весь месяц. На компьютере
- * (alwaysMonth) — сразу месяц. Нажали день — onPick.
+ * (alwaysMonth) — сразу месяц. Нажали день — onPick. Праздники включены —
+ * выходные и праздники красным (src/components/useHolidays.ts).
  */
 export function WeekStrip({
   sel,
@@ -51,6 +68,8 @@ export function WeekStrip({
   const start = mondayOf(sel);
   const rows = month ? monthGrid(month) : [Array.from({ length: 7 }, (_, i) => addDays(start, i))];
   const shift = (n: number) => (month ? setMonth(shiftMonth(month, n)) : onPick(addDays(sel, n * 7)));
+  const shown = rows.flat();
+  const holiday = useHolidays([Number(shown[0].slice(0, 4)), Number(shown[shown.length - 1].slice(0, 4))]);
   return (
     <section
       className="week-strip"
@@ -100,6 +119,7 @@ export function WeekStrip({
         {rows.flat().map((day, i, all) => {
           const items = dots(day);
           const vac = vacation?.(day);
+          const hol = holiday?.(day) ?? null;
           const stop = all.includes(sel) ? day === sel : all.includes(today) ? day === today : i === 0;
           return (
             <button
@@ -108,11 +128,14 @@ export function WeekStrip({
               className="cal-day"
               data-out={(month && firstOfMonth(day) !== month) || undefined}
               data-today={day === today || undefined}
+              data-off={(holiday && isDayOff(day, hol)) || undefined}
+              data-hol={hol?.kind === 'holiday' || undefined}
+              title={hol?.name}
               data-vac={vac ? (vac.start === day ? (vac.end === day ? 'one' : 'start') : vac.end === day ? 'end' : 'mid') : undefined}
               aria-pressed={day === sel}
               aria-current={day === today ? 'date' : undefined}
               tabIndex={stop ? 0 : -1}
-              aria-label={`${dayHead(day, today)}${vac ? `, отпуск «${vac.title}»` : ''}${items.length ? `, задач: ${items.length}` : ''}`}
+              aria-label={`${dayHead(day, today)}${holidayLabel(hol)}${vac ? `, отпуск «${vac.title}»` : ''}${items.length ? `, задач: ${items.length}` : ''}`}
               onClick={() => {
                 onPick(day);
                 setMonth(alwaysMonth ? firstOfMonth(day) : null);

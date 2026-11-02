@@ -34,6 +34,9 @@ export interface Settings {
   hub_usage: HubUsage;
   /** Какие события семьи присылать push (src/server/familyEvents.ts). */
   family_push: FamilyPush[];
+  /** Праздники на календаре: страна (ISO, «RU») и включены ли. */
+  holiday_country: string;
+  holidays_on: boolean;
 }
 
 export const TASK_FIELDS = ['tags', 'priority', 'checklist', 'note'] as const;
@@ -49,11 +52,11 @@ const list = (raw: string | null | undefined, allowed?: readonly string[]): stri
 };
 export const cleanList = list;
 
-export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: false, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [], hub: DEFAULT_HUB, hub_usage: {}, family_push: familyPushOf(null) };
+export const DEFAULT_SETTINGS: Settings = { city: null, lat: null, lon: null, tz: null, deadline_time: '09:00', summary_time: null, nav: null, calendar_token: null, onboarded: false, quiet_from: '23:00', quiet_to: '07:00', review_time: null, tour_seen: [], task_hidden: [], hub: DEFAULT_HUB, hub_usage: {}, family_push: familyPushOf(null), holiday_country: 'RU', holidays_on: true };
 
 export function readSettings(d: Database.Database, userId: string): Settings {
-  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time, tour_seen, task_hidden, hub, hub_usage, family_push from user_settings where user_id = ?').get(userId) as
-    | (Omit<Settings, 'nav' | 'onboarded' | 'tour_seen' | 'task_hidden' | 'hub' | 'hub_usage' | 'family_push'> & { nav: string | null; onboarded: number; tour_seen: string; task_hidden: string; hub: string | null; hub_usage: string; family_push: string | null })
+  const row = d.prepare('select city, lat, lon, tz, deadline_time, summary_time, nav, calendar_token, onboarded, quiet_from, quiet_to, review_time, tour_seen, task_hidden, hub, hub_usage, family_push, holiday_country, holidays_on from user_settings where user_id = ?').get(userId) as
+    | (Omit<Settings, 'nav' | 'onboarded' | 'tour_seen' | 'task_hidden' | 'hub' | 'hub_usage' | 'family_push' | 'holidays_on'> & { nav: string | null; onboarded: number; tour_seen: string; task_hidden: string; hub: string | null; hub_usage: string; family_push: string | null; holidays_on: number })
     | undefined;
   if (!row) return { ...DEFAULT_SETTINGS };
   let nav: NavPref[] | null = null;
@@ -62,7 +65,7 @@ export function readSettings(d: Database.Database, userId: string): Settings {
   } catch {
     nav = null;
   }
-  return { ...row, nav, onboarded: !!row.onboarded, tour_seen: list(row.tour_seen), task_hidden: list(row.task_hidden, TASK_FIELDS) as TaskField[], hub: parseHub(json(row.hub)), hub_usage: parseUsage(json(row.hub_usage)), family_push: familyPushOf(row.family_push) };
+  return { ...row, nav, onboarded: !!row.onboarded, tour_seen: list(row.tour_seen), task_hidden: list(row.task_hidden, TASK_FIELDS) as TaskField[], hub: parseHub(json(row.hub)), hub_usage: parseUsage(json(row.hub_usage)), family_push: familyPushOf(row.family_push), holidays_on: !!row.holidays_on };
 }
 
 function json(raw: string | null): unknown {
