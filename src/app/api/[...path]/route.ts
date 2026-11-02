@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { ai } from '@/server/api/ai';
 import { auth } from '@/server/api/auth';
 import { checklists } from '@/server/api/checklists';
+import { holidays } from '@/server/api/holidays';
 import { household } from '@/server/api/household';
 import { notes } from '@/server/api/notes';
 import { items } from '@/server/api/items';
@@ -56,6 +57,7 @@ const ROUTES: Record<string, (ctx: Ctx) => unknown | Promise<unknown>> = {
   support,
   workouts,
   vacations,
+  holidays,
   'workout-exercises': workoutExercises,
   'workout-sets': workoutSets,
   'workout-templates': workoutTemplates,

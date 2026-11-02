@@ -1,5 +1,6 @@
 import { HttpError, text, type Ctx } from '../http';
 import { randomBytes } from 'node:crypto';
+import { COUNTRY_RE } from '@/lib/holidays';
 import { parseHub } from '@/lib/hub';
 import { parseNav } from '@/lib/nav';
 import { cleanList, readSettings, TASK_FIELDS } from '../settings';
@@ -103,6 +104,11 @@ export async function settings({ d, userId, method, body, id, req }: Ctx): Promi
     if (body.tour_seen !== undefined) d.prepare('update user_settings set tour_seen = ? where user_id = ?').run(JSON.stringify(cleanList(JSON.stringify(body.tour_seen))), userId);
     if (body.task_hidden !== undefined) d.prepare('update user_settings set task_hidden = ? where user_id = ?').run(JSON.stringify(cleanList(JSON.stringify(body.task_hidden), TASK_FIELDS)), userId);
     if (body.family_push !== undefined) d.prepare('update user_settings set family_push = ? where user_id = ?').run(JSON.stringify(cleanList(JSON.stringify(body.family_push), FAMILY_PUSH)), userId);
+    if (body.holiday_country !== undefined) {
+      if (typeof body.holiday_country !== 'string' || !COUNTRY_RE.test(body.holiday_country)) throw new HttpError(400, 'Неверная страна.');
+      d.prepare('update user_settings set holiday_country = ? where user_id = ?').run(body.holiday_country, userId);
+    }
+    if (body.holidays_on !== undefined) d.prepare('update user_settings set holidays_on = ? where user_id = ?').run(body.holidays_on ? 1 : 0, userId);
     if (body.hub !== undefined) d.prepare('update user_settings set hub = ? where user_id = ?').run(body.hub === null ? null : JSON.stringify(parseHub(body.hub)), userId);
     return { ok: true };
   }

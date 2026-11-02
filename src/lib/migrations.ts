@@ -1071,6 +1071,24 @@ export const MIGRATIONS: Migration[] = [
     end;
     `),
   },
+  {
+    version: 23,
+    name: 'Праздники на календаре: страна, вкл/выкл, кэш календаря страны',
+    up: (db) =>
+      db.exec(`
+    -- Страна помнится и когда праздники выключены — включил обратно, и всё как было.
+    alter table user_settings add column holiday_country text not null default 'RU';
+    alter table user_settings add column holidays_on integer not null default 1;
+    -- Праздники страны за год (общие для всех): ответ источников уже разобран, JSON.
+    create table holiday_cache (
+      country text not null,
+      year integer not null,
+      days text not null,
+      fetched_at integer not null,
+      primary key (country, year)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

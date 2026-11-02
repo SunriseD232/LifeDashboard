@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { countryName } from '@/lib/holidays';
 import { parseHub } from '@/lib/hub';
 import { arrange, PHONE_SLOTS, type NavPref } from '@/lib/nav';
 import { useApp } from './AppShell';
@@ -175,6 +176,62 @@ export function CalendarCard() {
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+/**
+ * Праздники на календарях (задачи, главная, отпуска): включить и выбрать
+ * страну. Страна помнится и при выключенных праздниках.
+ */
+export function HolidaysCard() {
+  const { data, mutate } = useApp();
+  const on = data.settings.holidays_on ?? true;
+  const country = data.settings.holiday_country ?? 'RU';
+  const [codes, setCodes] = useState<string[]>([country]);
+  useEffect(() => {
+    api<{ countries: string[] }>('holidays/countries')
+      .then((r) => setCodes(r.countries))
+      .catch(() => undefined);
+  }, []);
+  // Свои вперёд, дальше по алфавиту по-русски.
+  const top = ['RU', 'BY', 'KZ'];
+  const options = [...new Set([country, ...codes])]
+    .map((code) => ({ code, name: countryName(code) }))
+    .sort((a, b) => (top.includes(a.code) ? top.indexOf(a.code) : 99) - (top.includes(b.code) ? top.indexOf(b.code) : 99) || a.name.localeCompare(b.name, 'ru'));
+  const set = (patch: { holidays_on?: boolean; holiday_country?: string }) =>
+    mutate(
+      (d) => ({ ...d, settings: { ...d.settings, ...patch } }),
+      () => api('settings', 'PATCH', patch),
+    );
+
+  return (
+    <section className="card" aria-labelledby="set-holidays" id="set-holidays">
+      <h2 className="card-title display">
+        <Icon name="sun" />
+        Праздники
+      </h2>
+      <label className="check" style={{ padding: 0 }}>
+        <input type="checkbox" checked={on} onChange={(e) => set({ holidays_on: e.target.checked })} />
+        <span className="check-text">Показывать праздники и выходные на календарях</span>
+      </label>
+      <div className="fld" style={{ maxWidth: 320 }}>
+        <label className="label" htmlFor="set-holiday-country">
+          Страна
+        </label>
+        <select id="set-holiday-country" className="field" value={country} disabled={!on} onChange={(e) => set({ holiday_country: e.target.value })}>
+          {options.map((o) => (
+            <option key={o.code} value={o.code}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <p style={{ margin: 0, fontSize: 'calc(14px * var(--fs))', color: 'var(--muted)' }}>
+        {top.includes(country)
+          ? 'По производственному календарю: с переносами выходных и рабочими субботами.'
+          : 'Государственные праздники страны; переносов выходных для неё нет.'}
+      </p>
     </section>
   );
 }

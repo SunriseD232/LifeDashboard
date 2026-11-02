@@ -16,7 +16,7 @@ import { useApp } from './AppShell';
 import Confirm from './Confirm';
 import Empty from './Empty';
 import { Icon } from './icons';
-import { dayHead, WeekStrip } from './MiniCalendar';
+import { dayHead, HolidayNote, WeekStrip } from './MiniCalendar';
 import { Fab, Sheet, useIsPhone } from './Phone';
 import { useReminderActions } from './reminderActions';
 import Swipe from './Swipe';
@@ -690,6 +690,7 @@ export default function Tasks() {
           <Icon name="x" size={18} />
         </button>
       </div>
+      <HolidayNote day={day} />
       {rowsOfDay.length === 0 ? <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>На этот день ничего нет.</p> : rowsOfDay.map((r) => row(r, false, true))}
     </section>
   ) : (
