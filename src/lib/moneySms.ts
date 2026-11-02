@@ -13,6 +13,8 @@ export interface SmsOp {
   currency: string;
   payee: string;
   card_last4: string | null;
+  /** «Возврат», «Отмена покупки» — деньги за трату вернулись. */
+  refund: boolean;
 }
 
 const CURRENCY: [RegExp, string][] = [
@@ -32,7 +34,8 @@ function code(w: string): string | null {
 }
 
 const SKIP = /(код|пароль|code|otp|не сообщайте|отказ|отклон|недостаточно|declined|insufficient|вход в|войти|подтвердите)/i;
-const INCOME = /(зачислен|поступлен|пополнен|перевод от|получен|возврат|refund|credited|incoming|зарплат|кешб[эе]к|cashback)/i;
+const REFUND = /(возврат|отмен|refund|reversal|cancel)/i;
+const INCOME = /(зачислен|поступлен|пополнен|перевод от|получен|возврат|отмен|refund|reversal|cancel|credited|incoming|зарплат|кешб[эе]к|cashback)/i;
 const EXPENSE = /(покупк|списан|оплат|перевод|снятие|выдача|purchase|payment|debited|withdraw|spent)/i;
 const BALANCE = /(баланс|доступно|остаток|ост\.?|balance|available|limit|лимит)/i;
 // Сумма с валютой: «1 477,60р», «350 RUB», «$5.99», «2,99 €».
@@ -59,7 +62,7 @@ export function parseBankSms(raw: string): SmsOp | null {
   if (!found) return null;
 
   const card = /(?:\*|карт[аы]?\s*\*?|счет\*?|сч[её]т\s*\*?|mir-?|ecmc|visa|maestro|mc)\s?(\d{4})\b/i.exec(text)?.[1] ?? null;
-  return { kind: income ? 'income' : 'expense', amount: found.amount, currency: found.currency, payee: merchant(text, found.start, found.end), card_last4: card };
+  return { kind: income ? 'income' : 'expense', amount: found.amount, currency: found.currency, payee: merchant(text, found.start, found.end), card_last4: card, refund: REFUND.test(text) };
 }
 
 /** Место: текст после суммы до «Баланс»; нет — перед суммой после слова операции. */

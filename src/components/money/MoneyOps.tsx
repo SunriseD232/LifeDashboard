@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import type { OpKind } from '@/lib/money';
+import { useMemo, useState } from 'react';
+import { money } from '@/lib/currencies';
+import { matchesSearch, searchTerms, type OpItemBrief, type OpKind } from '@/lib/money';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
 import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shiftMonth, type Scope } from './MoneyParts';
@@ -28,19 +29,37 @@ function dayLabel(day: string): string {
 
 /** Все операции месяца: поиск, фильтр по типу, по дням. */
 export default function MoneyOps() {
-  const { data, month, setMonth, shown, openSearch } = useMoney();
+  const { data, month, setMonth, shown, openSearch, toBase } = useMoney();
   const [scope, setScope] = useState<Scope>('all');
   const [filter, setFilter] = useState<'all' | OpKind>('all');
   const [query, setQuery] = useState('');
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
+  const terms = useMemo(() => searchTerms(q), [q]);
   const visible = new Set(data.accounts.filter((a) => inScope(a, scope)).map((a) => a.id));
-  const ops = data.ops.filter(
-    (o) =>
-      (visible.has(o.account_id) || (o.to_account_id && visible.has(o.to_account_id))) &&
-      (filter === 'all' || o.kind === filter) &&
-      (!q || [o.payee, o.note, o.category_name].some((s) => s?.toLowerCase().includes(q))),
-  );
+  // Нашлось в позициях чека — какие именно: покажем их и сколько на них ушло.
+  const hits = new Map<string, OpItemBrief[]>();
+  const ops = data.ops.filter((o) => {
+    if (!(visible.has(o.account_id) || (o.to_account_id && visible.has(o.to_account_id))) || (filter !== 'all' && o.kind !== filter)) return false;
+    if (!terms.length) return true;
+    if (matchesSearch([o.payee, o.note, o.category_name].filter(Boolean).join(' '), terms)) return true;
+    const found = (o.items ?? []).filter((i) => matchesSearch(i.name, terms));
+    if (found.length) hits.set(o.id, found);
+    return found.length > 0;
+  });
+  // Итог поиска в основной валюте: позиции — их суммой, остальное — суммой траты.
+  let spent = 0;
+  let itemCount = 0;
+  if (terms.length) {
+    for (const o of ops) {
+      if (o.kind !== 'expense') continue;
+      const found = hits.get(o.id);
+      itemCount += found?.length ?? 0;
+      spent += found
+        ? (toBase(found.reduce((s, i) => s + i.total_minor, 0), o.orig_currency ?? o.currency) ?? 0)
+        : (toBase(o.amount_minor, o.currency) ?? 0);
+    }
+  }
   const days: { day: string; list: typeof ops }[] = [];
   for (const o of ops) {
     const last = days[days.length - 1];
@@ -70,7 +89,7 @@ export default function MoneyOps() {
           </button>
         </div>
         <ScopeSwitch scope={scope} onChange={setScope} />
-        <input className="field" type="search" aria-label="Поиск по операциям" placeholder="Магазин, заметка, категория" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className="field" type="search" aria-label="Поиск по операциям" placeholder="Магазин, товар из чека, категория" value={query} onChange={(e) => setQuery(e.target.value)} />
         <div className="m-chips m-scroll">
           {filters.map((f) => (
             <button key={f.id} type="button" className="chip" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
@@ -78,12 +97,18 @@ export default function MoneyOps() {
             </button>
           ))}
         </div>
+        {terms.length > 0 && spent > 0 && (
+          <p className="m-search-sum">
+            Потрачено за {monthTitle(month).toLowerCase()}: <b className="mono">{money(spent, data.settings!.base_currency)}</b>
+            {itemCount > 0 && <span className="muted"> · в чеках {itemCount} поз.</span>}
+          </p>
+        )}
         {days.map((g) => (
           <section key={g.day} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <h2 className="group-title">{dayLabel(g.day)}</h2>
             <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
               {g.list.map((o) => (
-                <OpRow key={o.id} op={o} accounts={data.accounts} />
+                <OpRow key={o.id} op={o} accounts={data.accounts} found={hits.get(o.id)} />
               ))}
             </div>
           </section>

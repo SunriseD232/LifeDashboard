@@ -63,6 +63,14 @@ export interface MoneyOp {
   mine: boolean;
   author: string | null;
   items_count: number;
+  /** Позиции чека коротко — для поиска по товарам («энергетики»). */
+  items?: OpItemBrief[];
+}
+
+export interface OpItemBrief {
+  name: string;
+  /** В валюте чека: orig_currency ?? currency. */
+  total_minor: number;
 }
 
 export interface MoneySettings {
@@ -92,6 +100,8 @@ export interface MoneyState {
   nav?: NavPref[] | null;
   /** ИИ подключён на сервере — есть голос, фото чеков и разбор фраз. */
   ai: boolean;
+  /** Позиции чека по QR из ФНС (ключ proverkacheka.com на сервере). */
+  fns?: boolean;
   /** Бюджеты на месяц по категориям расходов, в основной валюте. */
   budgets: { category_id: string; limit_minor: number }[];
   /** Траты месяца по категориям в основной валюте (чек — по позициям). */
@@ -242,4 +252,36 @@ export function quickParse(text: string, fallback: string): QuickParse {
     currency: code,
     days_ago: days,
   };
+}
+
+// Марки, которые не называют вид товара: «энергетики» → Adrenaline, Red Bull…
+const BRANDS: [string, string[]][] = [
+  ['энерг', ['adrenalin', 'адреналин', 'red bull', 'redbull', 'ред булл', 'burn', 'берн', 'monster', 'монстр', 'flash', 'флеш', 'флэш', 'торнадо', 'tornado', 'drive me', 'lit energy', 'e-on', 'genesis', 'gorilla', 'горилла', 'черноголовка energy']],
+  ['газиров', ['coca', 'кока', 'pepsi', 'пепси', 'fanta', 'фанта', 'sprite', 'спрайт', 'добрый кола', 'лимонад']],
+  ['сигар', ['parliament', 'marlboro', 'winston', 'kent', 'camel', 'chesterfield', 'lucky strike', 'iqos', 'heets', 'terea', 'стики']],
+];
+
+const fold = (s: string) => s.toLowerCase().replace(/ё/g, 'е');
+
+/**
+ * Запрос поиска → на каждое слово варианты: длинные слова сравниваем по
+ * началу (5 букв: «энергетики» найдёт «энерг.» и «энергетический»),
+ * плюс марки для видов товаров. Каждое слово запроса должно найтись.
+ */
+export function searchTerms(query: string): string[][] {
+  return fold(query)
+    .split(/[^\p{L}\p{N}-]+/u)
+    .filter(Boolean)
+    .map((w) => {
+      const stem = w.length >= 6 ? w.slice(0, 5) : w;
+      return [stem, ...BRANDS.filter(([k]) => stem.length >= 4 && (stem.startsWith(k) || k.startsWith(stem))).flatMap(([, b]) => b)];
+    });
+}
+
+/** Подходит ли текст под запрос из searchTerms. */
+export function matchesSearch(text: string | null | undefined, terms: string[][]): boolean {
+  if (!terms.length || !text) return !terms.length;
+  const t = fold(text);
+  const words = t.split(/[^\p{L}\p{N}-]+/u);
+  return terms.every((alts) => alts.some((a) => (/[\s-]/.test(a) ? t.includes(a) : words.some((w) => w.startsWith(a)))));
 }

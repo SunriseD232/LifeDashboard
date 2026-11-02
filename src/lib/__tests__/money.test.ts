@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatMinor, money, parseAmount } from '../currencies';
-import { convert, exchangeRate, normItem, opEffect, quickParse } from '../money';
+import { convert, exchangeRate, matchesSearch, normItem, opEffect, quickParse, searchTerms } from '../money';
 import { parseCbrJson, parseCbrXml } from '@/server/moneyRates';
 
 describe('суммы', () => {
@@ -102,5 +102,24 @@ describe('курсы ЦБ', () => {
     expect(r.rates.EUR).toBe(94.4);
     expect(r.rates.KZT).toBeCloseTo(0.162);
     expect(parseCbrJson({})).toBeNull();
+  });
+});
+
+describe('поиск по операциям и позициям чеков', () => {
+  const hit = (q: string, text: string) => matchesSearch(text, searchTerms(q));
+  it('«энергетики» находит сокращения и марки', () => {
+    expect(hit('энергетики', 'Напиток энерг. Adrenaline Rush 0,449л')).toBe(true);
+    expect(hit('энергетик', 'Энергетический напиток TORNADO')).toBe(true);
+    expect(hit('Энергетики', 'Red Bull 0,25 ж/б')).toBe(true);
+    expect(hit('энергетики', 'BURN Яблоко-киви 0.449')).toBe(true);
+    expect(hit('энергетики', 'Молоко ПРОСТОКВАШИНО 2,5%')).toBe(false);
+  });
+  it('обычные слова — по началу, все слова запроса', () => {
+    expect(hit('молоко', 'МОЛОКО ПАСТ. 3,2%')).toBe(true);
+    expect(hit('кофе', 'Кофейня Шоколадница')).toBe(true);
+    expect(hit('сыр', 'Колбаса сырокопч.')).toBe(true);
+    expect(hit('молоко пармалат', 'Молоко Простоквашино')).toBe(false);
+    expect(hit('ёлка', 'Елка искусственная')).toBe(true);
+    expect(hit('', 'что угодно')).toBe(true);
   });
 });

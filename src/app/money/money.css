@@ -200,6 +200,13 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+.m-op-t small.m-op-hit {
+  color: var(--ink);
+}
+.m-search-sum {
+  margin: 0;
+  font-size: calc(14px * var(--fs));
+}
 .m-op-r {
   flex: none;
   text-align: right;

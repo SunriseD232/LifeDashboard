@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mainCategory, needsAi, parseDrafts, parseFiscalQr, parseReceipt, toMinor, type AiContext } from '../moneyAi';
+import { mainCategory, needsAi, parseDrafts, parseFiscalQr, parseFnsReceipt, parseReceipt, shopName, toMinor, type AiContext } from '../moneyAi';
 
 const ctx: AiContext = {
   accounts: [
@@ -120,5 +120,40 @@ describe('когда звать ИИ', () => {
     expect(needsAi('продукты 1200 и кофе 350', true)).toBe(true);
     expect(needsAi('такси двенадцать евро', false)).toBe(true);
     expect(needsAi('заправился на трассе под Тверью за 3000', true)).toBe(true);
+  });
+});
+
+describe('чек из ФНС по QR', () => {
+  const fns = {
+    code: 1,
+    data: {
+      json: {
+        user: 'ООО "АГРОТОРГ"',
+        retailPlace: '',
+        totalSum: 25880,
+        dateTime: '2026-10-29T14:06:00',
+        items: [
+          { name: 'Напиток энерг. ADRENALINE RUSH 0,449л', price: 12990, quantity: 1, sum: 12990 },
+          { name: 'Бананы  вес', price: 15900, quantity: 0.81, sum: 12890, itemsQuantityMeasure: 11 },
+          { name: '', sum: 100 },
+        ],
+      },
+    },
+  };
+  it('позиции в копейках, мера, дата и время, магазин без ООО', () => {
+    const r = parseFnsReceipt(fns, ctx, (n) => (n.startsWith('Бананы') ? 'food' : null))!;
+    expect(r).toMatchObject({ payee: 'Агроторг', day: '2026-10-29', time: '14:06', currency: 'RUB', total_minor: 25880 });
+    expect(r.items).toEqual([
+      { name: 'Напиток энерг. ADRENALINE RUSH 0,449л', qty: 1, unit: null, price_minor: 12990, total_minor: 12990, category_id: null },
+      { name: 'Бананы вес', qty: 0.81, unit: 'кг', price_minor: 15900, total_minor: 12890, category_id: 'food' },
+    ]);
+  });
+  it('не найден, ещё не дошёл — null', () => {
+    expect(parseFnsReceipt({ code: 2, data: 'нет' }, ctx)).toBeNull();
+    expect(parseFnsReceipt(null, ctx)).toBeNull();
+  });
+  it('название магазина', () => {
+    expect(shopName('ООО "АГРОТОРГ"')).toBe('Агроторг');
+    expect(shopName('Перекрёсток')).toBe('Перекрёсток');
   });
 });

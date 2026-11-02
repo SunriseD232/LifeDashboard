@@ -184,7 +184,8 @@ export interface FiscalQr {
 
 /**
  * QR российского кассового чека: «t=20261030T1842&s=1477.60&fn=…&i=…&fp=…&n=1».
- * В нём только сумма и время — позиции читает ИИ с фото, QR их проверяет.
+ * В нём только сумма и время; позиции по нему отдаёт ФНС (parseFnsReceipt),
+ * а нет ключа сервиса — их читает ИИ с фото, QR проверяет сумму.
  * Чужой или не чековый QR — null.
  */
 export function parseFiscalQr(text: string): FiscalQr | null {
@@ -193,6 +194,60 @@ export function parseFiscalQr(text: string): FiscalQr | null {
   const s = Number((p.get('s') ?? '').replace(',', '.'));
   if (!t || !(s > 0) || !p.get('fn')) return null;
   return { day: `${t[1]}-${t[2]}-${t[3]}`, time: `${t[4]}:${t[5]}`, total_minor: Math.round(s * 100), type: Number(p.get('n')) || 1 };
+}
+
+/**
+ * Чек из ФНС по QR (через proverkacheka.com): {"code":1,"data":{"json":{…}}}.
+ * Суммы в копейках, позиции — как их передала касса. Категории ставит
+ * history (прошлые правки человека), остальное — ИИ потом. Не чек — null.
+ */
+export function parseFnsReceipt(raw: unknown, ctx: AiContext, history: (name: string) => string | null = () => null): ReceiptDraft | null {
+  const r = (raw ?? {}) as { code?: unknown; data?: { json?: Record<string, unknown> } };
+  const j = r.data?.json;
+  if (r.code !== 1 || !j || typeof j !== 'object') return null;
+  const kop = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : null);
+  const items: DraftItem[] = [];
+  for (const x of Array.isArray(j.items) ? j.items.slice(0, 300) : []) {
+    const it = (x ?? {}) as Record<string, unknown>;
+    const name = str(it.name, 200).replace(/\s+/g, ' ');
+    const total = kop(it.sum);
+    if (!name || !total) continue;
+    const q = Number(it.quantity);
+    items.push({
+      name,
+      qty: Number.isFinite(q) && q > 0 && q < 100000 ? Math.round(q * 1000) / 1000 : 1,
+      unit: FNS_UNITS[Number(it.itemsQuantityMeasure ?? it.measure)] ?? null,
+      price_minor: kop(it.price),
+      total_minor: total,
+      category_id: history(name),
+    });
+  }
+  const total = kop(j.totalSum) ?? items.reduce((s, i) => s + i.total_minor, 0);
+  if (!total) return null;
+  // dateTime: «2026-11-02T14:06:00» или секунды с 1970.
+  const dt = typeof j.dateTime === 'number' ? new Date(j.dateTime * 1000 + 3 * 3600e3).toISOString() : str(j.dateTime, 30);
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(dt);
+  return {
+    payee: shopName(str(j.retailPlace, 120) || str(j.user, 120)),
+    day: day(m?.[1], ctx.today),
+    time: m?.[2] ?? null,
+    currency: 'RUB',
+    total_minor: total,
+    items,
+  };
+}
+
+// Мера количества по ФФД 1.2: 0 — штуки, 11 — кг, 10 — г, 41 — л, 42 — мл.
+const FNS_UNITS: Record<number, string> = { 0: 'шт', 10: 'г', 11: 'кг', 41: 'л', 42: 'мл' };
+
+/** «ООО "АГРОТОРГ"» → «Агроторг»: без формы собственности и кавычек. */
+export function shopName(s: string): string {
+  const t = s
+    .replace(/^(ооо|оао|зао|пао|ао|ип|llc)\s+/i, '')
+    .replace(/["«»]/g, '')
+    .trim();
+  if (!t) return '';
+  return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_, a, b) => a + b.toUpperCase()) : t;
 }
 
 /** Простую строку («кофе 350») разбираем сами, сложную — ИИ. */

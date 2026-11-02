@@ -20,12 +20,13 @@ import {
 import { refreshRates, todayRates } from '../moneyRates';
 import { aiConfigured } from '../ai';
 import { aiReceipt, aiText, aiVoice } from '../moneyAi';
+import { fnsConfigured, receiptByQr } from '../moneyFns';
 import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
 import { ask, monthFlow, prices, readBudgets, readFamilyBudget, report, setBudget, setFamilyBudget, type Scope } from '../moneyReport';
 import { PERIODS, type Period } from '@/lib/moneyReport';
 import { validMapping } from '@/lib/moneyImport';
 import { debts, goals, processRecurring, readDebts, readGoals, readRecurring, recurring } from '../moneyPlans';
-import { smsCreate, smsDelete, smsPreview, smsSetAccount, smsStatus } from '../moneySms';
+import { dropSmsRefunds, smsCreate, smsDelete, smsPreview, smsSetAccount, smsStatus } from '../moneySms';
 import { moscowDay } from '../moneyRates';
 import { currencyCode, currencyList, insertOp, items, opFields, ownCategory, rememberCurrency, saveItems, settingsRequired, signedMinor } from '../moneyOps';
 
@@ -54,6 +55,7 @@ function monthRange(month: string): [string, string] {
  *  POST   rates { currency, rate } — свой курс для валюты без курса ЦБ;
  *  POST   ai/text { text, today } · ai/voice { audio, today } · ai/receipt { image, today } — черновики от ИИ;
  *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции;
+ *  POST   receipt/qr { qr, today } → { receipt } — позиции чека из ФНС по QR (src/server/moneyFns.ts);
  *  POST   import/start { kind: 'file', name, data } | { kind: 'screens', images } → { job };
  *  GET    import/job?id= → { status, result?, error? }; POST import/check { account_id, rows } — повторы;
  *  POST   import/commit { account_id, rows, signature?, mapping?, bank? } — записать выбранное;
@@ -71,7 +73,10 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     // Курсы на сегодня — подождём недолго, иначе отдадим вчерашние.
     await Promise.race([refreshRates(d), new Promise((r) => setTimeout(r, 2500))]);
     // Наступившие регулярные платежи «записывать сам» — до чтения операций.
-    if (readMoneySettings(d, userId)) processRecurring(d, userId, moscowDay());
+    if (readMoneySettings(d, userId)) {
+      processRecurring(d, userId, moscowDay());
+      dropSmsRefunds(d, userId, moscowDay());
+    }
     const { rates, day } = todayRates(d);
     const [from, to] = monthRange(month);
     const state: MoneyState = {
@@ -87,6 +92,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       login,
       nav: readSettings(d, userId).nav,
       ai: aiConfigured(),
+      fns: fnsConfigured(),
       budgets: [],
       month_parts: [],
       prev_spend: { mine: 0, family: 0 },
@@ -109,6 +115,8 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     }
     return state;
   }
+
+  if (sub === 'receipt' && id === 'qr' && method === 'POST') return receiptByQr(d, userId, body);
 
   if (sub === 'ai' && method === 'POST') {
     if (!aiConfigured()) throw new HttpError(503, 'ИИ пока не подключён.');
