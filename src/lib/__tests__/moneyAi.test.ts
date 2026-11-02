@@ -148,6 +148,10 @@ describe('чек из ФНС по QR', () => {
       { name: 'Бананы вес', qty: 0.81, unit: 'кг', price_minor: 15900, total_minor: 12890, category_id: 'food' },
     ]);
   });
+  it('сайт вместо места — берём продавца', () => {
+    const r = parseFnsReceipt({ code: 1, data: { json: { ...fns.data.json, retailPlace: 'http://delivery.x5-digital.ru' } } }, ctx)!;
+    expect(r.payee).toBe('Агроторг');
+  });
   it('не найден, ещё не дошёл — null', () => {
     expect(parseFnsReceipt({ code: 2, data: 'нет' }, ctx)).toBeNull();
     expect(parseFnsReceipt(null, ctx)).toBeNull();
