@@ -59,6 +59,9 @@ describe('SMS банков', () => {
     ['Код подтверждения: 1234. Никому не сообщайте. Покупка 500р', null],
     ['Отказ: недостаточно средств. Покупка 900р KOFE', null],
     ['Скидка 20% на всё в Пятёрочке!', null],
+    ['MIR-1435 14:06 Отмена покупки 1р YANDEX.GO Баланс: 12345.67р', { kind: 'income', amount: 1, refund: true }],
+    ['Возврат 1 RUB, карта *1234. OZON. Доступно 500 RUB', { kind: 'income', amount: 1, refund: true }],
+    ['MIR-1435 14:06 Покупка 1р YANDEX.GO Баланс: 12344.67р', { kind: 'expense', amount: 1, refund: false }],
   ];
   for (const [sms, want] of cases) {
     it(sms.slice(0, 40), () => {

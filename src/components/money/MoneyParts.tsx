@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
-import { quickParse, type MoneyAccount, type MoneyOp } from '@/lib/money';
+import { quickParse, type MoneyAccount, type MoneyOp, type OpItemBrief } from '@/lib/money';
 import { needsAi, type MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import { useSheet } from '../useModalFocus';
@@ -122,7 +122,7 @@ const KIND_ICON: Record<MoneyOp['kind'], string> = { expense: 'cart', income: 'p
 const KIND_LABEL: Record<MoneyOp['kind'], string> = { expense: 'Расход', income: 'Доход', transfer: 'Перевод', exchange: 'Обмен' };
 
 /** Одна операция в списке: что, откуда, сколько. Нажатие — открыть. */
-export function OpRow({ op, accounts }: { op: MoneyOp; accounts: MoneyAccount[] }) {
+export function OpRow({ op, accounts, found }: { op: MoneyOp; accounts: MoneyAccount[]; found?: OpItemBrief[] }) {
   const { openOp } = useMoney();
   const from = accounts.find((a) => a.id === op.account_id);
   const to = accounts.find((a) => a.id === op.to_account_id);
@@ -142,6 +142,11 @@ export function OpRow({ op, accounts }: { op: MoneyOp; accounts: MoneyAccount[] 
       <span className="m-op-t">
         <b>{title}</b>
         {meta.length > 0 && <small>{meta.join(' · ')}</small>}
+        {found?.map((i, k) => (
+          <small key={k} className="m-op-hit">
+            {i.name} · <span className="mono">{money(i.total_minor, op.orig_currency ?? op.currency)}</span>
+          </small>
+        ))}
       </span>
       <span className="m-op-r">
         {op.kind === 'exchange' ? (

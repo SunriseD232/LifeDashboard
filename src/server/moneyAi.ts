@@ -91,7 +91,7 @@ export async function aiVoice(d: Database.Database, userId: string, body: Record
 }
 
 /** Последняя категория, которую человек ставил товару с таким названием. */
-function itemHistory(d: Database.Database, userId: string): (name: string) => string | null {
+export function itemHistory(d: Database.Database, userId: string): (name: string) => string | null {
   const q = d.prepare(
     `select i.category_id from money_items i join money_ops o on o.id = i.op_id
      join money_categories c on c.id = i.category_id and c.user_id = ? and c.archived = 0

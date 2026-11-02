@@ -193,6 +193,7 @@ export function prices(d: Database.Database, userId: string, q: string, key: str
 // ---------------------------------------------------------------- вопрос ИИ
 
 const MONTHS = 12;
+const ITEMS_PER_MONTH = 300;
 
 /** Данные для вопроса — коротко, в основной валюте, без лишних личных подробностей. */
 function askContext(d: Database.Database, userId: string, today: string): string {
@@ -223,6 +224,26 @@ function askContext(d: Database.Database, userId: string, today: string): string
           .map(([n, v]) => `${n} ${fmt(v)}`)
           .join(', '),
     );
+  }
+  // Позиции чеков за этот и прошлый месяц — для вопросов о товарах
+  // («сколько ушло на энергетики»): по категориям этого не видно.
+  const b = book(d, userId);
+  for (const m of [periodRange('month', today, -1), periodRange('month', today, 0)]) {
+    const byName = new Map<string, { sum: number; n: number }>();
+    for (const o of readOps(d, userId, m.from, m.to)) {
+      if (o.kind !== 'expense' || o.debt_id || !o.items?.length) continue;
+      for (const i of o.items) {
+        const v = b.convert(i.total_minor, o.orig_currency ?? o.currency, base, o.day);
+        if (v === null) continue;
+        const e = byName.get(i.name) ?? { sum: 0, n: 0 };
+        e.sum += v;
+        e.n++;
+        byName.set(i.name, e);
+      }
+    }
+    if (!byName.size) continue;
+    const list = [...byName].sort((x, y) => y[1].sum - x[1].sum).slice(0, ITEMS_PER_MONTH);
+    lines.push(`Позиции чеков, ${m.title} (как в чеке — сумма, сколько раз): ${list.map(([n, v]) => `${n} — ${fmt(v.sum)}${v.n > 1 ? ` (${v.n} раза)` : ''}`).join('; ')}.`);
   }
   const payees = new Map<string, { spend: number; n: number }>();
   for (const p of f.parts) {
@@ -260,6 +281,8 @@ export async function ask(d: Database.Database, userId: string, body: Record<str
     system:
       'Ты помощник в приложении учёта личных финансов. Отвечай на вопрос человека по его данным ниже — по-русски, коротко (2–5 предложений), ' +
       'с конкретными суммами и месяцами. Суммы пиши с пробелами между тысячами. Считай аккуратно, складывай только то, что есть в данных. ' +
+      'Про конкретные товары («энергетики», «кофе», «сигареты») считай по позициям чеков: узнавай товар по названию и марке ' +
+      '(Adrenaline, Red Bull, Burn — энергетики), перечисли, что сложил. Траты без чека товаров не показывают — скажи об этом. ' +
       'Если данных не хватает — так и скажи и подскажи, что записать. Не давай советов по инвестициям и ценным бумагам. ' +
       `Ответ строго JSON: {"answer":"…"}\n\nДанные:\n${askContext(d, userId, today)}`,
     user: question,

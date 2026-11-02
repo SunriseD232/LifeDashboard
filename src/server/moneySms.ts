@@ -143,6 +143,14 @@ export function smsIncoming(d: DB, authHeader: string | null, body: Record<strin
   // То же сообщение второй раз (автоматизация сработала дважды) — не задваиваем.
   const key = `sms:${hash(raw.replace(/\s+/g, ' ').trim()).slice(0, 32)}`;
   if (d.prepare('select 1 from money_ops where account_id = ? and import_key = ?').get(p.account.id, key)) return { ok: true, skipped: 'уже записано' };
+  // Деньги за трату вернулись — это не доход: убираем и трату.
+  if (p.sms.kind === 'income') {
+    const spent = refundedSpend(d, userId, { account_id: p.account.id, amount_minor: p.amount_minor, payee: p.sms.payee, day: today, refund: p.sms.refund });
+    if (spent) {
+      d.prepare('delete from money_ops where id = ?').run(spent);
+      return { ok: true, skipped: 'возврат — трата отменена' };
+    }
+  }
   const f = opFields(d, userId, {
     kind: p.sms.kind,
     day: today,
@@ -155,4 +163,49 @@ export function smsIncoming(d: DB, authHeader: string | null, body: Record<strin
   });
   const id = insertOp(d, userId, f, { source: 'sms', import_key: key });
   return { ok: true, id, account: p.account.name };
+}
+
+const DAY_MS = 864e5;
+const REFUND_DAYS = 7;
+
+/**
+ * Трата из SMS, которую отменило это поступление: тот же счёт и сумма, не
+ * раньше недели назад, без чека, — и это возврат по тексту, или то же место,
+ * или списание-проверка карты на 1 ₽ (1 $, 1 €). Нет — null.
+ */
+function refundedSpend(d: DB, userId: string, inc: { account_id: string; amount_minor: number; payee: string; day: string; refund: boolean; not?: string }): string | null {
+  const since = new Date(Date.parse(`${inc.day}T12:00:00Z`) - REFUND_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const list = d
+    .prepare(
+      `select o.id, o.payee from money_ops o
+       where o.user_id = ? and o.account_id = ? and o.kind = 'expense' and o.source = 'sms' and o.amount_minor = ? and o.day between ? and ?
+         and o.debt_id is null and o.id is not ? and not exists (select 1 from money_items i where i.op_id = o.id)
+       order by o.day desc, o.created_at desc`,
+    )
+    .all(userId, inc.account_id, inc.amount_minor, since, inc.day, inc.not ?? null) as { id: string; payee: string | null }[];
+  const same = (a: string | null) => !!a && !!inc.payee && a.toLowerCase() === inc.payee.toLowerCase();
+  return (list.find((o) => same(o.payee)) ?? (inc.refund || inc.amount_minor <= 100 ? list[0] : undefined))?.id ?? null;
+}
+
+/**
+ * Пары «списали — вернули» из SMS, записанные раньше (до того, как мы
+ * научились их узнавать): обе операции убираем. Запускается при загрузке.
+ */
+export function dropSmsRefunds(d: DB, userId: string, today: string): number {
+  const since = new Date(Date.parse(`${today}T12:00:00Z`) - 31 * DAY_MS).toISOString().slice(0, 10);
+  const incomes = d
+    .prepare(
+      `select o.id, o.account_id, o.amount_minor, o.payee, o.day from money_ops o
+       where o.user_id = ? and o.kind = 'income' and o.source = 'sms' and o.day >= ? and o.debt_id is null`,
+    )
+    .all(userId, since) as { id: string; account_id: string; amount_minor: number; payee: string | null; day: string }[];
+  let n = 0;
+  for (const inc of incomes) {
+    // Текст SMS не храним: возврат узнаём по тому же месту или по 1 ₽.
+    const spent = refundedSpend(d, userId, { ...inc, payee: inc.payee ?? '', refund: false, not: inc.id });
+    if (!spent) continue;
+    d.prepare('delete from money_ops where id in (?, ?)').run(spent, inc.id);
+    n++;
+  }
+  return n;
 }

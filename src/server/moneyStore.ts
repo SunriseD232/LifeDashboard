@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_CATEGORIES, type MoneyAccount, type MoneyCategory, type MoneyOp, type MoneySettings } from '@/lib/money';
+import { DEFAULT_CATEGORIES, type MoneyAccount, type MoneyCategory, type MoneyOp, type MoneySettings, type OpItemBrief } from '@/lib/money';
 import type { PriceRow } from '@/lib/moneyReport';
 import { householdOf } from './household';
 
@@ -125,7 +125,23 @@ export function readOps(d: Database.Database, userId: string, from: string, to: 
        order by o.day desc, o.created_at desc`,
     )
     .all(from, to, ...a.params, ...b.params) as OpRow[];
-  return rows.map(({ user_id, author, ...r }) => ({ ...r, mine: user_id === userId, author: user_id === userId ? null : author }));
+  // Позиции чеков коротко — чтобы поиск находил «энергетики» внутри чека.
+  const items = new Map<string, OpItemBrief[]>();
+  const withItems = rows.filter((r) => r.items_count > 0).map((r) => r.id);
+  if (withItems.length) {
+    const q = d.prepare('select op_id, name, total_minor from money_items where op_id in (select value from json_each(?)) order by op_id, position');
+    for (const r of q.all(JSON.stringify(withItems)) as ({ op_id: string } & OpItemBrief)[]) {
+      const list = items.get(r.op_id) ?? [];
+      list.push({ name: r.name, total_minor: r.total_minor });
+      items.set(r.op_id, list);
+    }
+  }
+  return rows.map(({ user_id, author, ...r }) => ({
+    ...r,
+    mine: user_id === userId,
+    author: user_id === userId ? null : author,
+    ...(r.items_count ? { items: items.get(r.id) ?? [] } : {}),
+  }));
 }
 
 /** Операция, которую человек видит, — или undefined. */

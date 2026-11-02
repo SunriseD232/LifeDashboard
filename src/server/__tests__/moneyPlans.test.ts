@@ -8,7 +8,8 @@ vi.mock('@/lib/db', () => ({ db: () => current }));
 vi.mock('next/headers', () => ({ cookies: () => ({ get: () => undefined, set: () => {} }) }));
 
 const { money } = await import('../api/money');
-const { readSmsBody, smsIncoming } = await import('../moneySms');
+const { dropSmsRefunds, readSmsBody, smsIncoming } = await import('../moneySms');
+const { setFnsTransport } = await import('../moneyFns');
 const { parseBankSms } = await import('@/lib/moneySms');
 const { processRecurring } = await import('../moneyPlans');
 const { resetRatesClock, setRatesTransport, moscowDay } = await import('../moneyRates');
@@ -160,5 +161,83 @@ describe('SMS от банка', () => {
     // Новый ключ — старый больше не работает.
     await call(d, 'me', 'POST', ['sms'], {});
     expect(() => smsIncoming(d, `Bearer ${token}`, { text: sms })).toThrow(/Ключ не подходит/);
+  });
+
+  it('списали 1 ₽ и вернули — не операция; возврат покупки отменяет трату', async () => {
+    const d = setup();
+    const { card } = await world(d);
+    const { token } = await call(d, 'me', 'POST', ['sms'], { account_id: card.id });
+    const count = () => (d.prepare("select count(*) n from money_ops where user_id = 'me'").get() as { n: number }).n;
+    smsIncoming(d, `Bearer ${token}`, { text: 'Покупка 1р YANDEX.GO Баланс: 999р' });
+    expect(count()).toBe(1);
+    expect(smsIncoming(d, `Bearer ${token}`, { text: 'Зачисление 1р YANDEX.GO Баланс: 1000р' })).toMatchObject({ skipped: 'возврат — трата отменена' });
+    expect(count()).toBe(0);
+
+    // Возврат по тексту — даже если место написано иначе.
+    smsIncoming(d, `Bearer ${token}`, { text: 'Покупка 2490р OZON.RU Баланс: 999р' });
+    expect(smsIncoming(d, `Bearer ${token}`, { text: 'Возврат покупки 2490р OZON Баланс: 3489р' })).toMatchObject({ skipped: 'возврат — трата отменена' });
+    expect(count()).toBe(0);
+
+    // Просто поступление той же суммы от другого — обычный доход.
+    smsIncoming(d, `Bearer ${token}`, { text: 'Покупка 500р KOFE Баланс: 999р' });
+    expect(smsIncoming(d, `Bearer ${token}`, { text: 'Перевод от Иван И. +500 ₽ Баланс 1499 ₽' })).toMatchObject({ ok: true, id: expect.any(String) });
+    expect(count()).toBe(2);
+  });
+
+  it('старые пары «списали — вернули» убираются при загрузке', async () => {
+    const d = setup();
+    const { card } = await world(d);
+    const add = (kind: string, amount: number, payee: string, source = 'sms') =>
+      d
+        .prepare("insert into money_ops (id, user_id, kind, day, account_id, amount_minor, currency, payee, source) values (?, 'me', ?, ?, ?, ?, 'RUB', ?, ?)")
+        .run(`${kind}${amount}${payee}${source}`, kind, moscowDay(), card.id, amount, payee, source);
+    add('expense', 100, 'Yandex.go');
+    add('income', 100, 'Yandex.go');
+    add('expense', 99000, 'Mvideo');
+    add('income', 99000, 'Работа');
+    add('expense', 100, 'Ручная', 'manual');
+    add('income', 100, 'Ручная');
+    expect(dropSmsRefunds(d, 'me', moscowDay())).toBe(1);
+    const left = (d.prepare("select payee from money_ops where user_id = 'me' order by payee").all() as { payee: string }[]).map((r) => r.payee);
+    expect(left.sort()).toEqual(['Mvideo', 'Работа', 'Ручная', 'Ручная']);
+  });
+});
+
+describe('чек по QR из ФНС', () => {
+  it('позиции по QR; без ключа — понятный отказ; ответ «ещё не дошёл»', async () => {
+    const d = setup();
+    await world(d);
+    const qr = 't=20261102T1406&s=258.80&fn=7380440903554565&i=22082&fp=662283413&n=1';
+    delete process.env.PROVERKACHEKA_TOKEN;
+    expect((await state(d)).fns).toBe(false);
+    expect((await fail(call(d, 'me', 'POST', ['receipt', 'qr'], { qr, today: '2026-11-02' })))?.status).toBe(503);
+
+    process.env.PROVERKACHEKA_TOKEN = 'tok';
+    let sent: URLSearchParams | null = null;
+    setFnsTransport(async (body) => {
+      sent = body;
+      return { code: 1, data: { json: { user: 'ООО "АГРОТОРГ"', totalSum: 25880, dateTime: '2026-11-02T14:06:00', items: [{ name: 'Напиток энерг. ADRENALINE', price: 12990, quantity: 1, sum: 12990 }, { name: 'Бананы', price: 15900, quantity: 0.81, sum: 12890 }] } } };
+    });
+    expect((await state(d)).fns).toBe(true);
+    const { receipt } = await call(d, 'me', 'POST', ['receipt', 'qr'], { qr, today: '2026-11-02' });
+    expect(sent!.get('qrraw')).toBe(qr);
+    expect(sent!.get('token')).toBe('tok');
+    expect(receipt).toMatchObject({ payee: 'Агроторг', day: '2026-11-02', total_minor: 25880 });
+    expect(receipt.items).toHaveLength(2);
+
+    expect((await fail(call(d, 'me', 'POST', ['receipt', 'qr'], { qr: 'https://example.com', today: '2026-11-02' })))?.status).toBe(400);
+    setFnsTransport(async () => ({ code: 2, data: 'нет' }));
+    expect((await fail(call(d, 'me', 'POST', ['receipt', 'qr'], { qr, today: '2026-11-02' })))?.message).toMatch(/ещё не дошёл/);
+    delete process.env.PROVERKACHEKA_TOKEN;
+  });
+
+  it('позиции чека приходят с операциями — для поиска', async () => {
+    const d = setup();
+    const { card } = await world(d);
+    await call(d, 'me', 'POST', ['ops'], { kind: 'expense', day: moscowDay(), account_id: card.id, amount_minor: 25880, payee: 'Пятёрочка', items: [{ name: 'Напиток энерг. ADRENALINE', total_minor: 12990 }, { name: 'Бананы', total_minor: 12890 }] });
+    await call(d, 'me', 'POST', ['ops'], { kind: 'expense', day: moscowDay(), account_id: card.id, amount_minor: 500, payee: 'Кофе' });
+    const ops = (await state(d)).ops;
+    expect(ops.find((o) => o.payee === 'Пятёрочка')!.items).toEqual([{ name: 'Напиток энерг. ADRENALINE', total_minor: 12990 }, { name: 'Бананы', total_minor: 12890 }]);
+    expect(ops.find((o) => o.payee === 'Кофе')!.items).toBeUndefined();
   });
 });

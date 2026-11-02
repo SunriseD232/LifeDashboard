@@ -27,6 +27,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
   const [phase, setPhase] = useState<Phase>(file ? 'reading' : op?.items_count ? 'reading' : 'pick');
   const [error, setError] = useState<string | null>(null);
   const [qr, setQr] = useState<FiscalQr | null>(null);
+  const [fromFns, setFromFns] = useState(false);
   const [payee, setPayee] = useState(op?.payee ?? '');
   const [day, setDay] = useState(op?.day ?? localDay());
   const [time, setTime] = useState<string | null>(null);
@@ -68,28 +69,45 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
     }
   }
 
+  function use(receipt: ReceiptDraft) {
+    if (op) {
+      // К записанной операции — только позиции.
+      setItems(receipt.items);
+      setCur(receipt.currency);
+    } else apply(receipt);
+  }
+
   async function read(f: File) {
     setPhase('reading');
     setError(null);
+    setFromFns(false);
     try {
       const photo = await loadPhoto(f);
-      const req = api<{ receipt: ReceiptDraft }>('money/ai/receipt', 'POST', { image: photo.dataUrl, today: localDay() });
-      // QR ищем, пока ИИ читает: на телефоне это доли секунды.
       const code = await new Promise<string | null>((r) => setTimeout(() => r(findQr(photo.canvas, (t) => !!parseFiscalQr(t))), 0));
       const fiscal = code ? parseFiscalQr(code) : null;
       setQr(fiscal);
+      // Есть QR — позиции берём из ФНС: точно как в чеке, без распознавания.
+      let qrError: Error | null = null;
+      if (code && fiscal && data.fns) {
+        try {
+          const { receipt } = await api<{ receipt: ReceiptDraft }>('money/receipt/qr', 'POST', { qr: code, today: localDay() });
+          use(receipt);
+          setFromFns(true);
+          setPhase('edit');
+          return;
+        } catch (e) {
+          qrError = e as Error;
+        }
+      }
       try {
-        const { receipt } = await req;
-        if (op) {
-          // К записанной операции — только позиции.
-          setItems(receipt.items);
-          setCur(receipt.currency);
-        } else apply(receipt);
+        if (!data.ai) throw qrError ?? new Error('Чтение чеков с фото пока не подключено.');
+        const { receipt } = await api<{ receipt: ReceiptDraft }>('money/ai/receipt', 'POST', { image: photo.dataUrl, today: localDay() });
+        use(receipt);
       } catch (e) {
-        // ИИ не прочитал, а QR есть — хотя бы сумма и дата.
-        if (!fiscal || op) throw e;
+        // Не прочитали, а QR есть — для новой траты хотя бы сумма и дата.
+        if (!fiscal || op) throw qrError ?? e;
         apply({ payee: '', day: fiscal.day, time: fiscal.time, currency: 'RUB', total_minor: fiscal.total_minor, items: [] });
-        toast('Позиции не прочитались — сумму и дату взял из QR');
+        toast(qrError ? `${qrError.message} Сумму и дату взял из QR.` : 'Позиции не прочитались — сумму и дату взял из QR');
       }
       setPhase('edit');
     } catch (e) {
@@ -121,6 +139,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
   }, [op, charged, acc, day, data.ops]);
 
   const qrCheck = qr && cur === 'RUB' && !op ? { sum: qr.total_minor === total, day: qr.day === day } : null;
+  const opQrMismatch = qr && op && op.currency === 'RUB' && !op.orig_currency && qr.total_minor !== op.amount_minor;
   const byCat = useMemo(() => {
     const m = new Map<string | null, number>();
     for (const i of items) m.set(i.category_id, (m.get(i.category_id) ?? 0) + i.total_minor);
@@ -208,10 +227,12 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
 
         {phase === 'pick' && (
           <div className="m-card" style={{ gap: 12, alignItems: 'flex-start' }}>
-            <p style={{ margin: 0 }}>Сфотографируйте чек целиком — позиции разложатся по категориям.</p>
+            <p style={{ margin: 0 }}>
+              {data.fns ? 'Сфотографируйте QR-код с чека или чек целиком (подойдёт и скриншот) — позиции разложатся по категориям.' : 'Сфотографируйте чек целиком — позиции разложатся по категориям.'}
+            </p>
             <button className="btn btn-primary" type="button" onClick={() => input.current?.click()}>
               <Icon name="camera" size={18} />
-              Фото чека
+              {data.fns ? 'Фото чека или QR' : 'Фото чека'}
             </button>
           </div>
         )}
@@ -219,7 +240,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         {phase === 'reading' && (
           <div className="m-card m-reading" aria-busy="true" aria-live="polite">
             <span className="m-spinner" aria-hidden="true" />
-            <span>{file ? 'Читаю чек — обычно 10–20 секунд…' : 'Загружаю позиции…'}</span>
+            <span>{op?.items_count && !items.length ? 'Загружаю позиции…' : 'Читаю чек — обычно до 20 секунд…'}</span>
           </div>
         )}
 
@@ -290,6 +311,11 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
                         По QR: {money(qr!.total_minor, 'RUB')}, {shortDay(qr!.day)} — подставить
                       </button>
                     ))}
+                  {fromFns && (
+                    <span className="chip m-chip-ok">
+                      <Icon name="check" size={14} /> Позиции из ФНС
+                    </span>
+                  )}
                   {qr && qr.type === 2 && <span className="chip m-chip-warn">Это чек возврата</span>}
                   {items.length > 0 && total !== null && (
                     <span className={`chip ${sum === total ? 'm-chip-ok' : 'm-chip-warn'}`}>
@@ -300,6 +326,17 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
               </div>
             )}
 
+            {op && (fromFns || opQrMismatch) && (
+              <div className="m-badges">
+                {fromFns && (
+                  <span className="chip m-chip-ok">
+                    <Icon name="check" size={14} /> Позиции из ФНС по QR
+                  </span>
+                )}
+                {opQrMismatch && <span className="chip m-chip-warn">В QR {money(qr!.total_minor, 'RUB')}, а трата {money(op.amount_minor, 'RUB')} — тот ли чек?</span>}
+                {qr && qr.type === 2 && <span className="chip m-chip-warn">Это чек возврата</span>}
+              </div>
+            )}
             <h3 className="group-title" style={{ margin: 0 }}>
               {items.length ? `${items.length} поз.` : 'Позиций нет'}
             </h3>
@@ -386,7 +423,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
               </button>
               {op && (
                 <button className="btn btn-ghost" type="button" style={{ flex: 1 }} onClick={() => input.current?.click()}>
-                  <Icon name="camera" size={18} /> {items.length ? 'Заново с фото' : 'С фото'}
+                  <Icon name="camera" size={18} /> {items.length ? 'Заново с фото' : data.fns ? 'Фото или QR' : 'С фото'}
                 </button>
               )}
             </div>
