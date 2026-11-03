@@ -11,7 +11,7 @@ const ICON: Record<Theme, string> = { system: 'monitor', light: 'sun', dark: 'mo
 /**
  * Переключатель темы: как в системе → светлая → тёмная. Выбор — на этом
  * устройстве (кука ld_theme): на телефоне можно держать тёмную, на работе
- * светлую. Сервер читает куку в src/app/layout.tsx и сразу ставит
+ * светлую. Скрипт в src/app/layout.tsx до отрисовки ставит
  * <html data-theme>, поэтому страница не мигает светлой при загрузке.
  */
 export default function ThemeToggle() {

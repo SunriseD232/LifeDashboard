@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { cookies } from 'next/headers';
 import AppShell from '@/components/AppShell';
-import { ACCENT_COOKIE, BG_COOKIE, isAccent, isBg, isSize, SIZE_COOKIE, THEME_COOKIE, THEMES, type Theme } from '@/lib/theme';
+import { ACCENT_COOKIE, ACCENTS, BG_COOKIE, BGS, SIZE_COOKIE, SIZES, THEME_COOKIE, THEMES } from '@/lib/theme';
 // Шрифты — те же, что на макете в Claude Design, из пакетов @fontsource:
 // файлы лежат в сборке и отдаются с нашего сервера, без внешних запросов.
 // Каждый пакет подключает и латиницу, и кириллицу (unicode-range — браузер
@@ -41,16 +40,29 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Оформление из кук — на <html> до первой отрисовки, чтобы тёмная тема не
+ * мигала светлой. Раньше куки читал сервер (cookies()), но тогда КАЖДАЯ
+ * страница становилась динамической: переход по меню ждал ответа сервера, а
+ * не открывался сразу из предзагрузки. Скрипт в <head> делает то же самое в
+ * браузере, и страницы остаются статическими.
+ */
+const ATTRS: [string, string, readonly string[], string][] = [
+  ['theme', THEME_COOKIE, THEMES, ''],
+  ['accent', ACCENT_COOKIE, ACCENTS.map((a) => a.id), 'teal'],
+  ['size', SIZE_COOKIE, SIZES.map((x) => x.id), 'md'],
+  ['bg', BG_COOKIE, BGS.map((b) => b.id), 'cool'],
+];
+const LOOKS = `(function(){try{var c=document.cookie,h=document.documentElement;${JSON.stringify(ATTRS)}.forEach(function(a){var m=c.match(new RegExp('(?:^|; )'+a[1]+'=([^;]*)'));if(m&&a[2].indexOf(m[1])>=0&&m[1]!==a[3])h.setAttribute('data-'+a[0],m[1])})}catch(e){}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // Тема из куки — сразу в разметку, чтобы тёмная не мигала светлой.
-  const saved = cookies().get(THEME_COOKIE)?.value as Theme | undefined;
-  const theme = saved && THEMES.includes(saved) ? saved : 'system';
-  // Акцент и размер текста — тоже из кук, по умолчанию атрибутов нет.
-  const accent = cookies().get(ACCENT_COOKIE)?.value;
-  const size = cookies().get(SIZE_COOKIE)?.value;
-  const bg = cookies().get(BG_COOKIE)?.value;
+  // data-theme="system" по умолчанию; скрипт заменит его выбранной темой.
+  // suppressHydrationWarning — атрибуты <html> меняет скрипт до React.
   return (
-    <html lang="ru" data-theme={theme} data-accent={isAccent(accent) && accent !== 'teal' ? accent : undefined} data-size={isSize(size) && size !== 'md' ? size : undefined} data-bg={isBg(bg) && bg !== 'cool' ? bg : undefined}>
+    <html lang="ru" data-theme="system" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: LOOKS }} />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>

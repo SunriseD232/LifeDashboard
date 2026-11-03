@@ -18,6 +18,10 @@ module.exports = {
     serverComponentsExternalPackages: ['better-sqlite3', 'web-push'],
     // src/instrumentation.ts — запуск рассылки push при старте сервера.
     instrumentationHook: true,
+    // Страницы статические, данные приходят отдельно (/api/state), так что
+    // предзагруженный раздел можно держать в памяти долго: на телефоне
+    // повторный переход не идёт в сеть. Новая сборка всё равно сбросит кэш.
+    staleTimes: { static: 3600 },
   },
   async headers() {
     return [

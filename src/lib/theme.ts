@@ -1,6 +1,6 @@
 /**
  * Оформление: выбор на устройстве (куки), см. src/components/ThemeToggle.tsx.
- * Сервер читает куки в src/app/layout.tsx и сразу ставит атрибуты на <html> —
+ * Скрипт в src/app/layout.tsx до отрисовки ставит атрибуты на <html> —
  * страница не мигает чужими цветами при загрузке.
  */
 export type Theme = 'system' | 'light' | 'dark';
