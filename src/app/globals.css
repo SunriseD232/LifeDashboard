@@ -4940,3 +4940,52 @@ a.hub-tile:hover {
 .setup-row[data-off] .setup-t b {
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------- Заглушка раздела (src/components/Skeleton.tsx) */
+.skel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.skel-bar {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--line) 0%, color-mix(in srgb, var(--line) 45%, var(--surface)) 50%, var(--line) 100%);
+  background-size: 200% 100%;
+  animation: skel 1.3s ease-in-out infinite;
+}
+.skel-title {
+  width: 180px;
+  height: calc(30px * var(--fs));
+  border-radius: 10px;
+}
+.skel-dot {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+@keyframes skel {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skel-bar {
+    animation: none;
+  }
+}
