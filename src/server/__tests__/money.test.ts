@@ -58,7 +58,7 @@ describe('первый запуск', () => {
     const d = setup();
     const acc = await onboard(d, 'me');
     const s = await state(d, 'me');
-    expect(s.settings).toEqual({ base_currency: 'RUB', currencies: ['USD', 'EUR'], hidden: [] });
+    expect(s.settings).toEqual({ base_currency: 'RUB', currencies: ['USD', 'EUR'], hidden: [], budget_push: true, evening_push: null });
     expect(acc).toMatchObject({ name: 'Карта', currency: 'RUB', balance_minor: 0, mine: true, shared: false });
     expect(s.categories.filter((c) => c.kind === 'expense').map((c) => c.name)).toContain('Продукты');
     expect(s.categories.some((c) => c.kind === 'income' && c.name === 'Зарплата')).toBe(true);

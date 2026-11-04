@@ -12,6 +12,7 @@ import { readVacationList } from '../server/vacationStore';
 import { inQuiet, outOfQuiet, quietMissed, quietOf, reviewItems } from './quiet';
 import { plural } from './dates';
 import { batchMessage, pendingBatches } from '../server/familyEvents';
+import { moneyPushes, pruneMoneyPush } from '../server/moneyPush';
 
 /**
  * Push-уведомления LifeDashboard (Web Push, без отдельного приложения).
@@ -244,6 +245,18 @@ async function tick(): Promise<void> {
       }
     }
   }
+
+  // «Деньги»: бюджет почти кончился и вечерний итог трат.
+  for (const [userId, tz] of users) {
+    try {
+      const lp = localParts(tz, now);
+      const st = readSettings(d, userId);
+      for (const m of moneyPushes(d, userId, lp.day, lp.minutes, inQuiet(lp.minutes, quietOf(st.quiet_from, st.quiet_to)))) await sendToUser(userId, m);
+    } catch (e) {
+      console.error('[lifedashboard push] «Деньги» не отправились:', (e as Error).message);
+    }
+  }
+  pruneMoneyPush(d);
 
   await sendFamilyEvents(users, now);
 

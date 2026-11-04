@@ -4,6 +4,7 @@ import { parseDrafts, parseReceipt, type AiContext, type MoneyDraft, type Receip
 import { askJson, audioModel, receiptModel, type Part } from './ai';
 import { DAY_RE, HttpError, text } from './http';
 import { readAccounts, readCategories, readMoneySettings } from './moneyStore';
+import { ASK_RULES, askContext } from './moneyReport';
 
 /**
  * ИИ в «Деньгах»: фраза, голос и фото чека → черновики. Сохраняет человек
@@ -67,14 +68,93 @@ export async function aiText(d: Database.Database, userId: string, body: Record<
   return { ops };
 }
 
+export type SayResult = { result: 'payment'; ops: MoneyDraft[] } | { result: 'question'; answer: string; search: string | null };
+
+/**
+ * Строка ввода «Денег»: одной просьбой к модели — и понять, запись это или
+ * вопрос о своих деньгах, и сразу сделать нужное. Запись — черновики (человек
+ * сохраняет сам), вопрос — ответ по его данным.
+ */
+/** Подсказка «запись или вопрос»: правила записи, правила ответа и данные для ответа. */
+function sayPrompt(ctx: AiContext, d: Database.Database, userId: string, how: 'пишет в одну строку' | 'говорит голосом'): string {
+  return (
+    `Ты помощник в приложении учёта личных финансов. Человек ${how}: либо записывает операцию ` +
+    '(трату, доход, перевод: «кофе 350», «такси 12 евро вчера», «зарплата 80000»), либо спрашивает о своих деньгах ' +
+    '(«сколько ушло на кофе?», «что я покупал вчера», «где я трачу больше всего»). Сначала реши, что это. ' +
+    'Есть сумма и это не вопрос — запись. Вопрос о прошлых тратах, даже с числами («за 3 месяца»), — вопрос. ' +
+    'Если в строке и запись, и вопрос — это запись.\n\n' +
+    `ЗАПИСЬ. ${opsPrompt(ctx, d, userId).replace('Ответ строго JSON: {"ops":[…]}', '')}` +
+    'Ответ строго JSON: {"result":"payment","ops":[…]}\n\n' +
+    `ВОПРОС. ${ASK_RULES}` +
+    'Если ответ про конкретные траты, которые можно найти в списке операций (место, товар, категория), добавь "search" — ' +
+    'одно-два слова для поиска по операциям («такси», «Пятёрочка», «кофе»), иначе null. ' +
+    'Ответ строго JSON: {"result":"question","answer":"…","search":"…"|null}\n\n' +
+    `Данные для ответа на вопрос:\n${askContext(d, userId, ctx.today)}`
+  );
+}
+
+/** Прошлые вопросы и ответы — чтобы понять «а за прошлый месяц?». */
+function history(raw: unknown): string {
+  if (!Array.isArray(raw)) return '';
+  const lines = raw
+    .slice(-3)
+    .filter((h): h is { q: string; a: string } => !!h && typeof (h as { q?: unknown }).q === 'string' && typeof (h as { a?: unknown }).a === 'string')
+    .map((h) => `Вопрос: ${h.q.slice(0, 300)}\nОтвет: ${h.a.slice(0, 800)}`);
+  return lines.length ? `Перед этим человек спрашивал:\n${lines.join('\n')}\n\nТеперь: ` : '';
+}
+
+/** Ответ модели → запись или ответ. Модель могла не назвать result — смотрим, что она прислала. */
+function sayResult(raw: { result?: unknown; answer?: unknown; ops?: unknown; search?: unknown }, ctx: AiContext, phrase: string | undefined): SayResult | null {
+  const answer = typeof raw?.answer === 'string' ? raw.answer.trim().slice(0, 2000) : '';
+  const isQuestion = raw?.result === 'question' || (raw?.result !== 'payment' && !!answer && !Array.isArray(raw?.ops));
+  if (isQuestion) {
+    if (!answer) throw new HttpError(502, 'Не получилось ответить. Спросите иначе.');
+    const search = typeof raw.search === 'string' && raw.search.trim() ? raw.search.trim().slice(0, 40) : null;
+    return { result: 'question', answer, search };
+  }
+  const ops = parseDrafts(raw, ctx, phrase);
+  return ops.length ? { result: 'payment', ops } : null;
+}
+
+export async function aiSay(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<SayResult> {
+  const ctx = moneyContext(d, userId, body.today);
+  const phrase = text(body.text, 1000, 'Фраза') as string;
+  const raw = (await askJson(d, userId, {
+    system: sayPrompt(ctx, d, userId, 'пишет в одну строку'),
+    user: history(body.history) + phrase,
+    maxTokens: 1500,
+  })) as { result?: unknown; answer?: unknown; ops?: unknown; search?: unknown };
+  const r = sayResult(raw, ctx, phrase);
+  if (!r) throw new HttpError(422, 'Не нашёл суммы. Напишите, например: «кофе 350» — или задайте вопрос: «сколько ушло на кофе?»');
+  return r;
+}
+
 const AUDIO_FORMATS: Record<string, string> = { mp4: 'm4a', 'x-m4a': 'm4a', m4a: 'm4a', aac: 'aac', mpeg: 'mp3', mp3: 'mp3', wav: 'wav', 'x-wav': 'wav', ogg: 'ogg', webm: 'webm' };
 
-/** Запись голоса → что сказал и черновики операций, одним запросом к модели со звуком. */
-export async function aiVoice(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ said: string; ops: MoneyDraft[] }> {
+/**
+ * Запись голоса → что сказал и черновики операций, одним запросом к модели со
+ * звуком. С ask: true модель ещё и решает, вопрос ли это, — тогда ответ.
+ */
+export async function aiVoice(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ said: string } & ({ ops: MoneyDraft[] } | SayResult)> {
   const ctx = moneyContext(d, userId, body.today);
   const m = typeof body.audio === 'string' ? /^data:audio\/([\w.+-]+)(?:;[^,]*)?;base64,(.+)$/.exec(body.audio) : null;
   const format = m ? AUDIO_FORMATS[m[1].toLowerCase()] : undefined;
   if (!m || !format || (body.audio as string).length > MAX_AUDIO) throw new HttpError(400, 'Запись не подошла — попробуйте сказать короче.');
+  if (body.ask) {
+    const raw = (await askJson(d, userId, {
+      model: audioModel(),
+      system: `${sayPrompt(ctx, d, userId, 'говорит голосом')}\n\nСначала дословно запиши, что сказал человек, в поле "said" того же JSON.`,
+      user: [
+        { type: 'text', text: 'Запись голоса:' },
+        { type: 'input_audio', input_audio: { data: m[2], format } },
+      ] as Part[],
+      maxTokens: 1500,
+    })) as { said?: unknown; result?: unknown; answer?: unknown; ops?: unknown; search?: unknown };
+    const said = typeof raw?.said === 'string' ? raw.said.trim().slice(0, 1000) : '';
+    const r = sayResult(raw, ctx, said || undefined);
+    if (!r) throw new HttpError(422, said ? `Не понял «${said.slice(0, 80)}». Скажите, например: «кофе триста пятьдесят» или «сколько ушло на кафе?».` : 'Ничего не расслышал. Попробуйте ещё раз, поближе к телефону.');
+    return r.result === 'payment' ? { said, ...r, ops: r.ops.map((o) => ({ ...o, source: 'voice' })) } : { said, ...r };
+  }
   const raw = (await askJson(d, userId, {
     model: audioModel(),
     system: `${opsPrompt(ctx, d, userId)} Сначала дословно запиши, что сказал человек, в поле "said": {"said":"…","ops":[…]}.`,

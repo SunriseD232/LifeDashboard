@@ -77,6 +77,10 @@ export interface MoneySettings {
   base_currency: string;
   currencies: string[];
   hidden: string[];
+  /** Push, когда потрачено 80% и 100% бюджета категории. */
+  budget_push?: boolean;
+  /** «ЧЧ:ММ» — вечерний итог трат за день; null — не присылать. */
+  evening_push?: string | null;
 }
 
 export interface MoneyState {
@@ -116,6 +120,17 @@ export interface MoneyState {
   family_budget: { limit_minor: number; currency: string } | null;
   /** Подключены SMS от банка (есть ключ для «Команд»). */
   sms_on: boolean;
+  /** Частые траты — записать одним нажатием (src/server/moneyFrequent.ts). */
+  frequent?: MoneyFrequent[];
+}
+
+export interface MoneyFrequent {
+  payee: string;
+  amount_minor: number;
+  currency: string;
+  account_id: string;
+  category_id: string | null;
+  count: number;
 }
 
 /**

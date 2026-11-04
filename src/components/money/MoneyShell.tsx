@@ -8,6 +8,7 @@ import { convert, opEffect, type MoneyOp, type MoneyState } from '@/lib/money';
 import { flush, onOutboxChange, outbox, type Queued } from '@/lib/offline';
 import { registerOffline } from '@/lib/pushClient';
 import { takeReceipt } from '@/lib/audio';
+import { useKeyboardOffset } from '@/lib/keyboard';
 import { HUB_BAR, MONEY_BAR, slideClass, takeSlide } from '@/lib/superapp';
 import PhoneBar from '../PhoneBar';
 import SkipLink from '../SkipLink';
@@ -19,14 +20,22 @@ import MoneyOnboarding from './MoneyOnboarding';
 import MoneySide from './MoneySide';
 import OpSheet, { type OpDraft } from './OpSheet';
 import ReceiptSheet from './ReceiptSheet';
+import AnswerSheet from './AnswerSheet';
 import VoiceSheet from './VoiceSheet';
 import SearchDialog from '../SearchDialog';
 
 /** Что открыто поверх экрана. */
+export interface ToastAction {
+  label: string;
+  run: () => void | Promise<void>;
+}
+
 export type Sheet =
   | { type: 'op'; op: MoneyOp | OpDraft | null }
   | { type: 'drafts'; ops: MoneyDraft[]; said?: string }
   | { type: 'voice' }
+  /** Ответ ИИ на вопрос из строки ввода. */
+  | { type: 'answer'; q: string; a: string; search?: string | null }
   /** Новый чек с фото или позиции записанной операции. */
   | { type: 'receipt'; file?: File; op?: MoneyOp };
 
@@ -35,7 +44,8 @@ interface MoneyContext {
   reload: () => Promise<void>;
   month: string;
   setMonth: (m: string) => void;
-  toast: (message: string) => void;
+  /** Сообщение внизу; с action — кнопка в нём («Отменить») и показ подольше. */
+  toast: (message: string, action?: ToastAction) => void;
   /** Рублей за 1 единицу: курс ЦБ или свой; нет — undefined. */
   rateOf: (code: string) => number | undefined;
   /** Поиск по всему (Ctrl K) — тот же, что в LifeDashboard. */
@@ -81,12 +91,13 @@ let memo: MoneyState | null = null;
 export default function MoneyShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  useKeyboardOffset();
   const [status, setStatus] = useState<Status>(memo ? 'ready' : 'loading');
   const [data, setData] = useState<MoneyState | null>(memo);
   const slide = useRef<{ path: string; cls: string } | null>(null);
   if (slide.current?.path !== pathname) slide.current = { path: pathname, cls: slideClass(takeSlide(pathname, barOf)) };
   const [month, setMonthState] = useState(() => localDay().slice(0, 7));
-  const [toastText, setToastText] = useState<string | null>(null);
+  const [toastText, setToastText] = useState<{ text: string; action?: ToastAction } | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [searching, setSearching] = useState(false);
   // Из поиска: /money/ops?op=<id>&month=YYYY-MM — открыть этот месяц и операцию.
@@ -94,10 +105,10 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const monthRef = useRef(month);
 
-  const toast = useCallback((message: string) => {
-    setToastText(message);
+  const toast = useCallback((message: string, action?: ToastAction) => {
+    setToastText({ text: message, action });
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToastText(null), 4000);
+    timer.current = setTimeout(() => setToastText(null), action ? 6000 : 4000);
   }, []);
 
   const [offlineAt, setOfflineAt] = useState<number | null>(null);
@@ -297,10 +308,24 @@ export default function MoneyShell({ children }: { children: React.ReactNode }) 
       {sheet?.type === 'drafts' && <DraftsSheet ops={sheet.ops} said={sheet.said} onClose={close} />}
       {sheet?.type === 'voice' && <VoiceSheet onClose={close} />}
       {sheet?.type === 'receipt' && <ReceiptSheet file={sheet.file} op={sheet.op} onClose={close} />}
+      {sheet?.type === 'answer' && <AnswerSheet q={sheet.q} a={sheet.a} search={sheet.search ?? null} onClose={close} />}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       {toastText && (
         <div className="toast m-toast" role="status">
-          <span>{toastText}</span>
+          <span>{toastText.text}</span>
+          {toastText.action && (
+            <button
+              className="m-toast-act"
+              type="button"
+              onClick={() => {
+                const a = toastText.action!;
+                setToastText(null);
+                a.run();
+              }}
+            >
+              {toastText.action.label}
+            </button>
+          )}
         </div>
       )}
     </Ctx.Provider>

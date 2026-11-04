@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { money } from '@/lib/currencies';
 import { matchesSearch, searchTerms, type OpItemBrief, type OpKind } from '@/lib/money';
 import { Icon } from '../icons';
@@ -33,6 +33,32 @@ export default function MoneyOps() {
   const [scope, setScope] = useState<Scope>('all');
   const [filter, setFilter] = useState<'all' | OpKind>('all');
   const [query, setQuery] = useState('');
+  // Пришли из ответа ИИ (?q=такси) или из отчёта (?cat=<категория>&month=2026-10).
+  const [cat, setCat] = useState<string | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const qq = p.get('q');
+    const c = p.get('cat');
+    const m = p.get('month');
+    if (qq) setQuery(qq);
+    if (c) {
+      setCat(c);
+      setFilter('expense');
+    }
+    if (m && /^\d{4}-\d{2}$/.test(m) && m !== month && !p.get('op')) setMonth(m);
+    if (qq || c) window.history.replaceState(null, '', window.location.pathname);
+    // Уже на этом экране — переход по ссылке его не пересоздаст: ловим событие.
+    const onFilter = (e: Event) => {
+      const d = (e as CustomEvent<{ q?: string }>).detail;
+      if (d?.q) {
+        setQuery(d.q);
+        setCat(null);
+      }
+    };
+    window.addEventListener('money:ops-filter', onFilter);
+    return () => window.removeEventListener('money:ops-filter', onFilter);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const catName = cat === 'none' ? 'Без категории' : cat ? (data.categories.find((c) => c.id === cat)?.name ?? data.ops.find((o) => o.category_id === cat)?.category_name ?? 'Категория') : null;
 
   const q = query.trim();
   const terms = useMemo(() => searchTerms(q), [q]);
@@ -41,6 +67,7 @@ export default function MoneyOps() {
   const hits = new Map<string, OpItemBrief[]>();
   const ops = data.ops.filter((o) => {
     if (!(visible.has(o.account_id) || (o.to_account_id && visible.has(o.to_account_id))) || (filter !== 'all' && o.kind !== filter)) return false;
+    if (cat && o.category_id !== (cat === 'none' ? null : cat)) return false;
     if (!terms.length) return true;
     if (matchesSearch([o.payee, o.note, o.category_name].filter(Boolean).join(' '), terms)) return true;
     const found = (o.items ?? []).filter((i) => matchesSearch(i.name, terms));
@@ -50,7 +77,7 @@ export default function MoneyOps() {
   // Итог поиска в основной валюте: позиции — их суммой, остальное — суммой траты.
   let spent = 0;
   let itemCount = 0;
-  if (terms.length) {
+  if (terms.length || cat) {
     for (const o of ops) {
       if (o.kind !== 'expense') continue;
       const found = hits.get(o.id);
@@ -97,7 +124,17 @@ export default function MoneyOps() {
             </button>
           ))}
         </div>
-        {terms.length > 0 && spent > 0 && (
+        {catName && (
+          <div className="m-chips">
+            <span className="chip" aria-pressed="true">
+              Категория: {catName}
+              <button className="chip-x" type="button" aria-label="Показать все категории" onClick={() => setCat(null)}>
+                <Icon name="x" size={14} />
+              </button>
+            </span>
+          </div>
+        )}
+        {(terms.length > 0 || cat) && spent > 0 && (
           <p className="m-search-sum">
             Потрачено за {monthTitle(month).toLowerCase()}: <b className="mono">{money(spent, data.settings!.base_currency)}</b>
             {itemCount > 0 && <span className="muted"> · в чеках {itemCount} поз.</span>}
@@ -113,7 +150,7 @@ export default function MoneyOps() {
             </div>
           </section>
         ))}
-        {!days.length && <p className="muted" style={{ textAlign: 'center', margin: '24px 0' }}>{q || filter !== 'all' ? 'Ничего не нашлось.' : 'В этом месяце операций нет.'}</p>}
+        {!days.length && <p className="muted" style={{ textAlign: 'center', margin: '24px 0' }}>{q || cat || filter !== 'all' ? 'Ничего не нашлось.' : 'В этом месяце операций нет.'}</p>}
       </main>
       <QuickBar />
     </>

@@ -1089,6 +1089,24 @@ export const MIGRATIONS: Migration[] = [
     );
     `),
   },
+  {
+    version: 24,
+    name: 'Деньги: push о бюджете и вечерний итог трат',
+    up: (db) =>
+      db.exec(`
+    -- 1 — push, когда потрачено 80% и 100% бюджета категории.
+    alter table money_settings add column budget_push integer not null default 1;
+    -- «ЧЧ:ММ» местного времени — вечерний итог трат за день; null — не присылать.
+    alter table money_settings add column evening_push text;
+    -- Что уже отправили, чтобы не повторять: «budget:<категория>:<месяц>:80», «evening:<день>».
+    create table money_push_sent (
+      user_id text not null references users(id) on delete cascade,
+      key text not null,
+      created_at text not null default (datetime('now')),
+      primary key (user_id, key)
+    );
+    `),
+  },
 ];
 
 export const LATEST = MIGRATIONS[MIGRATIONS.length - 1].version;

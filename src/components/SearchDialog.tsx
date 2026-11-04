@@ -169,8 +169,8 @@ export default function SearchDialog({ onClose }: { onClose: () => void }) {
             aria-controls="search-results"
             aria-activedescendant={flat[active] ? itemId(flat[active]) : undefined}
           />
-          <button className="kbd-btn" type="button" onClick={onClose} aria-label="Закрыть поиск">
-            Esc
+          <button className="icon-btn bare" type="button" onClick={onClose} aria-label="Закрыть поиск" title="Закрыть">
+            <Icon name="x" />
           </button>
         </div>
 

@@ -77,8 +77,12 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
     } else apply(receipt);
   }
 
+  /** Что сейчас делаем с чеком — для подсказки в окне загрузки. */
+  const [how, setHow] = useState<'photo' | 'qr'>('photo');
+
   async function read(f: File) {
     setPhase('reading');
+    setHow('photo');
     setError(null);
     setFromFns(false);
     try {
@@ -89,6 +93,7 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
       // Есть QR — позиции берём из ФНС: точно как в чеке, без распознавания.
       let qrError: Error | null = null;
       if (code && fiscal && data.fns) {
+        setHow('qr');
         try {
           const { receipt } = await api<{ receipt: ReceiptDraft }>('money/receipt/qr', 'POST', { qr: code, today: localDay() });
           use(receipt);
@@ -100,7 +105,8 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         }
       }
       try {
-        if (!data.ai) throw qrError ?? new Error('Чтение чеков с фото пока не подключено.');
+        if (!data.ai) throw qrError ?? new Error('С фото чеки пока не читаются. Введите покупки вручную.');
+        setHow('photo');
         const { receipt } = await api<{ receipt: ReceiptDraft }>('money/ai/receipt', 'POST', { image: photo.dataUrl, today: localDay() });
         use(receipt);
       } catch (e) {
@@ -228,7 +234,9 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         {phase === 'pick' && (
           <div className="m-card" style={{ gap: 12, alignItems: 'flex-start' }}>
             <p style={{ margin: 0 }}>
-              {data.fns ? 'Сфотографируйте QR-код с чека или чек целиком (подойдёт и скриншот) — позиции разложатся по категориям.' : 'Сфотографируйте чек целиком — позиции разложатся по категориям.'}
+              {data.fns
+                ? 'Сфотографируйте чек целиком или только квадратный код (QR) на нём. Покупки появятся сами и разложатся по категориям. Скриншот тоже подойдёт.'
+                : 'Сфотографируйте чек целиком. Покупки появятся сами и разложатся по категориям.'}
             </p>
             <button className="btn btn-primary" type="button" onClick={() => input.current?.click()}>
               <Icon name="camera" size={18} />
@@ -240,7 +248,13 @@ export default function ReceiptSheet({ file, op, onClose }: { file?: File; op?: 
         {phase === 'reading' && (
           <div className="m-card m-reading" aria-busy="true" aria-live="polite">
             <span className="m-spinner" aria-hidden="true" />
-            <span>{op?.items_count && !items.length ? 'Загружаю позиции…' : 'Читаю чек — обычно до 20 секунд…'}</span>
+            <span className="m-reading-text">
+              {op?.items_count && !items.length
+                ? 'Загружаем покупки из чека…'
+                : how === 'qr'
+                  ? 'Нашли код на чеке. Загружаем из него покупки — это обычно занимает 5–10 секунд.'
+                  : 'Читаем фото: магазин, дату, сумму и покупки. Обычно это 10–20 секунд, иногда до минуты. Пожалуйста, не закрывайте окно.'}
+            </span>
           </div>
         )}
 

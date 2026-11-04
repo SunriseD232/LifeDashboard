@@ -107,6 +107,14 @@ export function report(d: Database.Database, userId: string, period: Period, anc
     prev_spend: sum(before),
     prev_income: sum(f.income.filter(inR(prev))),
     bars: bars.map((r) => ({ from: r.from, to: r.to, short: r.short, spend: sum(f.parts.filter(inR(r))), income: sum(f.income.filter(inR(r))) })),
+    // Неделя по дням: Пн…Вс — где именно ушли деньги.
+    days:
+      period === 'week'
+        ? Array.from({ length: 7 }, (_, i) => {
+            const day = new Date(Date.parse(`${cur.from}T00:00:00Z`) + i * 864e5).toISOString().slice(0, 10);
+            return { day, spend: sum(now.filter((p) => dayOf(p) === day)) };
+          })
+        : [],
     categories: [...byCat]
       .map(([id, v]) => ({ id, name: id ? (names.get(id) ?? opNames.get(id) ?? 'Категория') : 'Без категории', spend: v.spend, prev: v.prev }))
       .filter((c) => c.spend > 0 || c.prev > 0)
@@ -116,6 +124,28 @@ export function report(d: Database.Database, userId: string, period: Period, anc
       .sort((a, b) => b.spend - a.spend)
       .slice(0, 10),
     missing_rates: f.missing,
+  };
+}
+
+/**
+ * Одна категория в отчёте: её траты за период по операциям (чек — только
+ * позиции этой категории) и та же категория за 6 месяцев — растёт ли.
+ */
+export function categoryReport(d: Database.Database, userId: string, categoryId: string | null, period: Period, anchor: string, scope: Scope) {
+  const cur = periodRange(period, anchor);
+  const months = [-5, -4, -3, -2, -1, 0].map((n) => periodRange('month', cur.to, n));
+  const from = months[0].from < cur.from ? months[0].from : cur.from;
+  const f = flow(d, userId, from, cur.to, scope);
+  const mine = f.parts.filter((p) => p.category_id === categoryId);
+  const dayOf = (p: { op_id: string }) => f.ops.get(p.op_id)!.day;
+  const byOp = new Map<string, number>();
+  for (const p of mine) if (dayOf(p) >= cur.from && dayOf(p) <= cur.to) byOp.set(p.op_id, (byOp.get(p.op_id) ?? 0) + p.base_minor);
+  return {
+    ops: [...byOp]
+      .map(([id, base_minor]) => ({ id, day: f.ops.get(id)!.day, payee: f.ops.get(id)!.payee, base_minor }))
+      .sort((a, b) => b.day.localeCompare(a.day) || b.base_minor - a.base_minor)
+      .slice(0, 100),
+    trend: months.map((m) => ({ from: m.from, short: m.short, spend: sum(mine.filter((p) => dayOf(p) >= m.from && dayOf(p) <= m.to)) })),
   };
 }
 
@@ -194,9 +224,11 @@ export function prices(d: Database.Database, userId: string, q: string, key: str
 
 const MONTHS = 12;
 const ITEMS_PER_MONTH = 300;
+const RECENT_DAYS = 62;
+const RECENT_OPS_MAX = 300;
 
 /** Данные для вопроса — коротко, в основной валюте, без лишних личных подробностей. */
-function askContext(d: Database.Database, userId: string, today: string): string {
+export function askContext(d: Database.Database, userId: string, today: string): string {
   const base = readMoneySettings(d, userId)!.base_currency;
   const fmt = (n: number) => `${formatMinor(n, base, { trim: true })} ${base}`;
   const from = periodRange('month', today, -(MONTHS - 1)).from;
@@ -271,19 +303,51 @@ function askContext(d: Database.Database, userId: string, today: string): string
     );
   }
   if (f.missing.length) lines.push(`Нет курса для: ${f.missing.join(', ')} — эти операции не посчитаны.`);
+
+  // Итог за сегодня отдельной строкой: без него ИИ не видит «сегодня» в месячных суммах.
+  const td = flow(d, userId, today, today);
+  lines.push(
+    td.ops.size
+      ? `Сегодня (${today}): трат ${fmt(sum(td.parts))}, операций ${[...td.ops.values()].filter((o) => o.day === today).length}.`
+      : `Сегодня (${today}): трат и доходов нет.`,
+  );
+
+  // Отдельные операции за последние дни — для вопросов «что я купил вчера», «сколько на такси в пятницу».
+  const recentFrom = new Date(Date.parse(`${today}T00:00:00Z`) - RECENT_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const recent = readOps(d, userId, recentFrom, today).filter((o) => (o.kind === 'expense' || o.kind === 'income') && !o.debt_id);
+  if (recent.length) {
+    lines.push(`Операции за последние ${RECENT_DAYS} дней, от новых к старым (суммы в валюте операции):`);
+    for (const o of recent.slice(0, RECENT_OPS_MAX)) {
+      const amount = `${formatMinor(o.amount_minor, o.currency, { trim: true })} ${o.currency}`;
+      const what = o.payee?.trim() || (o.kind === 'income' ? 'доход' : 'без названия');
+      const cat = o.category_name ? `, категория ${o.category_name}` : '';
+      const items = o.items?.length ? `, позиции: ${o.items.map((i) => `${i.name} ${formatMinor(i.total_minor, o.orig_currency ?? o.currency, { trim: true })}`).join('; ')}` : '';
+      lines.push(`${o.day} ${o.kind === 'income' ? '+' : '−'}${amount} ${what}${cat}${items}`);
+    }
+    if (recent.length > RECENT_OPS_MAX) lines.push(`…и ещё ${recent.length - RECENT_OPS_MAX} операций старше.`);
+  } else {
+    lines.push(`За последние ${RECENT_DAYS} дней операций нет.`);
+  }
   return lines.join('\n');
 }
+
+/** Как отвечать на вопрос о своих деньгах — общее для «Спросить» и строки ввода. */
+export const ASK_RULES =
+  'Отвечай на вопрос человека по его данным ниже — по-русски, коротко (2–5 предложений), ' +
+  'с конкретными суммами и месяцами. Суммы пиши с пробелами между тысячами. Считай аккуратно, складывай только то, что есть в данных. ' +
+  'Вопросы про день («сегодня», «вчера», «на той неделе») и про конкретную покупку или место отвечай по списку операций в данных; ' +
+  'если в списке за нужный день ничего нет — так и скажи, не утверждай, что трат не было, когда они есть. ' +
+  'Про конкретные товары («энергетики», «кофе», «сигареты») считай по позициям чеков: узнавай товар по названию и марке ' +
+  '(Adrenaline, Red Bull, Burn — энергетики), перечисли, что сложил. Траты без чека товаров не показывают — скажи об этом. ' +
+  'Если данных не хватает — так и скажи и подскажи, что записать. Не давай советов по инвестициям и ценным бумагам. ';
 
 export async function ask(d: Database.Database, userId: string, body: Record<string, unknown>): Promise<{ answer: string }> {
   const question = text(body.question, 500, 'Вопрос') as string;
   const today = typeof body.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.today) ? body.today : new Date().toISOString().slice(0, 10);
   const raw = (await askJson(d, userId, {
     system:
-      'Ты помощник в приложении учёта личных финансов. Отвечай на вопрос человека по его данным ниже — по-русски, коротко (2–5 предложений), ' +
-      'с конкретными суммами и месяцами. Суммы пиши с пробелами между тысячами. Считай аккуратно, складывай только то, что есть в данных. ' +
-      'Про конкретные товары («энергетики», «кофе», «сигареты») считай по позициям чеков: узнавай товар по названию и марке ' +
-      '(Adrenaline, Red Bull, Burn — энергетики), перечисли, что сложил. Траты без чека товаров не показывают — скажи об этом. ' +
-      'Если данных не хватает — так и скажи и подскажи, что записать. Не давай советов по инвестициям и ценным бумагам. ' +
+      'Ты помощник в приложении учёта личных финансов. ' +
+      ASK_RULES +
       `Ответ строго JSON: {"answer":"…"}\n\nДанные:\n${askContext(d, userId, today)}`,
     user: question,
     maxTokens: 1200,

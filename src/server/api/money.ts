@@ -19,10 +19,12 @@ import {
 } from '../moneyStore';
 import { refreshRates, todayRates } from '../moneyRates';
 import { aiConfigured } from '../ai';
-import { aiReceipt, aiText, aiVoice } from '../moneyAi';
+import { aiReceipt, aiSay, aiText, aiVoice } from '../moneyAi';
+import { samePayee } from '@/lib/moneyMerchants';
+import { readFrequent } from '../moneyFrequent';
 import { fnsConfigured, receiptByQr } from '../moneyFns';
 import { checkRows, readJob, saveTemplate, startImport } from '../moneyImport';
-import { ask, monthFlow, prices, readBudgets, readFamilyBudget, report, setBudget, setFamilyBudget, type Scope } from '../moneyReport';
+import { ask, categoryReport, monthFlow, prices, readBudgets, readFamilyBudget, report, setBudget, setFamilyBudget, type Scope } from '../moneyReport';
 import { PERIODS, type Period } from '@/lib/moneyReport';
 import { validMapping } from '@/lib/moneyImport';
 import { debts, goals, processRecurring, readDebts, readGoals, readRecurring, recurring } from '../moneyPlans';
@@ -47,19 +49,20 @@ function monthRange(month: string): [string, string] {
  * «Деньги»: /api/money/<раздел>[/<id>].
  *  GET    state?month=YYYY-MM       — всё для экрана;
  *  POST   onboard { base_currency, currencies, account? } — первый запуск;
- *  PATCH  settings { base_currency?, currencies?, hidden? };
+ *  PATCH  settings { base_currency?, currencies?, hidden?, budget_push?, evening_push?: 'ЧЧ:ММ'|null };
  *  POST   accounts { name, kind, currency, opening_minor, shared } / PATCH accounts/:id / DELETE accounts/:id;
  *  POST   ops { kind, day, account_id, amount_minor, to_account_id?, to_amount_minor?, orig_*?, category_id?, payee?, note?, items? };
  *  GET    ops/:id — с позициями; PATCH ops/:id; DELETE ops/:id;
  *  POST   categories { kind, name } / PATCH categories/:id { name?, archived? };
  *  POST   rates { currency, rate } — свой курс для валюты без курса ЦБ;
+ *  POST   ai/say { text, today } → { result: 'payment', ops } | { result: 'question', answer } — строка ввода;
  *  POST   ai/text { text, today } · ai/voice { audio, today } · ai/receipt { image, today } — черновики от ИИ;
  *  PATCH  ops/:id { only_items: true, items, category_id? } — позиции чека к записанной операции;
  *  POST   receipt/qr { qr, today } → { receipt } — позиции чека из ФНС по QR (src/server/moneyFns.ts);
  *  POST   import/start { kind: 'file', name, data } | { kind: 'screens', images } → { job };
  *  GET    import/job?id= → { status, result?, error? }; POST import/check { account_id, rows } — повторы;
  *  POST   import/commit { account_id, rows, signature?, mapping?, bank? } — записать выбранное;
- *  GET    report?period=week|month|year&day=&scope= — отчёт; PUT budgets { category_id, limit_minor|null };
+ *  GET    report?period=week|month|year&day=&scope= — отчёт; report/category?cat=&period=&day=&scope= — одна категория; PUT budgets { category_id, limit_minor|null };
  *  GET    prices?q=|key= — цены товаров из чеков; POST ask { question, today } — вопрос ИИ о своих деньгах.
  * Пока раздел тестовый — только для MONEY_USERS (src/server/moneyStore.ts).
  */
@@ -111,6 +114,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
         goals: readGoals(d, userId),
         family_budget: readFamilyBudget(d, userId),
         sms_on: smsStatus(d, userId).on,
+        frequent: readFrequent(d, userId, moscowDay()),
       });
     }
     return state;
@@ -121,6 +125,7 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
   if (sub === 'ai' && method === 'POST') {
     if (!aiConfigured()) throw new HttpError(503, 'ИИ пока не подключён.');
     if (id === 'text') return aiText(d, userId, body);
+    if (id === 'say') return aiSay(d, userId, body);
     if (id === 'voice') return aiVoice(d, userId, body);
     if (id === 'receipt') return aiReceipt(d, userId, body);
     return undefined;
@@ -162,6 +167,12 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       hidden = [...new Set((body.hidden as unknown[]).filter((h): h is string => typeof h === 'string' && known.has(h)))];
     }
     d.prepare('update money_settings set base_currency = ?, currencies = ?, hidden = ? where user_id = ?').run(base, JSON.stringify(list), JSON.stringify(hidden), userId);
+    if (body.budget_push !== undefined) d.prepare('update money_settings set budget_push = ? where user_id = ?').run(body.budget_push ? 1 : 0, userId);
+    if (body.evening_push !== undefined) {
+      const t = body.evening_push;
+      if (t !== null && (typeof t !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(t))) throw new HttpError(400, 'Время — например, 21:00.');
+      d.prepare('update money_settings set evening_push = ? where user_id = ?').run(t, userId);
+    }
     return { ok: true };
   }
 
@@ -270,7 +281,18 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
         ).run(f.kind, f.day, f.account_id, f.amount_minor, f.currency, f.to_account_id, f.to_amount_minor, f.to_currency, f.orig_amount_minor, f.orig_currency, f.category_id, f.payee, f.note, op.id);
         if (body.items !== undefined) saveItems(d, op.id, items(d, userId, body.items));
       })();
-      return { ok: true };
+      // Поставили категорию месту — такие же траты без категории получают её же
+      // («Urent» → «Транспорт» для всех прошлых поездок из SMS).
+      let also = 0;
+      if (f.category_id && f.category_id !== op.category_id && f.payee && (f.kind === 'expense' || f.kind === 'income')) {
+        const same = (d
+          .prepare('select id, payee from money_ops where user_id = ? and kind = ? and category_id is null and payee is not null and id <> ?')
+          .all(userId, f.kind, op.id) as { id: string; payee: string }[]).filter((o) => samePayee(o.payee, f.payee));
+        const set = d.prepare("update money_ops set category_id = ?, updated_at = datetime('now') where id = ?");
+        d.transaction(() => same.forEach((o) => set.run(f.category_id, o.id)))();
+        also = same.length;
+      }
+      return { ok: true, also };
     }
     if (method === 'DELETE') {
       d.prepare('delete from money_ops where id = ?').run(op.id);
@@ -326,6 +348,11 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
     const anchor = q.get('day') ?? '';
     if (!DAY_RE.test(anchor)) throw new HttpError(400, 'Неверная дата.');
     const scope = (['mine', 'family', 'all'].includes(q.get('scope') ?? '') ? q.get('scope') : 'all') as Scope;
+    // report/category?cat=<id>|none — одна категория: операции за период и 6 месяцев.
+    if (id === 'category') {
+      const cat = q.get('cat');
+      return categoryReport(d, userId, !cat || cat === 'none' ? null : cat, period, anchor, scope);
+    }
     return report(d, userId, period, anchor, scope);
   }
   if (sub === 'budgets' && method === 'PUT') {

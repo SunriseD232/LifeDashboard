@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mainCategory, needsAi, parseDrafts, parseFiscalQr, parseFnsReceipt, parseReceipt, shopName, toMinor, type AiContext } from '../moneyAi';
+import { looksLikeQuestion, mainCategory, needsAi, parseDrafts, parseFiscalQr, parseFnsReceipt, parseReceipt, shopName, toMinor, type AiContext } from '../moneyAi';
 
 const ctx: AiContext = {
   accounts: [
@@ -120,6 +120,14 @@ describe('когда звать ИИ', () => {
     expect(needsAi('продукты 1200 и кофе 350', true)).toBe(true);
     expect(needsAi('такси двенадцать евро', false)).toBe(true);
     expect(needsAi('заправился на трассе под Тверью за 3000', true)).toBe(true);
+  });
+
+  it('вопрос или запись: вопрос не записываем сами, даже с числом', () => {
+    expect(looksLikeQuestion('Сколько ушло на кафе за 3 месяца')).toBe(true);
+    expect(looksLikeQuestion('что я покупал вчера')).toBe(true);
+    expect(looksLikeQuestion('такси 500?')).toBe(true);
+    expect(looksLikeQuestion('кофе 350')).toBe(false);
+    expect(looksLikeQuestion('Шоколадка 90')).toBe(false);
   });
 });
 

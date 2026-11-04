@@ -54,6 +54,40 @@ export default function MoneySettings() {
           Выключенное пропадает из меню и форм. Данные остаются — включите, и всё вернётся.
         </p>
 
+        <h2 className="group-title">Уведомления</h2>
+        <div className="m-card" style={{ gap: 0, padding: '0 14px' }}>
+          <label className="m-set">
+            <span className="m-op-t">
+              <b>Бюджет почти кончился</b>
+              <small>Когда потрачено 80% и 100% бюджета категории</small>
+            </span>
+            <input className="m-switch" type="checkbox" role="switch" checked={s.budget_push !== false} onChange={(e) => patch({ budget_push: e.target.checked })} />
+          </label>
+          <label className="m-set">
+            <span className="m-op-t">
+              <b>Траты за день</b>
+              <small>Вечером: сколько потратили и на что больше всего</small>
+            </span>
+            <select
+              className="field"
+              style={{ width: 'auto' }}
+              aria-label="Когда присылать траты за день"
+              value={s.evening_push ?? ''}
+              onChange={(e) => patch({ evening_push: e.target.value || null }, e.target.value ? `Итог дня — в ${e.target.value}` : 'Итог дня выключен')}
+            >
+              <option value="">Не присылать</option>
+              {['19:00', '20:00', '21:00', '22:00', '23:00'].map((t) => (
+                <option key={t} value={t}>
+                  в {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <p className="muted m-small" style={{ margin: 0 }}>
+          Приходят на телефоны, где включены уведомления LifeDashboard (Настройки LifeDashboard → Уведомления). В тихие часы — не беспокоим.
+        </p>
+
         <h2 className="group-title">Валюты</h2>
         <div className="m-card" style={{ gap: 12 }}>
           <label className="m-field">

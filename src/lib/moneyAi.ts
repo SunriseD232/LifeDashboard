@@ -252,6 +252,11 @@ export function shopName(s: string): string {
 }
 
 /** Простую строку («кофе 350») разбираем сами, сложную — ИИ. */
+/** Похоже на вопрос — тогда не записываем сами, даже если есть число («за 3 месяца»). */
+export function looksLikeQuestion(t: string): boolean {
+  return /\?/.test(t) || /^(сколько|где|что|чего|когда|куда|на что|какой|какая|какие|каких|почему|зачем|покажи|сравни|много ли|больше ли)(\s|$)/i.test(t.trim());
+}
+
 export function needsAi(text: string, amountFound: boolean): boolean {
   // «1 200» — одно число с пробелом тысяч, а не два.
   const numbers = text.replace(/(\d)\s(?=\d{3}(?!\d))/g, '$1').match(/\d+([.,]\d+)?/g)?.length ?? 0;

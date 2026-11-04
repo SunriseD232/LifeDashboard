@@ -36,7 +36,7 @@ function toDataUrl(blob: Blob): Promise<string> {
  * распознаёт и разбирает на траты модель со звуком, одним запросом.
  */
 export default function VoiceSheet({ onClose }: { onClose: () => void }) {
-  const { open, toast } = useMoney();
+  const { open, toast, aiOn } = useMoney();
   const [phase, setPhase] = useState<'start' | 'rec' | 'busy' | 'error'>('start');
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
@@ -88,8 +88,14 @@ export default function VoiceSheet({ onClose }: { onClose: () => void }) {
     }
     setPhase('busy');
     try {
-      const res = await api<{ said: string; ops: MoneyDraft[] }>('money/ai/voice', 'POST', { audio: await toDataUrl(blob), today: localDay() });
-      showDrafts(open, res.ops, res.said);
+      // Вопрос голосом («сколько ушло на кафе?») — ответ; трата — черновики, как раньше.
+      const res = await api<{ said: string; result?: 'payment' | 'question'; ops?: MoneyDraft[]; answer?: string; search?: string | null }>('money/ai/voice', 'POST', {
+        audio: await toDataUrl(blob),
+        today: localDay(),
+        ask: aiOn(),
+      });
+      if (res.result === 'question' && res.answer) open({ type: 'answer', q: res.said || 'Вопрос голосом', a: res.answer, search: res.search ?? null });
+      else showDrafts(open, res.ops ?? [], res.said);
     } catch (e) {
       setPhase('error');
       setError((e as Error).message);
@@ -132,10 +138,10 @@ export default function VoiceSheet({ onClose }: { onClose: () => void }) {
           <b className="display">{phase === 'rec' ? 'Слушаю…' : phase === 'busy' ? 'Разбираю…' : phase === 'error' ? 'Не получилось' : 'Включаю микрофон…'}</b>
           <span className="muted m-small">
             {phase === 'rec'
-              ? `0:${String(seconds).padStart(2, '0')} · можно назвать несколько трат подряд`
+              ? `0:${String(seconds).padStart(2, '0')} · можно назвать несколько трат подряд или спросить`
               : phase === 'busy'
-                ? 'Распознаю речь и раскладываю по категориям'
-                : 'Например: «продукты в Пятёрочке тысяча двести и кофе триста пятьдесят»'}
+                ? 'Слушаем запись и разбираем: трата это или вопрос'
+                : 'Например: «кофе триста пятьдесят» или «сколько я потратил на такси?»'}
           </span>
         </div>
         {error && (

@@ -277,6 +277,32 @@
   background: var(--surface);
   box-shadow: 0 8px 24px var(--shadow);
 }
+.m-today {
+  padding: 2px 0 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 2px;
+}
+/* Частые траты над строкой ввода — видны, пока строка в фокусе и пустая. */
+.m-qchips {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.m-qchips::-webkit-scrollbar {
+  display: none;
+}
+.m-qchips .chip {
+  flex: none;
+  min-height: 40px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px -8px rgb(0 0 0 / 0.45);
+}
 .m-qbar .field {
   border: 0;
   background: transparent;
@@ -332,6 +358,28 @@
 }
 .m-toast {
   bottom: calc(140px + env(safe-area-inset-bottom));
+  /* left: 50% сжимает сообщение до половины экрана — ширина по тексту. */
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* «Отменить» в сообщении: крупная цель для пальца, цвет акцента. */
+.m-toast-act {
+  flex: none;
+  min-height: 36px;
+  margin: -8px -8px -8px 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.m-toast-act:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 /* окна */
@@ -916,6 +964,68 @@
 .m-barcol.on .m-barlbl {
   color: var(--ink);
   font-weight: 600;
+}
+/* Неделя по дням: 7 столбиков, под днём недели — число месяца. */
+.m-bars-days {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.m-bars-days .m-barcol {
+  grid-template-rows: 18px 1fr 32px;
+  cursor: default;
+  padding: 0 2px;
+}
+.m-bars-days .m-barval {
+  font-size: calc(10px * var(--fs));
+}
+.m-bars-days .m-barlbl {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.m-bars-days .m-barlbl small {
+  font-size: calc(10px * var(--fs));
+  opacity: 0.8;
+}
+.m-seg-small button {
+  min-height: 34px;
+  font-size: calc(13px * var(--fs));
+}
+/* Категория в отчёте — кнопка: раскрывает свои траты и 6 месяцев. */
+.m-catbar-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.m-catbar-btn .bar {
+  display: block;
+}
+.m-catbar-btn[aria-expanded='true'] {
+  font-weight: 600;
+}
+.m-catdetail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--soft, color-mix(in srgb, var(--ink) 5%, transparent));
+}
+.m-bars-mini {
+  height: 84px;
+  margin-top: 0;
+}
+.m-bars-mini .m-barcol {
+  grid-template-rows: 1fr 16px;
+  cursor: default;
 }
 .m-kv-row {
   border-top: 1px solid var(--line);
