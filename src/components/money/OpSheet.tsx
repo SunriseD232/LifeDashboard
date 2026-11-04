@@ -83,7 +83,6 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
   const [origText, setOrigText] = useState(existing?.orig_amount_minor ? editable(existing.orig_amount_minor, existing.orig_currency!) : foreignDraft ? editable(draft.amount_minor, foreignDraft) : '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const acc = byId(accountId);
   const cur = acc?.currency ?? base;
@@ -137,7 +136,7 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
     if (!existing) body.source = draft.source ?? 'manual';
     setBusy(true);
     try {
-      const res = (await (existing ? api(`money/ops/${existing.id}`, 'PATCH', body) : api('money/ops', 'POST', body))) as { queued?: boolean } | undefined;
+      const res = (await (existing ? api(`money/ops/${existing.id}`, 'PATCH', body) : api('money/ops', 'POST', body))) as { queued?: boolean; id?: string; also?: number } | undefined;
       try {
         localStorage.setItem(LAST_ACCOUNT, acc.id);
       } catch {
@@ -145,7 +144,11 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
       }
       await reload();
       const where = res?.queued ? null : reveal(day);
-      toast(res?.queued ? 'Нет сети — отправлю, когда появится' : `${existing ? 'Сохранено' : 'Записано'}${where ? ` — показываю ${where}` : ''}`);
+      const catName = data.categories.find((c) => c.id === categoryId)?.name;
+      if (res?.queued) toast('Нет сети — отправлю, когда появится');
+      else if (existing) toast(res?.also && catName ? `Сохранено. Ещё ${res.also} «${payee.trim()}» → «${catName}»` : 'Сохранено');
+      else
+        toast(`Записано${where ? ` — показываю ${where}` : ''}`, res?.id ? { label: 'Отменить', run: () => undoAdd(res.id!) } : undefined);
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -154,14 +157,53 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
     }
   }
 
+  /** Только что записанное — убрать по «Отменить» в сообщении. */
+  async function undoAdd(id: string) {
+    try {
+      await api(`money/ops/${id}`, 'DELETE');
+      await reload();
+      toast('Отменено');
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  }
+
+  /** Удалить сразу, без «точно?»: 6 секунд можно вернуть из сообщения. */
   async function remove() {
     if (!existing) return;
     setBusy(true);
     try {
+      const items = existing.items_count ? (await api<{ items: unknown[] }>(`money/ops/${existing.id}`)).items : [];
       await api(`money/ops/${existing.id}`, 'DELETE');
       await reload();
-      toast('Удалено');
       onClose();
+      toast('Удалено', {
+        label: 'Вернуть',
+        run: async () => {
+          try {
+            await api('money/ops', 'POST', {
+              kind: existing.kind,
+              day: existing.day,
+              account_id: existing.account_id,
+              amount_minor: existing.amount_minor,
+              to_account_id: existing.to_account_id,
+              to_amount_minor: existing.to_amount_minor,
+              orig_amount_minor: existing.orig_amount_minor ?? undefined,
+              orig_currency: existing.orig_currency ?? undefined,
+              category_id: existing.category_id,
+              payee: existing.payee,
+              note: existing.note,
+              source: existing.source,
+              items,
+              force: true,
+            });
+            await reload();
+            toast('Вернул');
+          } catch (e) {
+            toast((e as Error).message);
+          }
+        },
+      });
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -186,7 +228,7 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
 
         {draft.said && (
           <p className="m-said">
-            <span className="muted">{draft.source === 'voice' ? 'Вы сказали' : 'Вы написали'}</span> «{draft.said}» <span className="chip m-chip-ai">разобрал ИИ</span>
+            <span className="muted">{draft.source === 'voice' ? 'Вы сказали' : 'Вы написали'}</span> «{draft.said}» <span className="chip m-chip-ai">разобрано автоматически</span>
           </p>
         )}
 
@@ -359,16 +401,11 @@ export default function OpSheet({ op, onClose }: { op: MoneyOp | OpDraft | null;
           </p>
         )}
         <div className="m-actions">
-          {existing &&
-            (confirmDelete ? (
-              <button className="btn btn-danger" type="button" disabled={busy} onClick={remove}>
-                Точно удалить
-              </button>
-            ) : (
-              <button className="btn btn-danger-ghost" type="button" onClick={() => setConfirmDelete(true)}>
-                Удалить
-              </button>
-            ))}
+          {existing && (
+            <button className="btn btn-danger-ghost" type="button" disabled={busy} onClick={remove}>
+              Удалить
+            </button>
+          )}
           <button className="btn btn-primary" type="button" disabled={busy} onClick={save} style={{ flex: 1 }}>
             {existing ? 'Сохранить' : 'Записать'}
           </button>

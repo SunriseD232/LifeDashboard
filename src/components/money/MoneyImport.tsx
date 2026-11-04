@@ -272,7 +272,7 @@ export default function MoneyImport() {
         {phase === 'reading' && (
           <div className="m-card m-reading" aria-busy="true" aria-live="polite">
             <span className="m-spinner" aria-hidden="true" />
-            <span>{slow ? 'Длинная выписка — ИИ читает построчно, это может занять минуту-две…' : 'Читаю выписку…'}</span>
+            <span>{slow ? 'Выписка большая, читаем её по строкам. Это займёт 1–2 минуты. Пожалуйста, не закрывайте окно.' : 'Читаем выписку. Обычно это занимает до минуты.'}</span>
           </div>
         )}
 

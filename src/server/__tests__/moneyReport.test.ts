@@ -132,7 +132,45 @@ describe('отчёты', () => {
     expect(sys).toContain('Октябрь 2026: траты 2 877,60 RUB, доходы 120 000 RUB; Продукты 1 168,70 RUB');
     expect(sys).toContain('Сентябрь 2026: траты 1 000 RUB');
     expect(sys).toContain('Молоко 2,5% 76,20 → 89,90 RUB (+18%)');
+    // Отдельные операции — для вопросов про день и покупку.
+    expect(sys).toContain('Сегодня (2026-10-30): трат и доходов нет.');
+    expect(sys).toContain('2026-10-20 −10 USD Uber, категория Транспорт');
+    expect(sys).toContain('2026-10-05 −500 RUB Кофемания, категория Кафе');
     expect(asked[0].user).toBe('Сколько ушло на кафе?');
     expect((await fail(call(d, 'me', 'POST', ['ask'], { question: '' })))?.status).toBe(400);
+  });
+
+  it('строка ввода: один запрос — ИИ сам выбирает, записать или ответить', async () => {
+    const d = setup();
+    await world(d);
+    // Вопрос — ответ по данным, в подсказке и правила записи, и данные.
+    setAiTransport(async (req) => {
+      asked.push(req as never);
+      return '{"result":"question","answer":"Сегодня трат нет."}';
+    });
+    expect(await call(d, 'me', 'POST', ['ai', 'say'], { text: 'сколько потратил сегодня?', today: '2026-10-30' })).toEqual({ result: 'question', answer: 'Сегодня трат нет.', search: null });
+    expect(asked).toHaveLength(1);
+    expect(asked[0].system).toContain('"result":"payment"');
+    expect(asked[0].system).toContain('Сегодня (2026-10-30)');
+    // Уточняющий вопрос уходит вместе с прошлым — и «search» для «Показать операции».
+    setAiTransport(async (req) => {
+      asked.push(req as never);
+      return '{"result":"question","answer":"В сентябре на кафе 1 000 RUB.","search":"Кофемания"}';
+    });
+    const follow = await call(d, 'me', 'POST', ['ai', 'say'], { text: 'а в сентябре?', today: '2026-10-30', history: [{ q: 'сколько на кафе?', a: 'В октябре 500 RUB.' }] });
+    expect(follow).toEqual({ result: 'question', answer: 'В сентябре на кафе 1 000 RUB.', search: 'Кофемания' });
+    expect(asked[1].user).toContain('Вопрос: сколько на кафе?');
+    expect(asked[1].user).toContain('Теперь: а в сентябре?');
+    // Запись — черновики, ничего не сохранено.
+    setAiTransport(async () => '{"result":"payment","ops":[{"kind":"expense","amount":350,"payee":"Кофе","category":"Кафе","date":"2026-10-30"}]}');
+    const r = await call(d, 'me', 'POST', ['ai', 'say'], { text: 'кофе 350', today: '2026-10-30' });
+    expect(r.result).toBe('payment');
+    expect(r.ops).toHaveLength(1);
+    expect(r.ops[0]).toMatchObject({ kind: 'expense', amount_minor: 35000, payee: 'Кофе' });
+    // Без result, но с ops — запись; ни того ни другого — понятная ошибка.
+    setAiTransport(async () => '{"ops":[{"kind":"expense","amount":90,"payee":"Шоколадка"}]}');
+    expect((await call(d, 'me', 'POST', ['ai', 'say'], { text: 'шоколадка 90', today: '2026-10-30' })).result).toBe('payment');
+    setAiTransport(async () => '{"result":"payment","ops":[]}');
+    expect((await fail(call(d, 'me', 'POST', ['ai', 'say'], { text: 'привет', today: '2026-10-30' })))?.status).toBe(422);
   });
 });

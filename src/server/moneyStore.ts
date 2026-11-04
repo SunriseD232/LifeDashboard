@@ -22,10 +22,12 @@ export function moneyAllowed(userId: string, login: string | null): boolean {
 }
 
 export function readMoneySettings(d: Database.Database, userId: string): MoneySettings | null {
-  const row = d.prepare('select base_currency, currencies, hidden from money_settings where user_id = ?').get(userId) as
-    | { base_currency: string; currencies: string; hidden: string }
+  const row = d.prepare('select base_currency, currencies, hidden, budget_push, evening_push from money_settings where user_id = ?').get(userId) as
+    | { base_currency: string; currencies: string; hidden: string; budget_push: number; evening_push: string | null }
     | undefined;
-  return row ? { base_currency: row.base_currency, currencies: JSON.parse(row.currencies), hidden: JSON.parse(row.hidden) } : null;
+  return row
+    ? { base_currency: row.base_currency, currencies: JSON.parse(row.currencies), hidden: JSON.parse(row.hidden), budget_push: !!row.budget_push, evening_push: row.evening_push }
+    : null;
 }
 
 /** Условие «счёт виден» для псевдонима alias и параметры к нему. */

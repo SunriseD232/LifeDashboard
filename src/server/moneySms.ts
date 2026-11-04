@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { convert } from '@/lib/money';
 import { parseBankSms, type SmsOp } from '@/lib/moneySms';
+import { merchantCategory, normPayee, samePayee } from '@/lib/moneyMerchants';
 import { userLogin } from '@/lib/auth';
 import { HttpError, text } from './http';
 import { insertOp, opFields } from './moneyOps';
@@ -81,16 +82,28 @@ function plan(d: DB, userId: string, raw: string, defaultAccount: string | null)
     amount = conv;
     orig = { amount_minor: smsMinor, currency: sms.currency };
   }
-  // Категория — как у прошлой операции с тем же местом.
-  const past = sms.payee
-    ? (d
-        .prepare(
-          `select o.category_id from money_ops o join money_categories c on c.id = o.category_id and c.archived = 0
-           where o.user_id = ? and lower(o.payee) = lower(?) and o.kind = ? order by o.day desc limit 1`,
-        )
-        .get(userId, sms.payee, sms.kind) as { category_id: string } | undefined)
-    : undefined;
-  return { sms, account: { id: account.id, name: account.name, currency: account.currency }, amount_minor: amount, orig, category_id: past?.category_id ?? null };
+  return { sms, account: { id: account.id, name: account.name, currency: account.currency }, amount_minor: amount, orig, category_id: guessCategory(d, userId, sms.payee, sms.kind) };
+}
+
+/**
+ * Категория для места: как у прошлой операции там же (сравниваем в JS —
+ * lower() в SQLite не знает кириллицу), иначе по словарю известных мест
+ * («Urent» → «Транспорт»), если такая категория у человека есть.
+ */
+export function guessCategory(d: DB, userId: string, payee: string | null | undefined, kind: 'expense' | 'income' | string): string | null {
+  if (!payee || (kind !== 'expense' && kind !== 'income')) return null;
+  const rows = d
+    .prepare(
+      `select o.payee, o.category_id from money_ops o join money_categories c on c.id = o.category_id and c.archived = 0
+       where o.user_id = ? and o.kind = ? and o.payee is not null order by o.day desc, o.created_at desc limit 2000`,
+    )
+    .all(userId, kind) as { payee: string; category_id: string }[];
+  const past = rows.find((r) => samePayee(r.payee, payee));
+  if (past) return past.category_id;
+  const name = kind === 'expense' ? merchantCategory(payee) : null;
+  if (!name) return null;
+  const cat = d.prepare("select id, name from money_categories where user_id = ? and kind = 'expense' and archived = 0").all(userId) as { id: string; name: string }[];
+  return cat.find((c) => normPayee(c.name) === normPayee(name))?.id ?? null;
 }
 
 /** Проверка из настроек: что получится из этого текста (ничего не записывает). */

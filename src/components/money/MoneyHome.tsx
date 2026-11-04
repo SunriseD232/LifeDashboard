@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { formatMinor, money, parseAmount } from '@/lib/currencies';
-import { localDay } from '@/lib/dates';
+import { localDay, plural } from '@/lib/dates';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
 import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shortDay, type Scope } from './MoneyParts';
@@ -48,6 +48,16 @@ export default function MoneyHome() {
     if (!o || !ids.has(o.account_id)) continue;
     spentTotal += p.base_minor;
     spent.set(p.category_id, (spent.get(p.category_id) ?? 0) + p.base_minor);
+  }
+  // Итог дня: траты сегодня по видимым счетам (в основной валюте, как месяц).
+  const today = localDay();
+  let todaySum = 0;
+  const todayOps = new Set<string>();
+  for (const p of data.month_parts) {
+    const o = opById.get(p.op_id);
+    if (!o || o.day !== today || !ids.has(o.account_id)) continue;
+    todaySum += p.base_minor;
+    todayOps.add(o.id);
   }
   const top = [...spent.entries()].sort((a, b) => (a[0] === null ? 1 : b[0] === null ? -1 : b[1] - a[1])).slice(0, 5);
   const max = Math.max(1, ...top.map(([, v]) => v));
@@ -179,6 +189,15 @@ export default function MoneyHome() {
               <Link className="m-card-link" href="/money/ops">
                 Все<span className="sr-only"> операции</span>
               </Link>
+            </div>
+            <div className="m-today m-small">
+              {todayOps.size ? (
+                <>
+                  Сегодня: <span className="mono">{money(todaySum, base, { whole: true })}</span> · {plural(todayOps.size, 'трата', 'траты', 'трат')}
+                </>
+              ) : (
+                <span className="muted">Сегодня трат пока нет</span>
+              )}
             </div>
             {ops.slice(0, 5).map((o) => (
               <OpRow key={o.id} op={o} accounts={data.accounts} />

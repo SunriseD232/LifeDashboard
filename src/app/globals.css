@@ -1782,6 +1782,7 @@ mark {
   display: flex;
   align-items: flex-end;
   background: var(--scrim);
+  animation: scrim-in 0.24s ease-out both;
 }
 .sheet {
   width: 100%;
@@ -1794,7 +1795,10 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: sheet-in 0.18s ease-out;
+  /* Едет целиком на GPU: без этого на телефоне окно дёргается. */
+  animation: sheet-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform;
+  backface-visibility: hidden;
 }
 .sheet::before {
   content: '';
@@ -1818,12 +1822,17 @@ mark {
 }
 @keyframes sheet-in {
   from {
-    transform: translateY(24px);
-    opacity: 0.6;
+    transform: translate3d(0, 100%, 0);
+  }
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sheet {
+  .sheet,
+  .sheet-scrim {
     animation: none;
   }
 }
@@ -3622,57 +3631,62 @@ button.task-open:hover > span:first-child {
   cursor: pointer;
 }
 .sbar-in-right {
-  animation: sbar-in-right 0.42s cubic-bezier(0.3, 0.7, 0.2, 1);
+  animation: sbar-in-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 .sbar-in-left {
-  animation: sbar-in-left 0.42s cubic-bezier(0.3, 0.7, 0.2, 1);
+  animation: sbar-in-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 .sbar-out-left {
-  animation: sbar-out-left 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+  animation: sbar-out-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform;
 }
 .sbar-out-right {
-  animation: sbar-out-right 0.42s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+  animation: sbar-out-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform;
 }
+/* Сдвиг на translate3d — GPU, без прыжков; ease без «провала» в конце. */
 @keyframes sbar-in-right {
   from {
-    transform: translateX(100%);
+    transform: translate3d(100%, 0, 0);
   }
 }
 @keyframes sbar-in-left {
   from {
-    transform: translateX(-100%);
+    transform: translate3d(-100%, 0, 0);
   }
 }
 @keyframes sbar-out-left {
   to {
-    transform: translateX(-100%);
+    transform: translate3d(-100%, 0, 0);
   }
 }
 @keyframes sbar-out-right {
   to {
-    transform: translateX(100%);
+    transform: translate3d(100%, 0, 0);
   }
 }
 /* Экраны: смена раздела — едет целиком; внутри раздела — короткий сдвиг. */
 @keyframes slide-ctx-right {
   from {
-    transform: translateX(100%);
+    transform: translate3d(100%, 0, 0);
   }
 }
 @keyframes slide-ctx-left {
   from {
-    transform: translateX(-100%);
+    transform: translate3d(-100%, 0, 0);
   }
 }
 @keyframes slide-tab-right {
   from {
-    transform: translateX(48px);
+    transform: translate3d(32px, 0, 0);
     opacity: 0;
   }
 }
 @keyframes slide-tab-left {
   from {
-    transform: translateX(-48px);
+    transform: translate3d(-32px, 0, 0);
     opacity: 0;
   }
 }
@@ -3689,16 +3703,20 @@ button.task-open:hover > span:first-child {
     overflow-x: clip;
   }
   .slide-ctx-right {
-    animation: slide-ctx-right 0.42s cubic-bezier(0.3, 0.7, 0.2, 1);
+    animation: slide-ctx-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform;
   }
   .slide-ctx-left {
-    animation: slide-ctx-left 0.42s cubic-bezier(0.3, 0.7, 0.2, 1);
+    animation: slide-ctx-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform;
   }
   .slide-tab-right {
-    animation: slide-tab-right 0.3s cubic-bezier(0.3, 0.7, 0.2, 1);
+    animation: slide-tab-right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
   }
   .slide-tab-left {
-    animation: slide-tab-left 0.3s cubic-bezier(0.3, 0.7, 0.2, 1);
+    animation: slide-tab-left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform, opacity;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3715,6 +3733,18 @@ button.task-open:hover > span:first-child {
     animation: none;
     display: none;
   }
+}
+
+/* Экранная клавиатура открыта (см. src/lib/keyboard.ts; класс ставит только «Деньги»):
+   нижнее меню прячется, а строка ввода встаёт над клавиатурой. */
+html.kb-open .sbar:not(.typing),
+html.kb-open .m-tabbar {
+  display: none;
+}
+html.kb-open .sbar.typing,
+html.kb-open .m-qbar,
+html.kb-open .m-import-go {
+  bottom: calc(var(--kb, 0px) + 8px);
 }
 
 /* ---------------------------------------------------------------- «Записать» (src/components/Composer.tsx) */
@@ -4537,7 +4567,14 @@ a.hub-tile:hover {
   background: var(--surface);
   box-shadow: 0 20px 60px var(--shadow);
   overflow: hidden;
-  animation: sheet-in 0.18s ease-out;
+  animation: rp-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform, opacity;
+}
+@keyframes rp-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0) scale(0.98);
+  }
 }
 .rp-head {
   display: flex;

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { formatMinor, money, parseAmount } from '@/lib/currencies';
@@ -18,6 +19,8 @@ interface Report {
   prev_spend: number;
   prev_income: number;
   bars: { from: string; to: string; short: string; spend: number; income: number }[];
+  /** Неделя по дням (Пн…Вс); у месяца и года — пусто. */
+  days: { day: string; spend: number }[];
   categories: { id: string | null; name: string; spend: number; prev: number }[];
   payees: { name: string; spend: number; count: number }[];
   missing_rates: string[];
@@ -43,6 +46,8 @@ export default function MoneyReport() {
   const [rep, setRep] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [byDay, setByDay] = useState(false);
+  const [openCat, setOpenCat] = useState<string | null>(null);
 
   useEffect(() => {
     let stop = false;
@@ -118,6 +123,19 @@ export default function MoneyReport() {
                   </>
                 )}
               </div>
+              {period === 'week' && rep.days.length > 0 && (
+                <div className="seg m-seg-small" role="group" aria-label="Как показать неделю" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 8 }}>
+                  <button type="button" aria-pressed={!byDay} onClick={() => setByDay(false)}>
+                    По неделям
+                  </button>
+                  <button type="button" aria-pressed={byDay} onClick={() => setByDay(true)}>
+                    По дням
+                  </button>
+                </div>
+              )}
+              {period === 'week' && byDay && rep.days.length > 0 ? (
+                <DayBars days={rep.days} base={base} />
+              ) : (
               <div className="m-bars" role="group" aria-label="Траты по периодам">
                 {rep.bars.map((b, i) => {
                   const last = i === rep.bars.length - 1;
@@ -141,7 +159,27 @@ export default function MoneyReport() {
                   );
                 })}
               </div>
-              {picked !== null && picked !== rep.bars.length - 1 && <p className="muted m-small" style={{ margin: 0 }}>Нажмите ещё раз — откроется этот период.</p>}
+              )}
+              {!(period === 'week' && byDay) && (() => {
+                // Подпись под столбиками: какой период выбран, с полными датами.
+                const sel = picked ?? rep.bars.length - 1;
+                const bar = rep.bars[sel];
+                return (
+                  <p className="muted m-small" style={{ margin: 0 }} aria-live="polite">
+                    <b>{periodRange(period, bar.from).title}</b>
+                    {' · '}
+                    {money(bar.spend, base, { trim: true })}
+                    {sel === picked && picked !== rep.bars.length - 1 && (
+                      <>
+                        {' · '}
+                        <button className="m-link-btn" type="button" onClick={() => setDay(bar.from)}>
+                          открыть этот период
+                        </button>
+                      </>
+                    )}
+                  </p>
+                );
+              })()}
               {rep.missing_rates.length > 0 && (
                 <p className="m-small" style={{ margin: 0, color: 'var(--warm)' }}>
                   Без операций в {rep.missing_rates.join(', ')}: нет курса (Настройки → Валюты).
@@ -156,18 +194,23 @@ export default function MoneyReport() {
                 .filter((c) => c.spend > 0)
                 .map((c) => {
                   const d = pct(c.spend, c.prev);
+                  const key = c.id ?? 'none';
+                  const isOpen = openCat === key;
                   return (
-                    <div key={c.id ?? '-'} className="m-catbar">
-                      <div className="m-row-between">
-                        <span>
-                          {c.name}
-                          {d !== null && Math.abs(d) >= 10 && <small className={`m-delta ${d > 0 ? 'm-up' : 'm-down'}`}>{signed(d)}</small>}
+                    <div key={key} className="m-catbar">
+                      <button type="button" className="m-catbar-btn" aria-expanded={isOpen} onClick={() => setOpenCat(isOpen ? null : key)}>
+                        <span className="m-row-between">
+                          <span>
+                            {c.name}
+                            {d !== null && Math.abs(d) >= 10 && <small className={`m-delta ${d > 0 ? 'm-up' : 'm-down'}`}>{signed(d)}</small>}
+                          </span>
+                          <span className="mono">{money(c.spend, base, { trim: true })}</span>
                         </span>
-                        <span className="mono">{money(c.spend, base, { trim: true })}</span>
-                      </div>
-                      <div className="bar">
-                        <i style={{ width: `${Math.max(2, Math.round((c.spend / maxCat) * 100))}%` }} />
-                      </div>
+                        <span className="bar">
+                          <i style={{ width: `${Math.max(2, Math.round((c.spend / maxCat) * 100))}%` }} />
+                        </span>
+                      </button>
+                      {isOpen && <CategoryDetail cat={key} name={c.name} period={period} day={day} from={rep.from} scope={scope} base={base} />}
                     </div>
                   );
                 })}
@@ -196,6 +239,85 @@ export default function MoneyReport() {
         {aiOn() && <Ask />}
       </main>
     </>
+  );
+}
+
+const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+/** Неделя по дням: семь столбиков с суммой над каждым непустым. */
+function DayBars({ days, base }: { days: { day: string; spend: number }[]; base: string }) {
+  const max = Math.max(1, ...days.map((x) => x.spend));
+  const today = localDay();
+  return (
+    <div className="m-bars m-bars-days" role="list" aria-label="Траты по дням недели">
+      {days.map((x, i) => (
+        <div key={x.day} role="listitem" className={`m-barcol${x.day === today ? ' now on' : ''}`} aria-label={`${WD[i]}, ${new Date(`${x.day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}: ${money(x.spend, base, { trim: true })}`}>
+          <span className="m-barval mono">{x.spend ? formatMinor(x.spend, base, { whole: true }) : ''}</span>
+          <span className="m-barwrap">
+            <i style={{ height: `${x.spend ? Math.max(3, Math.round((x.spend / max) * 100)) : 0}%` }} />
+          </span>
+          <span className="m-barlbl">
+            {WD[i]}
+            <small>{Number(x.day.slice(8))}</small>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface CatReport {
+  ops: { id: string; day: string; payee: string | null; base_minor: number }[];
+  trend: { from: string; short: string; spend: number }[];
+}
+
+/** Раскрытая категория: 6 месяцев столбиками и её траты за период. */
+function CategoryDetail({ cat, name, period, day, from, scope, base }: { cat: string; name: string; period: Period; day: string; from: string; scope: Scope; base: string }) {
+  const [r, setR] = useState<CatReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    setR(null);
+    api<CatReport>(`money/report/category?cat=${encodeURIComponent(cat)}&period=${period}&day=${day}&scope=${scope}`)
+      .then(setR)
+      .catch((e) => setError((e as Error).message));
+  }, [cat, period, day, scope]);
+  if (error) return <p className="m-error">{error}</p>;
+  if (!r) return <span className="muted m-small">Считаю…</span>;
+  const max = Math.max(1, ...r.trend.map((t) => t.spend));
+  const avg = r.trend.slice(0, 5).reduce((s, t) => s + t.spend, 0) / 5;
+  const last = r.trend[r.trend.length - 1];
+  return (
+    <div className="m-catdetail">
+      <div className="m-bars m-bars-mini" role="list" aria-label={`«${name}» за 6 месяцев`}>
+        {r.trend.map((t, i) => (
+          <div key={t.from} role="listitem" className={`m-barcol${i === r.trend.length - 1 ? ' now on' : ''}`} aria-label={`${t.short}: ${money(t.spend, base, { trim: true })}`}>
+            <span className="m-barwrap">
+              <i style={{ height: `${t.spend ? Math.max(3, Math.round((t.spend / max) * 100)) : 0}%` }} />
+            </span>
+            <span className="m-barlbl">{t.short}</span>
+          </div>
+        ))}
+      </div>
+      {avg > 0 && (
+        <small className="muted">
+          В среднем {money(Math.round(avg), base, { whole: true })} в месяц, в {last.short.toLowerCase()} — {money(last.spend, base, { whole: true })}
+        </small>
+      )}
+      {r.ops.slice(0, 8).map((o) => (
+        <div key={o.id} className="m-kv">
+          <span>
+            <span className="muted m-small">{new Date(`${o.day}T12:00:00`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span> {o.payee || 'Без названия'}
+          </span>
+          <span className="mono">{money(o.base_minor, base, { trim: true })}</span>
+        </div>
+      ))}
+      {!r.ops.length && <small className="muted">За этот период трат нет.</small>}
+      {period !== 'year' && r.ops.length > 0 && (
+        <Link className="m-card-link" href={`/money/ops?cat=${encodeURIComponent(cat)}&month=${from.slice(0, 7)}`}>
+          {r.ops.length > 8 ? `Все ${r.ops.length} в «Операциях»` : 'Открыть в «Операциях»'}
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -375,7 +497,7 @@ function Prices() {
 const EXAMPLES = ['Сколько ушло на кафе за 3 месяца?', 'Где я трачу больше всего?', 'Что подорожало?', 'В каком месяце я потратил больше всего?'];
 
 /** Вопрос ИИ о своих деньгах — по данным за год. */
-function Ask() {
+export function Ask() {
   const [q, setQ] = useState('');
   const [answer, setAnswer] = useState<{ q: string; a: string } | null>(null);
   const [busy, setBusy] = useState(false);

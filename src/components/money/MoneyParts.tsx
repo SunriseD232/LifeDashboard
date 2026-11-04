@@ -6,8 +6,8 @@ import { createPortal } from 'react-dom';
 import { api } from '@/lib/api';
 import { money } from '@/lib/currencies';
 import { addDays, localDay } from '@/lib/dates';
-import { quickParse, type MoneyAccount, type MoneyOp, type OpItemBrief } from '@/lib/money';
-import { needsAi, type MoneyDraft } from '@/lib/moneyAi';
+import { quickParse, type MoneyAccount, type MoneyFrequent, type MoneyOp, type OpItemBrief } from '@/lib/money';
+import { looksLikeQuestion, needsAi, type MoneyDraft } from '@/lib/moneyAi';
 import { Icon } from '../icons';
 import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
@@ -31,9 +31,10 @@ export function Fixed({ children }: { children: React.ReactNode }) {
 }
 
 export function QuickBar() {
-  const { data, openOp, open, aiOn, toast } = useMoney();
+  const { data, openOp, open, aiOn, toast, reload } = useMoney();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
   const photo = useRef<HTMLInputElement>(null);
 
   function local(t: string) {
@@ -58,19 +59,30 @@ export function QuickBar() {
     const t = text.trim();
     if (!t) return openOp(null);
     const p = quickParse(t, data.settings!.base_currency);
-    if (!aiOn() || !needsAi(t, p.amount_minor !== null)) {
+    const asking = looksLikeQuestion(t);
+    // Простая запись («кофе 350») — сразу, без ИИ и без сети.
+    if (!aiOn() || (!asking && !needsAi(t, p.amount_minor !== null))) {
       local(t);
       setText('');
       return;
     }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      if (!asking && p.amount_minor !== null) {
+        local(t);
+        setText('');
+      } else toast('Без сети вопрос не отправится. Траты записывать можно — они уйдут, когда появится связь.');
+      return;
+    }
     setBusy(true);
     try {
-      const res = await api<{ ops: MoneyDraft[] }>('money/ai/text', 'POST', { text: t, today: localDay() });
-      showDrafts(open, res.ops, t);
+      // Одна просьба к ИИ: он сам решает — записать или ответить.
+      const res = await api<{ result: 'payment'; ops: MoneyDraft[] } | { result: 'question'; answer: string; search: string | null }>('money/ai/say', 'POST', { text: t, today: localDay() });
+      if (res.result === 'question') open({ type: 'answer', q: t, a: res.answer, search: res.search });
+      else showDrafts(open, res.ops, t);
       setText('');
     } catch (err) {
       // ИИ не ответил — простой разбор лучше, чем ничего.
-      if (p.amount_minor !== null) {
+      if (!asking && p.amount_minor !== null) {
         local(t);
         setText('');
       } else toast((err as Error).message);
@@ -79,14 +91,59 @@ export function QuickBar() {
     }
   }
 
+  /** Частая трата одним нажатием: сразу записываем, в сообщении — «Отменить». */
+  async function quick(f: MoneyFrequent) {
+    setBusy(true);
+    try {
+      const res = await api<{ id?: string; queued?: boolean }>('money/ops', 'POST', {
+        kind: 'expense',
+        day: localDay(),
+        account_id: f.account_id,
+        amount_minor: f.amount_minor,
+        category_id: f.category_id,
+        payee: f.payee,
+        source: 'text',
+      });
+      await reload();
+      const what = `${f.payee} ${money(f.amount_minor, f.currency, { trim: true })}`;
+      if (res?.queued) toast(`Нет сети — «${what}» отправлю, когда появится`);
+      else
+        toast(`Записано: ${what}`, res?.id
+          ? {
+              label: 'Отменить',
+              run: async () => {
+                await api(`money/ops/${res.id}`, 'DELETE');
+                await reload();
+                toast('Отменено');
+              },
+            }
+          : undefined);
+      (document.activeElement as HTMLElement | null)?.blur();
+    } catch (err) {
+      toast((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const typed = !!text.trim();
+  const frequent = (data.frequent ?? []).filter((f) => data.accounts.some((a) => a.id === f.account_id && !a.archived));
   return (
     <Fixed>
-    <form className="m-qbar" onSubmit={submit} aria-label="Быстрый ввод" aria-busy={busy}>
+    <form className="m-qbar" onSubmit={submit} aria-label="Быстрый ввод" aria-busy={busy} onFocus={() => setFocused(true)} onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setFocused(false)}>
+      {focused && !typed && frequent.length > 0 && (
+        <div className="m-qchips" role="group" aria-label="Частые траты — записать одним нажатием">
+          {frequent.map((f) => (
+            <button key={`${f.payee}|${f.amount_minor}|${f.account_id}`} type="button" className="chip" disabled={busy} onMouseDown={(e) => e.preventDefault()} onClick={() => quick(f)}>
+              {f.payee} <span className="mono">{money(f.amount_minor, f.currency, { trim: true })}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <label htmlFor="m-quick" className="sr-only">
-        Что потратили
+        {aiOn() ? 'Записать трату или спросить о тратах' : 'Что потратили'}
       </label>
-      <input id="m-quick" className="field" type="text" enterKeyHint="done" autoComplete="off" placeholder="Кофе 350, такси 12 € вчера…" value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
+      <input id="m-quick" className="field" type="text" enterKeyHint="done" autoComplete="off" placeholder={aiOn() ? 'Кофе 350 или вопрос о тратах' : 'Кофе 350, такси 12 € вчера…'} value={text} disabled={busy} onChange={(e) => setText(e.target.value)} />
       {!typed && aiOn('receipts') && (
         <>
           <input
@@ -110,7 +167,7 @@ export function QuickBar() {
           <Icon name="mic" size={22} />
         </button>
       )}
-      <button className="icon-btn m-qbar-go" type="submit" disabled={busy} aria-label={typed ? 'Записать' : 'Новая операция'}>
+      <button className="icon-btn m-qbar-go" type="submit" disabled={busy} aria-label={typed ? 'Отправить' : 'Новая операция'}>
         {busy ? <span className="m-spinner m-spinner-light" aria-hidden="true" /> : <Icon name={typed ? 'arrow' : 'plus'} size={22} />}
       </button>
     </form>
