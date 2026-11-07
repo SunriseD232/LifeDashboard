@@ -3702,21 +3702,20 @@ button.task-open:hover > span:first-child {
   body {
     overflow-x: clip;
   }
+  /* Без will-change: он оставался на весь показ страницы и делал обёртку
+     «блоком для фиксированных окон» — шторки счетов и карт ехали мимо экрана.
+     Анимация и так идёт на GPU; will-change не нужен. */
   .slide-ctx-right {
     animation: slide-ctx-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform;
   }
   .slide-ctx-left {
     animation: slide-ctx-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform;
   }
   .slide-tab-right {
     animation: slide-tab-right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
   }
   .slide-tab-left {
     animation: slide-tab-left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: transform, opacity;
   }
 }
 @media (prefers-reduced-motion: reduce) {

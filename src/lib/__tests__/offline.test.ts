@@ -17,7 +17,7 @@ Object.assign(globalThis, {
   },
 });
 
-const { enqueue, flush, outbox, queueable, saveState, loadState, clearOffline } = await import('../offline');
+const { cancelQueued, enqueue, flush, outbox, queueable, saveState, loadState, clearOffline } = await import('../offline');
 
 describe('очередь без сети', () => {
   beforeEach(() => store.clear());
@@ -66,5 +66,27 @@ describe('очередь без сети', () => {
     clearOffline();
     expect(loadState()).toBeNull();
     expect(outbox()).toHaveLength(0);
+  });
+});
+
+describe('операция, созданная без сети, и её удаление', () => {
+  beforeEach(() => store.clear());
+
+  it('удаление до отправки убирает и создание, и правки — ничего не уходит на сервер', () => {
+    const created = enqueue('money/ops', 'POST', { amount_minor: 1000 });
+    enqueue(`money/ops/${created.tempId}`, 'PATCH', { amount_minor: 2000 });
+    expect(cancelQueued(created.tempId!)).toBe(true);
+    expect(outbox()).toEqual([]);
+  });
+
+  it('не трогает чужие записи в очереди', () => {
+    const a = enqueue('money/ops', 'POST', { amount_minor: 1000 });
+    enqueue('money/ops', 'POST', { amount_minor: 5000 });
+    cancelQueued(a.tempId!);
+    expect(outbox().map((q) => (q.body as { amount_minor: number }).amount_minor)).toEqual([5000]);
+  });
+
+  it('если создание уже ушло на сервер — возвращает false', () => {
+    expect(cancelQueued('tmp-unknown')).toBe(false);
   });
 });

@@ -131,10 +131,10 @@ export function readOps(d: Database.Database, userId: string, from: string, to: 
   const items = new Map<string, OpItemBrief[]>();
   const withItems = rows.filter((r) => r.items_count > 0).map((r) => r.id);
   if (withItems.length) {
-    const q = d.prepare('select op_id, name, total_minor from money_items where op_id in (select value from json_each(?)) order by op_id, position');
+    const q = d.prepare('select op_id, name, total_minor, category_id from money_items where op_id in (select value from json_each(?)) order by op_id, position');
     for (const r of q.all(JSON.stringify(withItems)) as ({ op_id: string } & OpItemBrief)[]) {
       const list = items.get(r.op_id) ?? [];
-      list.push({ name: r.name, total_minor: r.total_minor });
+      list.push({ name: r.name, total_minor: r.total_minor, ...(r.category_id ? { category_id: r.category_id } : {}) });
       items.set(r.op_id, list);
     }
   }

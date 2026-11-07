@@ -71,6 +71,8 @@ export interface OpItemBrief {
   name: string;
   /** В валюте чека: orig_currency ?? currency. */
   total_minor: number;
+  /** Категория позиции; пусто — берётся категория операции. */
+  category_id?: string | null;
 }
 
 export interface MoneySettings {

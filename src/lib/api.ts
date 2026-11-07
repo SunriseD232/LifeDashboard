@@ -1,6 +1,6 @@
 'use client';
 
-import { enqueue, queueable } from './offline';
+import { cancelQueued, enqueue, queueable } from './offline';
 
 /** Нет сети (или сервер недоступен) — для понятного текста и офлайна. */
 export class OfflineError extends Error {
@@ -18,6 +18,12 @@ export class OfflineError extends Error {
  * оптимистично и ждёт отправки.
  */
 export async function api<T = unknown>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  // Удаление операции, созданной без сети и ещё не отправленной, — просто
+  // убрать её из очереди: сервер её никогда не увидит, и деньги вернутся.
+  if (method === 'DELETE' && path.startsWith('money/ops/')) {
+    const tmp = path.slice('money/ops/'.length).split('/')[0];
+    if (tmp.startsWith('tmp-') && cancelQueued(tmp)) return { ok: true } as T;
+  }
   // Правка того, что создано без сети и ещё не отправлено, — тоже в очередь,
   // следом за созданием (там подставится настоящий id).
   if (path.includes('tmp-') && queueable(path, method)) {

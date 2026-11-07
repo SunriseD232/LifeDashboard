@@ -66,6 +66,20 @@ export function queueable(path: string, method: string): boolean {
 
 export const isTemp = (id: string) => id.startsWith('tmp-');
 
+/**
+ * Убрать из очереди то, что создано без сети и ещё не отправлено: само
+ * создание и все его правки. Удалили такую операцию — отправлять нечего.
+ * false — в очереди такого нет (уже ушло на сервер).
+ */
+export function cancelQueued(tempId: string): boolean {
+  const list = outbox();
+  const keep = list.filter((q) => q.tempId !== tempId && !q.path.includes(tempId));
+  if (keep.length === list.length) return false;
+  write(OUTBOX, keep);
+  changed();
+  return true;
+}
+
 const listeners = new Set<() => void>();
 export function onOutboxChange(fn: () => void): () => void {
   listeners.add(fn);

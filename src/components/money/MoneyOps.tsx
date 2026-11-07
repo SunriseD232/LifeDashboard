@@ -16,6 +16,15 @@ const FILTERS: { id: 'all' | OpKind; label: string }[] = [
 ];
 
 /** «Сегодня, 30 окт», «Вчера, 29 окт», «Пн, 27 окт». */
+/**
+ * Категории, по которым считается операция в отчёте: у позиций чека — свои
+ * (без своей — категория операции), иначе — категория операции. Как spendParts.
+ */
+function partCategories(o: { category_id: string | null; items?: OpItemBrief[] }): (string | null)[] {
+  if (!o.items?.length) return [o.category_id];
+  return o.items.map((i) => i.category_id ?? o.category_id);
+}
+
 function dayLabel(day: string): string {
   const d = new Date(`${day}T12:00:00`);
   const today = new Date();
@@ -67,7 +76,7 @@ export default function MoneyOps() {
   const hits = new Map<string, OpItemBrief[]>();
   const ops = data.ops.filter((o) => {
     if (!(visible.has(o.account_id) || (o.to_account_id && visible.has(o.to_account_id))) || (filter !== 'all' && o.kind !== filter)) return false;
-    if (cat && o.category_id !== (cat === 'none' ? null : cat)) return false;
+    if (cat && !partCategories(o).includes(cat === 'none' ? null : cat)) return false;
     if (!terms.length) return true;
     if (matchesSearch([o.payee, o.note, o.category_name].filter(Boolean).join(' '), terms)) return true;
     const found = (o.items ?? []).filter((i) => matchesSearch(i.name, terms));

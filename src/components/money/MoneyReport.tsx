@@ -313,7 +313,7 @@ function CategoryDetail({ cat, name, period, day, from, scope, base }: { cat: st
       ))}
       {!r.ops.length && <small className="muted">За этот период трат нет.</small>}
       {period !== 'year' && r.ops.length > 0 && (
-        <Link className="m-card-link" href={`/money/ops?cat=${encodeURIComponent(cat)}&month=${from.slice(0, 7)}`}>
+        <Link className="m-card-link" href={`/money/ops?cat=${encodeURIComponent(cat)}&month=${(r.ops[0]?.day ?? from).slice(0, 7)}`}>
           {r.ops.length > 8 ? `Все ${r.ops.length} в «Операциях»` : 'Открыть в «Операциях»'}
         </Link>
       )}
