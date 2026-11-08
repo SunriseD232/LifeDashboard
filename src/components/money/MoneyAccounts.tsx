@@ -8,6 +8,7 @@ import { ACCOUNT_KINDS, type AccountKind, type MoneyAccount } from '@/lib/money'
 import { Icon } from '../icons';
 import { useSheet } from '../useModalFocus';
 import { useMoney } from './MoneyShell';
+import { Layer } from './MoneyParts';
 
 /** Счета: остатки, итог в основной валюте, добавить и поправить. */
 export default function MoneyAccounts() {
@@ -141,6 +142,7 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
   const box = useRef<HTMLElement>(null);
   useSheet(box, onClose);
   return (
+    <Layer>
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={account ? 'Счёт' : 'Новый счёт'}>
         <div className="sheet-head">
@@ -225,5 +227,6 @@ function AccountSheet({ account, onClose }: { account: MoneyAccount | null; onCl
         )}
       </section>
     </div>
+    </Layer>
   );
 }

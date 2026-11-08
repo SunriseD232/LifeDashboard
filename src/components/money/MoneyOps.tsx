@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { money } from '@/lib/currencies';
-import { matchesSearch, searchTerms, type OpItemBrief, type OpKind } from '@/lib/money';
+import { matchesSearch, searchTerms, type MoneyOp, type OpItemBrief, type OpKind } from '@/lib/money';
 import { Icon } from '../icons';
 import { useMoney } from './MoneyShell';
-import { inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shiftMonth, type Scope } from './MoneyParts';
+import { Fixed, inScope, monthTitle, OpRow, QuickBar, ScopeSwitch, shiftMonth, type Scope } from './MoneyParts';
+import MergeSheet, { mergeBlock } from './MergeSheet';
 
 const FILTERS: { id: 'all' | OpKind; label: string }[] = [
   { id: 'all', label: 'Все' },
@@ -44,6 +45,9 @@ export default function MoneyOps() {
   const [query, setQuery] = useState('');
   // Пришли из ответа ИИ (?q=такси) или из отчёта (?cat=<категория>&month=2026-10).
   const [cat, setCat] = useState<string | null>(null);
+  // Выбор операций, чтобы соединить их в одну; null — обычный режим.
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const [merging, setMerging] = useState(false);
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const qq = p.get('q');
@@ -102,6 +106,8 @@ export default function MoneyOps() {
     if (last?.day === o.day) last.list.push(o);
     else days.push({ day: o.day, list: [o] });
   }
+  // Выбранные — по порядку в списке (старые снизу), даже если фильтр их уже скрыл.
+  const chosen = picked ? data.ops.filter((o) => picked.includes(o.id)) : [];
   const filters = FILTERS.filter((f) => (f.id === 'transfer' ? shown('accounts') : f.id === 'exchange' ? shown('currencies') : true));
 
   return (
@@ -110,6 +116,9 @@ export default function MoneyOps() {
         <h1 className="display m-h1" style={{ flex: 1 }}>
           Операции
         </h1>
+        <button className="btn btn-ghost m-pick-btn" type="button" aria-pressed={!!picked} onClick={() => setPicked(picked ? null : [])}>
+          {picked ? 'Готово' : 'Выбрать'}
+        </button>
         <button className="icon-btn bare m-search" type="button" onClick={openSearch} aria-label="Поиск">
           <Icon name="search" />
         </button>
@@ -154,14 +163,52 @@ export default function MoneyOps() {
             <h2 className="group-title">{dayLabel(g.day)}</h2>
             <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
               {g.list.map((o) => (
-                <OpRow key={o.id} op={o} accounts={data.accounts} found={hits.get(o.id)} />
+                <OpRow
+                  key={o.id}
+                  op={o}
+                  accounts={data.accounts}
+                  found={hits.get(o.id)}
+                  pick={picked ? { on: picked.includes(o.id), toggle: () => setPicked(picked.includes(o.id) ? picked.filter((x) => x !== o.id) : [...picked, o.id]) } : undefined}
+                />
               ))}
             </div>
           </section>
         ))}
         {!days.length && <p className="muted" style={{ textAlign: 'center', margin: '24px 0' }}>{q || cat || filter !== 'all' ? 'Ничего не нашлось.' : 'В этом месяце операций нет.'}</p>}
       </main>
-      <QuickBar />
+      {picked ? <PickBar ops={chosen} onMerge={() => setMerging(true)} onCancel={() => setPicked(null)} /> : <QuickBar />}
+      {merging && chosen.length > 1 && (
+        <MergeSheet
+          ops={chosen}
+          onClose={() => setMerging(false)}
+          onDone={() => {
+            setMerging(false);
+            setPicked(null);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/** Внизу вместо строки ввода, пока выбираем: сколько выбрано, на какую сумму, «Соединить». */
+function PickBar({ ops, onMerge, onCancel }: { ops: MoneyOp[]; onMerge: () => void; onCancel: () => void }) {
+  const block = mergeBlock(ops);
+  const total = ops.reduce((s, o) => s + o.amount_minor, 0);
+  return (
+    <Fixed>
+      <div className="m-qbar m-pickbar" role="region" aria-label="Выбранные операции">
+        <span className="m-pickbar-t" aria-live="polite">
+          <b>{ops.length ? `Выбрано: ${ops.length}` : 'Отметьте операции'}</b>
+          <small className="muted">{!ops.length ? 'которые нужно соединить в одну' : (block ?? money(total, ops[0].currency))}</small>
+        </span>
+        <button className="btn btn-ghost" type="button" onClick={onCancel}>
+          Отмена
+        </button>
+        <button className="btn btn-primary" type="button" disabled={!!block} onClick={onMerge}>
+          Соединить
+        </button>
+      </div>
+    </Fixed>
   );
 }

@@ -30,6 +30,15 @@ export function Fixed({ children }: { children: React.ReactNode }) {
   return ready ? createPortal(children, document.body) : null;
 }
 
+/**
+ * Нижнее окно — прямо в body и сразу, с первого кадра (окна открываются
+ * только нажатием, на сервере их нет): внутри страницы, пока она въезжает
+ * через transform, окно считалось от неё и уезжало вверх.
+ */
+export function Layer({ children }: { children: React.ReactNode }) {
+  return typeof document === 'undefined' ? null : createPortal(children, document.body);
+}
+
 export function QuickBar() {
   const { data, openOp, open, aiOn, toast, reload } = useMoney();
   const [text, setText] = useState('');
@@ -179,7 +188,7 @@ const KIND_ICON: Record<MoneyOp['kind'], string> = { expense: 'cart', income: 'p
 const KIND_LABEL: Record<MoneyOp['kind'], string> = { expense: 'Расход', income: 'Доход', transfer: 'Перевод', exchange: 'Обмен' };
 
 /** Одна операция в списке: что, откуда, сколько. Нажатие — открыть. */
-export function OpRow({ op, accounts, found }: { op: MoneyOp; accounts: MoneyAccount[]; found?: OpItemBrief[] }) {
+export function OpRow({ op, accounts, found, pick }: { op: MoneyOp; accounts: MoneyAccount[]; found?: OpItemBrief[]; pick?: { on: boolean; toggle: () => void } }) {
   const { openOp } = useMoney();
   const from = accounts.find((a) => a.id === op.account_id);
   const to = accounts.find((a) => a.id === op.to_account_id);
@@ -192,9 +201,9 @@ export function OpRow({ op, accounts, found }: { op: MoneyOp; accounts: MoneyAcc
     op.author,
   ].filter(Boolean);
   return (
-    <button type="button" className="m-op" onClick={() => openOp(op)}>
+    <button type="button" className={`m-op${pick?.on ? ' m-op-on' : ''}`} aria-pressed={pick ? pick.on : undefined} onClick={() => (pick ? pick.toggle() : openOp(op))}>
       <span className="m-op-ic">
-        <Icon name={op.debt_id ? 'users' : op.items_count ? 'receipt' : KIND_ICON[op.kind]} />
+        <Icon name={pick?.on ? 'check' : op.debt_id ? 'users' : op.items_count ? 'receipt' : KIND_ICON[op.kind]} />
       </span>
       <span className="m-op-t">
         <b>{title}</b>
@@ -271,6 +280,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   const box = useRef<HTMLElement>(null);
   useSheet(box, onClose);
   return (
+    <Layer>
     <div className="sheet-scrim" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <section ref={box} className="sheet m-sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
@@ -284,6 +294,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         {children}
       </section>
     </div>
+    </Layer>
   );
 }
 

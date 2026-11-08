@@ -154,3 +154,70 @@ export function insertOp(
   if (extra.items?.length) saveItems(d, id, extra.items);
   return id;
 }
+
+/**
+ * Соединить операции в одну. mode 'sum' — сумма = сумма всех (заплатили
+ * частями, две покупки в одном месте), позиции чеков — вместе; 'same' — это
+ * одна и та же покупка, записанная дважды (SMS и чек): остаётся сумма main,
+ * у неё берутся позиции, место и категория, которых ей не хватает. Остальные
+ * операции удаляются. Можно только траты или только доходы в одной валюте.
+ */
+export function mergeOps(d: Ctx['d'], body: Record<string, unknown>, visible: (id: unknown) => { id: string } | undefined): { id: string } {
+  const ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter((x): x is string => typeof x === 'string'))] : [];
+  if (ids.length < 2 || ids.length > 50) throw new HttpError(400, 'Выберите от двух операций.');
+  if (typeof body.main !== 'string' || !ids.includes(body.main)) throw new HttpError(400, 'Какую операцию оставить?');
+  const mode = body.mode === 'same' ? 'same' : 'sum';
+  type Row = {
+    id: string;
+    kind: string;
+    day: string;
+    account_id: string;
+    amount_minor: number;
+    currency: string;
+    orig_amount_minor: number | null;
+    orig_currency: string | null;
+    category_id: string | null;
+    payee: string | null;
+    note: string | null;
+    import_key: string | null;
+    debt_id: string | null;
+  };
+  const get = d.prepare('select * from money_ops where id = ?');
+  const rows = ids.map((id) => {
+    if (!visible(id)) throw new HttpError(404, 'Операция не найдена.');
+    return get.get(id) as Row;
+  });
+  const main = rows.find((r) => r.id === body.main)!;
+  const rest = rows.filter((r) => r !== main);
+  if (!(main.kind === 'expense' || main.kind === 'income') || rows.some((r) => r.kind !== main.kind)) {
+    throw new HttpError(400, 'Соединить можно только траты с тратами или доходы с доходами.');
+  }
+  if (rows.some((r) => r.debt_id)) throw new HttpError(400, 'Операции долга соединять нельзя.');
+  if (rows.some((r) => r.currency !== main.currency)) throw new HttpError(400, 'У операций разные валюты — соединить нельзя.');
+  if (mode === 'same' && rows.some((r) => r.amount_minor !== main.amount_minor)) throw new HttpError(400, 'Суммы разные — это не одна покупка.');
+
+  const amount = mode === 'sum' ? rows.reduce((s, r) => s + r.amount_minor, 0) : main.amount_minor;
+  // Сумма в валюте покупки: в «сложить» — если у всех она в одной валюте; иначе не знаем.
+  let orig = { minor: main.orig_amount_minor, currency: main.orig_currency };
+  if (mode === 'sum') {
+    const same = rows.every((r) => r.orig_currency && r.orig_currency === main.orig_currency && r.orig_amount_minor !== null);
+    orig = same ? { minor: rows.reduce((s, r) => s + (r.orig_amount_minor ?? 0), 0), currency: main.orig_currency } : { minor: null, currency: null };
+  }
+  const firstOf = <K extends keyof Row>(k: K) => main[k] ?? rest.find((r) => r[k] !== null && r[k] !== '')?.[k] ?? null;
+  const notes = [...new Set(rows.map((r) => r.note?.trim()).filter(Boolean))].join('\n') || null;
+
+  const itemsOf = d.prepare('select id from money_items where op_id = ? order by position');
+  const move = d.prepare('update money_items set op_id = ?, position = ? where id = ?');
+  d.transaction(() => {
+    // Позиции: «сложить» — все подряд; «одна покупка» — у main, а нет — первого чека.
+    const sources = mode === 'sum' ? [main, ...rest] : [[main, ...rest].find((r) => itemsOf.all(r.id).length) ?? main];
+    let pos = 0;
+    for (const r of sources) for (const it of itemsOf.all(r.id) as { id: string }[]) move.run(main.id, pos++, it.id);
+    d.prepare(
+      `update money_ops set amount_minor = ?, orig_amount_minor = ?, orig_currency = ?, category_id = ?, payee = ?, note = ?, import_key = ?, updated_at = datetime('now') where id = ?`,
+    ).run(amount, orig.minor, orig.currency, firstOf('category_id'), firstOf('payee'), notes, mode === 'same' ? firstOf('import_key') : main.import_key, main.id);
+    const del = d.prepare('delete from money_ops where id = ?');
+    for (const r of rest) del.run(r.id);
+  })();
+  return { id: main.id };
+}

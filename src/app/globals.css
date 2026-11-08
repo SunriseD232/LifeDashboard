@@ -3702,20 +3702,21 @@ button.task-open:hover > span:first-child {
   body {
     overflow-x: clip;
   }
-  /* Без will-change: он оставался на весь показ страницы и делал обёртку
-     «блоком для фиксированных окон» — шторки счетов и карт ехали мимо экрана.
-     Анимация и так идёт на GPU; will-change не нужен. */
+  /* Без will-change и без заливки «вперёд» (backwards, а не both): иначе
+     transform оставался на обёртке весь показ страницы, она становилась
+     «блоком для фиксированных окон» — шторки счетов и карт уезжали вверх.
+     Окна «Денег» к тому же рисуются прямо в body (Layer в MoneyParts). */
   .slide-ctx-right {
-    animation: slide-ctx-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: slide-ctx-right 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
   .slide-ctx-left {
-    animation: slide-ctx-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: slide-ctx-left 0.36s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
   .slide-tab-right {
-    animation: slide-tab-right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: slide-tab-right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
   .slide-tab-left {
-    animation: slide-tab-left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    animation: slide-tab-left 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
   }
 }
 @media (prefers-reduced-motion: reduce) {

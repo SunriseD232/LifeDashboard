@@ -30,7 +30,7 @@ import { validMapping } from '@/lib/moneyImport';
 import { debts, goals, processRecurring, readDebts, readGoals, readRecurring, recurring } from '../moneyPlans';
 import { dropSmsRefunds, smsCreate, smsDelete, smsPreview, smsSetAccount, smsStatus } from '../moneySms';
 import { moscowDay } from '../moneyRates';
-import { currencyCode, currencyList, insertOp, items, opFields, ownCategory, rememberCurrency, saveItems, settingsRequired, signedMinor } from '../moneyOps';
+import { currencyCode, currencyList, insertOp, items, mergeOps, opFields, ownCategory, rememberCurrency, saveItems, settingsRequired, signedMinor } from '../moneyOps';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
@@ -256,6 +256,8 @@ export async function money({ d, userId, method, body, id: sub, action: id, req 
       })();
       return { id: oid };
     }
+    // Соединить несколько трат в одну (заплатили частями; SMS и чек одной покупки).
+    if (method === 'POST' && id === 'merge') return mergeOps(d, body, (x) => visibleOp(d, userId, x));
     const op = visibleOp(d, userId, id);
     if (!op) throw new HttpError(404, 'Операция не найдена.');
     if (method === 'GET') return { items: readItems(d, op.id) };

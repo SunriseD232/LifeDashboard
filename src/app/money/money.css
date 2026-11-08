@@ -1244,3 +1244,75 @@ a.m-acc {
     display: none;
   }
 }
+
+/* ---------------------------------------------------------------- соединить операции */
+.m-pick-btn {
+  min-height: 36px;
+  padding: 0 12px;
+}
+.m-pick-btn[aria-pressed='true'] {
+  color: var(--accent-ink);
+}
+.m-op-on .m-op-ic {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.m-pickbar {
+  gap: 6px;
+  padding: 6px 6px 6px 14px;
+}
+.m-pickbar-t {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.m-pickbar-t small {
+  font-size: calc(13px * var(--fs));
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.m-pickbar .btn {
+  min-height: 42px;
+  flex: none;
+}
+.m-merge-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.m-merge-row:first-child {
+  border-top: 0;
+}
+.m-merge-modes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.m-merge-modes .m-check {
+  align-items: flex-start;
+  padding: 8px 0;
+}
+.m-merge-modes .m-check input {
+  margin-top: 1px;
+}
+.m-merge-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--soft);
+}
+.m-merge-sum {
+  font-size: calc(22px * var(--fs));
+  font-weight: 600;
+}
