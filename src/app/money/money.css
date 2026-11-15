@@ -203,6 +203,19 @@
 .m-op-t small.m-op-hit {
   color: var(--ink);
 }
+.m-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 14px;
+}
+.m-day-sum {
+  flex: none;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
 .m-search-sum {
   margin: 0;
   font-size: calc(14px * var(--fs));
@@ -985,10 +998,6 @@
 .m-bars-days .m-barlbl small {
   font-size: calc(10px * var(--fs));
   opacity: 0.8;
-}
-.m-seg-small button {
-  min-height: 34px;
-  font-size: calc(13px * var(--fs));
 }
 /* Категория в отчёте — кнопка: раскрывает свои траты и 6 месяцев. */
 .m-catbar-btn {

@@ -74,9 +74,13 @@ export default function MoneyReport() {
         </h1>
       </header>
       <main className="m-main">
-        <div className="seg" role="group" aria-label="Период" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <div className="seg" role="group" aria-label="Период" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {/* «Дни» — та же неделя, но столбиками по дням (Пн…Вс). */}
+          <button type="button" aria-pressed={period === 'week' && byDay} onClick={() => (setPeriod('week'), setByDay(true), setDay(localDay()))}>
+            Дни
+          </button>
           {(['week', 'month', 'year'] as Period[]).map((p) => (
-            <button key={p} type="button" aria-pressed={period === p} onClick={() => (setPeriod(p), setDay(localDay()))}>
+            <button key={p} type="button" aria-pressed={period === p && !byDay} onClick={() => (setPeriod(p), setByDay(false), setDay(localDay()))}>
               {PERIOD_LABEL[p]}
             </button>
           ))}
@@ -123,16 +127,6 @@ export default function MoneyReport() {
                   </>
                 )}
               </div>
-              {period === 'week' && rep.days.length > 0 && (
-                <div className="seg m-seg-small" role="group" aria-label="Как показать неделю" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 8 }}>
-                  <button type="button" aria-pressed={!byDay} onClick={() => setByDay(false)}>
-                    По неделям
-                  </button>
-                  <button type="button" aria-pressed={byDay} onClick={() => setByDay(true)}>
-                    По дням
-                  </button>
-                </div>
-              )}
               {period === 'week' && byDay && rep.days.length > 0 ? (
                 <DayBars days={rep.days} base={base} />
               ) : (

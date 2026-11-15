@@ -160,7 +160,10 @@ export default function MoneyOps() {
         )}
         {days.map((g) => (
           <section key={g.day} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <h2 className="group-title">{dayLabel(g.day)}</h2>
+            <h2 className="group-title m-day-head">
+              <span>{dayLabel(g.day)}</span>
+              <DayTotal list={g.list} />
+            </h2>
             <div className="m-card" style={{ gap: 0, padding: '2px 14px' }}>
               {g.list.map((o) => (
                 <OpRow
@@ -188,6 +191,29 @@ export default function MoneyOps() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * Итог дня в основной валюте: расходы минусом, доходы плюсом (если были).
+ * Переводы и обмены не считаем — это не траты.
+ */
+function DayTotal({ list }: { list: MoneyOp[] }) {
+  const { data, toBase } = useMoney();
+  const base = data.settings!.base_currency;
+  let out = 0;
+  let inc = 0;
+  for (const o of list) {
+    if (o.kind === 'expense') out += toBase(o.amount_minor, o.currency) ?? 0;
+    else if (o.kind === 'income') inc += toBase(o.amount_minor, o.currency) ?? 0;
+  }
+  if (!out && !inc) return null;
+  return (
+    <span className="m-day-sum mono" aria-label={[inc ? `доход ${money(inc, base)}` : '', out ? `расход ${money(out, base)}` : ''].filter(Boolean).join(', ')}>
+      {inc > 0 && <span className="m-pos">{money(inc, base, { sign: true })}</span>}
+      {inc > 0 && out > 0 && ' · '}
+      {out > 0 && money(-out, base)}
+    </span>
   );
 }
 
