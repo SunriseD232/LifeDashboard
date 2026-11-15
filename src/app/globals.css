@@ -2300,6 +2300,12 @@ body:has(.onboarding) {
 .swipe {
   position: relative;
   overflow: hidden;
+  /* Как у .check внутри: фон строки и подсветка — одной формы. */
+  border-radius: 12px;
+}
+/* Строки телефонного списка — сплошные, с линиями между ними. */
+.phone-list .swipe {
+  border-radius: 0;
 }
 .swipe-row {
   position: relative;
